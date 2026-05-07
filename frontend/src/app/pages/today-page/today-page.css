@@ -1,0 +1,134 @@
+.page { max-width: 1200px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.page-title h1 { margin: 0 0 0.2rem; font-size: 2rem; font-weight: 800; color: var(--gray-900); letter-spacing: -0.03em; }
+.page-title p  { margin: 0; color: var(--gray-400); font-size: 0.9rem; }
+
+.controls { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; }
+
+.controls input[type="date"] {
+  padding: 0.5rem 0.85rem;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 9px;
+  font-size: 0.9rem;
+  background: white;
+  color: var(--gray-900);
+  outline: none;
+  transition: border-color 0.15s;
+}
+.controls input[type="date"]:focus { border-color: var(--sky-mid); }
+
+.controls button {
+  padding: 0.5rem 1.1rem;
+  background: linear-gradient(135deg, var(--sky-dark), var(--sky-mid));
+  color: white;
+  border: none;
+  border-radius: 9px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition: opacity 0.15s;
+}
+.controls button:hover { opacity: 0.88; }
+
+/* Hero-Karte */
+.hero-card {
+  background: linear-gradient(135deg, var(--sky-dark) 0%, var(--sky-mid) 100%);
+  border-radius: var(--radius);
+  padding: 2rem 2.5rem;
+  color: white;
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  margin-bottom: 1.25rem;
+  box-shadow: 0 8px 24px rgba(3,105,161,0.3);
+  flex-wrap: wrap;
+}
+
+.hero-icon { font-size: 5rem; line-height: 1; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2)); }
+
+.hero-info { flex: 1; }
+.hero-temp { font-size: 3.5rem; font-weight: 800; letter-spacing: -0.04em; line-height: 1; }
+.hero-feels { font-size: 0.95rem; opacity: 0.8; margin-top: 0.3rem; }
+.hero-desc  { font-size: 1.2rem; font-weight: 600; margin-top: 0.5rem; }
+
+.hero-meta { display: flex; flex-direction: column; gap: 0.5rem; opacity: 0.9; font-size: 0.9rem; }
+.hero-meta span { display: flex; align-items: center; gap: 0.4rem; }
+
+/* Summary-Karten */
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.summary-card {
+  background: white;
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  box-shadow: var(--shadow-sm);
+  border-top: 3px solid transparent;
+}
+.summary-card.precip { border-top-color: var(--blue); }
+.summary-card.wind   { border-top-color: var(--green); }
+.summary-card.date   { border-top-color: var(--amber); }
+
+.summary-card .label { font-size: 0.75rem; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
+.summary-card .value { font-size: 1.5rem; font-weight: 700; color: var(--gray-900); }
+
+/* 7-Tage */
+.forecast-strip {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.forecast-day {
+  background: white;
+  border-radius: var(--radius);
+  padding: 1rem 0.75rem;
+  text-align: center;
+  box-shadow: var(--shadow-sm);
+  border: 1.5px solid transparent;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.forecast-day.today-forecast {
+  border-color: var(--sky-mid);
+  box-shadow: 0 0 0 3px rgba(14,165,233,0.15);
+}
+.forecast-day .fd-day   { font-size: 0.75rem; font-weight: 700; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.4rem; }
+.forecast-day .fd-icon  { font-size: 1.8rem; margin-bottom: 0.4rem; }
+.forecast-day .fd-max   { font-size: 1rem; font-weight: 700; color: var(--gray-900); }
+.forecast-day .fd-min   { font-size: 0.8rem; color: var(--gray-400); }
+.forecast-day .fd-rain  { font-size: 0.75rem; color: var(--blue); margin-top: 0.25rem; }
+
+/* Chart */
+.chart-card {
+  background: white;
+  border-radius: var(--radius);
+  padding: 1.75rem;
+  box-shadow: var(--shadow-sm);
+}
+.chart-card h2 { margin: 0 0 1.25rem; font-size: 1rem; font-weight: 700; color: var(--gray-600); }
+
+.loading { text-align: center; padding: 4rem; color: var(--gray-400); }
+.error { background: #fef2f2; border: 1.5px solid #fca5a5; color: #dc2626; padding: 1rem 1.5rem; border-radius: 10px; margin-bottom: 1.5rem; }
+
+@media (max-width: 700px) {
+  .forecast-strip { grid-template-columns: repeat(4, 1fr); }
+  .hero-card { padding: 1.5rem; }
+  .hero-temp { font-size: 2.5rem; }
+}

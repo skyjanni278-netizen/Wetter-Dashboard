@@ -1,0 +1,114 @@
+<div class="page">
+  <div class="page-header">
+    <div class="page-title">
+      <h1>Wetter Heubach</h1>
+      <p>Ostalbkreis, Baden-Württemberg</p>
+    </div>
+    <div class="controls">
+      <input type="date" aria-label="Datum auswählen" [value]="selectedDate()" (change)="onDateChange($event)" />
+      <button (click)="loadToday()">Heute</button>
+    </div>
+  </div>
+
+  <div aria-live="polite" aria-atomic="true">
+    @if (loading()) { <div class="loading">Daten werden geladen...</div> }
+    @if (error())   { <div class="error">{{ error() }}</div> }
+  </div>
+
+  @if (dayData() && !loading()) {
+    @if (isToday() && currentHourEntry()) {
+      <!-- Hero-Karte (nur heute) -->
+      <div class="hero-card">
+        <div class="hero-icon" aria-hidden="true">{{ getWeatherIcon(currentHourEntry()!.weathercode) }}</div>
+        <div class="hero-info">
+          <div class="hero-temp">{{ currentHourEntry()!.temperature | number:'1.0-1' }}°C</div>
+          <div class="hero-feels">Gefühlt {{ currentHourEntry()!.apparentTemperature | number:'1.0-1' }}°C</div>
+          <div class="hero-desc">{{ getWeatherDescription(currentHourEntry()!.weathercode) }}</div>
+        </div>
+        <div class="hero-meta">
+          <span><span aria-hidden="true">💧</span> {{ totalDayPrecip() | number:'1.1-1' }} mm gesamt</span>
+          <span><span aria-hidden="true">💨</span> {{ currentHourEntry()!.windspeed | number:'1.0-0' }} km/h {{ getWindDirection(currentHourEntry()!.winddirection) }}</span>
+          <span><span aria-hidden="true">📅</span> {{ dayData()!.date }}</span>
+        </div>
+      </div>
+
+      <!-- Zusatz-Karten (nur heute) -->
+      <div class="summary-grid">
+        <div class="summary-card precip">
+          <span class="label">Niederschlag heute</span>
+          <span class="value">{{ totalDayPrecip() | number:'1.1-1' }} mm</span>
+        </div>
+        <div class="summary-card wind">
+          <span class="label">Wind</span>
+          <span class="value">{{ currentHourEntry()!.windspeed | number:'1.0-0' }} km/h</span>
+        </div>
+        <div class="summary-card wind">
+          <span class="label">Windrichtung</span>
+          <span class="value">{{ getWindDirection(currentHourEntry()!.winddirection) }}</span>
+        </div>
+        <div class="summary-card date">
+          <span class="label">Datum</span>
+          <span class="value">{{ dayData()!.date }}</span>
+        </div>
+      </div>
+    }
+
+    @if (!isToday() && noonHourEntry()) {
+      <!-- Tages-Zusammenfassung (vergangene Tage) -->
+      <div class="hero-card">
+        <div class="hero-icon" aria-hidden="true">{{ getWeatherIcon(noonHourEntry()!.weathercode) }}</div>
+        <div class="hero-info">
+          <div class="hero-temp">{{ dayMaxTemp() | number:'1.0-1' }}°C</div>
+          <div class="hero-feels">Min {{ dayMinTemp() | number:'1.0-1' }}°C</div>
+          <div class="hero-desc">{{ getWeatherDescription(noonHourEntry()!.weathercode) }}</div>
+        </div>
+        <div class="hero-meta">
+          <span><span aria-hidden="true">💧</span> {{ totalDayPrecip() | number:'1.1-1' }} mm Niederschlag</span>
+          <span><span aria-hidden="true">🌡️</span> {{ dayTempRange() | number:'1.0-1' }}°C Temperaturschwankung</span>
+          <span><span aria-hidden="true">📅</span> {{ dayData()!.date }}</span>
+        </div>
+      </div>
+
+      <!-- Zusatz-Karten (vergangene Tage) -->
+      <div class="summary-grid">
+        <div class="summary-card precip">
+          <span class="label">Niederschlag gesamt</span>
+          <span class="value">{{ totalDayPrecip() | number:'1.1-1' }} mm</span>
+        </div>
+        <div class="summary-card wind">
+          <span class="label">Höchsttemperatur</span>
+          <span class="value">{{ dayMaxTemp() | number:'1.0-1' }}°C</span>
+        </div>
+        <div class="summary-card wind">
+          <span class="label">Tiefsttemperatur</span>
+          <span class="value">{{ dayMinTemp() | number:'1.0-1' }}°C</span>
+        </div>
+        <div class="summary-card date">
+          <span class="label">Datum</span>
+          <span class="value">{{ dayData()!.date }}</span>
+        </div>
+      </div>
+    }
+
+    <!-- 7-Tage-Vorschau -->
+    @if (forecastWithMeta().length > 0) {
+      <div class="forecast-strip">
+        @for (day of forecastWithMeta(); track day.date) {
+          <div class="forecast-day" [class.today-forecast]="day.isToday">
+            <div class="fd-day">{{ day.dayName }}</div>
+            <div class="fd-icon" aria-hidden="true">{{ getWeatherIcon(day.weathercode) }}</div>
+            <div class="fd-max">{{ day.maxTemp | number:'1.0-0' }}°</div>
+            <div class="fd-min">{{ day.minTemp | number:'1.0-0' }}°</div>
+            <div class="fd-rain">{{ day.precipitation | number:'1.1-1' }} mm</div>
+          </div>
+        }
+      </div>
+    }
+
+    <!-- Diagramm -->
+    <div class="chart-card">
+      <h2>Tagesverlauf – Temperatur &amp; Niederschlag</h2>
+      <app-climate-chart [data]="chartData()" />
+    </div>
+  }
+</div>

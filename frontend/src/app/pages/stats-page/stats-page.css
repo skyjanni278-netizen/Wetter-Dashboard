@@ -1,0 +1,53 @@
+.page { max-width: 1200px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+.page-header { margin-bottom: 2rem; }
+.page-header h1 { margin: 0 0 0.25rem; font-size: 2rem; font-weight: 800; color: var(--gray-900); letter-spacing: -0.03em; }
+.page-header p  { margin: 0; color: var(--gray-400); font-size: 0.9rem; }
+
+.records-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.record-card {
+  background: white;
+  border-radius: var(--radius);
+  padding: 1.75rem;
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  box-shadow: var(--shadow-sm);
+  border-left: 5px solid transparent;
+  transition: box-shadow 0.2s;
+}
+.record-card:hover { box-shadow: var(--shadow-md); }
+.record-card.hot  { border-left-color: #ef4444; }
+.record-card.cold { border-left-color: #818cf8; }
+.record-card.rain { border-left-color: #3b82f6; }
+.record-card.dry  { border-left-color: #f59e0b; }
+
+.record-icon { font-size: 2.5rem; line-height: 1; flex-shrink: 0; }
+
+.record-label { font-size: 0.78rem; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; margin-bottom: 0.35rem; }
+.record-value { font-size: 2rem; font-weight: 800; color: var(--gray-900); letter-spacing: -0.03em; line-height: 1; }
+.record-date  { font-size: 0.85rem; color: var(--gray-400); margin-top: 0.35rem; }
+.record-na    { font-size: 0.9rem; color: var(--gray-400); font-style: italic; }
+
+.total-card {
+  background: linear-gradient(135deg, var(--sky-dark), var(--sky-mid));
+  border-radius: var(--radius);
+  padding: 1.75rem 2rem;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  color: white;
+  box-shadow: 0 8px 24px rgba(3,105,161,0.25);
+}
+.total-icon  { font-size: 2.5rem; }
+.total-value { font-size: 2.5rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1; }
+.total-label { font-size: 0.9rem; opacity: 0.8; margin-top: 0.2rem; }
+
+.loading { text-align: center; padding: 4rem; color: var(--gray-400); }
+.error { background: #fef2f2; border: 1.5px solid #fca5a5; color: #dc2626; padding: 1rem 1.5rem; border-radius: 10px; }

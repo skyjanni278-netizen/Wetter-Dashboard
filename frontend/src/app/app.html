@@ -1,0 +1,22 @@
+<header class="site-header">
+  <div class="header-inner">
+    <div class="logo">
+      <span class="logo-icon" aria-hidden="true">⛅</span>
+      <span class="logo-text">Wetter Heubach</span>
+    </div>
+    <nav class="main-nav">
+      <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}">Heute</a>
+      <a routerLink="/monat" routerLinkActive="active">Monat</a>
+      <a routerLink="/jahr" routerLinkActive="active">Jahr</a>
+      <a routerLink="/statistiken" routerLinkActive="active">Rekorde</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <router-outlet />
+</main>
+
+<footer class="site-footer">
+  <p>Daten: <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a> &mdash; Standort: Heubach, Ostalbkreis</p>
+</footer>

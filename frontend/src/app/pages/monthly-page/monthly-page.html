@@ -1,0 +1,53 @@
+<div class="page">
+  <div class="page-header">
+    <h1>Monatsdiagramm – Heubach</h1>
+    <div class="controls">
+      <select aria-label="Jahr auswählen" [value]="selectedYear()" (change)="onYearChange($event)">
+        @for (y of years; track y) {
+          <option [value]="y">{{ y }}</option>
+        }
+      </select>
+      <select aria-label="Monat auswählen" [value]="selectedMonth()" (change)="onMonthChange($event)">
+        @for (m of months; track m.value) {
+          <option [value]="m.value">{{ m.label }}</option>
+        }
+      </select>
+      <button (click)="loadData()">Laden</button>
+    </div>
+  </div>
+
+  <div aria-live="polite" aria-atomic="true">
+    @if (loading()) {
+      <div class="loading">Daten werden geladen...</div>
+    }
+    @if (error()) {
+      <div class="error">{{ error() }}</div>
+    }
+  </div>
+
+  @if (chartData() && !loading()) {
+    <div class="summary-row">
+      <div class="summary-card">
+        <span class="label">Monat</span>
+        <span class="value">{{ monthName() }} {{ selectedYear() }}</span>
+      </div>
+      <div class="summary-card temp">
+        <span class="label">Ø Temperatur</span>
+        <span class="value">{{ avgTemp() | number:'1.1-1' }} °C</span>
+      </div>
+      <div class="summary-card precip">
+        <span class="label">Gesamtniederschlag</span>
+        <span class="value">{{ totalPrecip() | number:'1.1-1' }} mm</span>
+      </div>
+      <div class="summary-card days">
+        <span class="label">Gespeicherte Tage</span>
+        <span class="value">{{ monthData().length }}</span>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <h2>Klimadiagramm {{ monthName() }} {{ selectedYear() }}</h2>
+      <app-climate-chart [data]="chartData()" />
+    </div>
+  }
+</div>

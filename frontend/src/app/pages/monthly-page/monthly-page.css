@@ -1,0 +1,36 @@
+.page { max-width: 1200px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+.page-header { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 1rem; margin-bottom: 2rem; }
+.page-header h1 { margin: 0; font-size: 2rem; font-weight: 800; color: var(--gray-900); letter-spacing: -0.03em; }
+
+.controls { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; }
+.controls select {
+  padding: 0.5rem 0.85rem; border: 1.5px solid #cbd5e1; border-radius: 9px;
+  font-size: 0.9rem; background: white; color: var(--gray-900); outline: none;
+}
+.controls select:focus { border-color: var(--sky-mid); }
+.controls button {
+  padding: 0.5rem 1.1rem; background: linear-gradient(135deg, var(--sky-dark), var(--sky-mid));
+  color: white; border: none; border-radius: 9px; cursor: pointer; font-size: 0.9rem; font-weight: 600;
+}
+.controls button:hover { opacity: 0.88; }
+
+.summary-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; margin-bottom: 1.25rem; }
+
+.summary-card {
+  background: white; border-radius: var(--radius); padding: 1.25rem 1.5rem;
+  display: flex; flex-direction: column; gap: 0.4rem;
+  box-shadow: var(--shadow-sm); border-top: 3px solid transparent;
+}
+.summary-card.temp   { border-top-color: var(--red); }
+.summary-card.precip { border-top-color: var(--blue); }
+.summary-card.days   { border-top-color: var(--green); }
+
+.summary-card .label { font-size: 0.75rem; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
+.summary-card .value { font-size: 1.5rem; font-weight: 700; color: var(--gray-900); }
+
+.chart-card { background: white; border-radius: var(--radius); padding: 1.75rem; box-shadow: var(--shadow-sm); }
+.chart-card h2 { margin: 0 0 1.25rem; font-size: 1rem; font-weight: 700; color: var(--gray-600); }
+
+.loading { text-align: center; padding: 4rem; color: var(--gray-400); }
+.error { background: #fef2f2; border: 1.5px solid #fca5a5; color: #dc2626; padding: 1rem 1.5rem; border-radius: 10px; margin-bottom: 1.5rem; }

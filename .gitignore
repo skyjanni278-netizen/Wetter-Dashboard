@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+
+# TypeScript compiled output
+backend/dist/
+
+# Angular build output
+frontend/dist/
+frontend/.angular/
+
+# Runtime weather data (wird vom Scheduler generiert)
+backend/data/
+
+# Logs
+backend/backend.log
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

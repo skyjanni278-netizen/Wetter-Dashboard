@@ -1,0 +1,75 @@
+<div class="page">
+  <div class="page-header">
+    <h1>Rekorde &amp; Statistiken</h1>
+    <p>Heubach, Ostalbkreis — aus {{ stats()?.totalDays ?? 0 }} gespeicherten Tagen</p>
+  </div>
+
+  @if (loading()) { <div class="loading">Daten werden geladen...</div> }
+  @if (error())   { <div class="error">{{ error() }}</div> }
+
+  @if (stats() && !loading()) {
+    <div class="records-grid">
+
+      <div class="record-card hot">
+        <div class="record-icon" aria-hidden="true">🌡️</div>
+        <div class="record-body">
+          <div class="record-label">Heißester Tag</div>
+          @if (stats()!.hottestDay) {
+            <div class="record-value">{{ stats()!.hottestDay!.value | number:'1.1-1' }} °C</div>
+            <div class="record-date">{{ formatDate(stats()!.hottestDay!.date) }}</div>
+          } @else {
+            <div class="record-na">Noch keine Daten</div>
+          }
+        </div>
+      </div>
+
+      <div class="record-card cold">
+        <div class="record-icon" aria-hidden="true">❄️</div>
+        <div class="record-body">
+          <div class="record-label">Kältester Tag</div>
+          @if (stats()!.coldestDay) {
+            <div class="record-value">{{ stats()!.coldestDay!.value | number:'1.1-1' }} °C</div>
+            <div class="record-date">{{ formatDate(stats()!.coldestDay!.date) }}</div>
+          } @else {
+            <div class="record-na">Noch keine Daten</div>
+          }
+        </div>
+      </div>
+
+      <div class="record-card rain">
+        <div class="record-icon" aria-hidden="true">🌧️</div>
+        <div class="record-body">
+          <div class="record-label">Regenreichster Tag</div>
+          @if (stats()!.rainiestDay) {
+            <div class="record-value">{{ stats()!.rainiestDay!.value | number:'1.1-1' }} mm</div>
+            <div class="record-date">{{ formatDate(stats()!.rainiestDay!.date) }}</div>
+          } @else {
+            <div class="record-na">Noch keine Daten</div>
+          }
+        </div>
+      </div>
+
+      <div class="record-card dry">
+        <div class="record-icon" aria-hidden="true">☀️</div>
+        <div class="record-body">
+          <div class="record-label">Längste Trockenperiode</div>
+          @if (stats()!.driestStreak) {
+            <div class="record-value">{{ stats()!.driestStreak!.days }} Tage</div>
+            <div class="record-date">{{ formatDate(stats()!.driestStreak!.from) }} – {{ formatDate(stats()!.driestStreak!.to) }}</div>
+          } @else {
+            <div class="record-na">Noch keine Daten</div>
+          }
+        </div>
+      </div>
+
+    </div>
+
+    <div class="total-card">
+      <span class="total-icon" aria-hidden="true">📊</span>
+      <div>
+        <div class="total-value">{{ stats()!.totalDays }}</div>
+        <div class="total-label">Gespeicherte Messtage insgesamt</div>
+      </div>
+    </div>
+  }
+</div>
