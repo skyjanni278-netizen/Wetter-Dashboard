@@ -5,11 +5,24 @@
       <p>Ostalbkreis, Baden-Württemberg</p>
     </div>
     <div class="controls">
+      <button class="nav-btn" (click)="loadPreviousDay()" aria-label="Vorheriger Tag">&#8249;</button>
       <input type="date" aria-label="Datum auswählen" [value]="selectedDate()" (change)="onDateChange($event)" />
+      <button class="nav-btn" (click)="loadNextDay()" [disabled]="isToday() || isFuture()" aria-label="Nächster Tag">&#8250;</button>
       <button (click)="loadToday()">Heute</button>
     </div>
   </div>
 
+  @if (isFuture()) {
+    <div class="future-notice">
+      <span class="fn-icon" aria-hidden="true">🔮</span>
+      <div>
+        <strong>{{ selectedDate() }}</strong>
+        <p>Für dieses Datum liegen noch keine Messdaten vor.</p>
+      </div>
+    </div>
+  }
+
+  @if (!isFuture()) {
   <div aria-live="polite" aria-atomic="true">
     @if (loading()) { <div class="loading">Daten werden geladen...</div> }
     @if (error())   { <div class="error">{{ error() }}</div> }
@@ -111,4 +124,5 @@
       <app-climate-chart [data]="chartData()" />
     </div>
   }
+  } <!-- Ende @if (!isFuture()) -->
 </div>

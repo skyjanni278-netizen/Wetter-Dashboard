@@ -28,7 +28,8 @@ export class TodayPageComponent implements OnInit {
   loading = signal(false);
   error = signal<string | null>(null);
 
-  isToday = computed(() => this.selectedDate() === new Date().toISOString().slice(0, 10));
+  isToday  = computed(() => this.selectedDate() === new Date().toISOString().slice(0, 10));
+  isFuture = computed(() => this.selectedDate() >   new Date().toISOString().slice(0, 10));
 
   currentHourEntry = computed(() => {
     const data = this.dayData();
@@ -103,10 +104,35 @@ export class TodayPageComponent implements OnInit {
     this.loadData(today);
   }
 
+  loadPreviousDay(): void {
+    const d = new Date(this.selectedDate() + 'T12:00:00');
+    d.setDate(d.getDate() - 1);
+    const date = d.toISOString().slice(0, 10);
+    this.selectedDate.set(date);
+    this.loadData(date);
+  }
+
+  loadNextDay(): void {
+    const d = new Date(this.selectedDate() + 'T12:00:00');
+    d.setDate(d.getDate() + 1);
+    const date = d.toISOString().slice(0, 10);
+    const today = new Date().toISOString().slice(0, 10);
+    if (date > today) return;
+    this.selectedDate.set(date);
+    this.loadData(date);
+  }
+
   private loadData(date: string): void {
+    const today = new Date().toISOString().slice(0, 10);
+    if (date > today) {
+      this.dayData.set(null);
+      this.error.set(null);
+      this.loading.set(false);
+      return;
+    }
     this.loading.set(true);
     this.error.set(null);
-    const obs = date === new Date().toISOString().slice(0, 10)
+    const obs = date === today
       ? this.weather.getToday()
       : this.weather.getDay(date);
     obs.subscribe({
