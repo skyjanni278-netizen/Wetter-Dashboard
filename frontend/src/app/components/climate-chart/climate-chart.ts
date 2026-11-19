@@ -49,6 +49,9 @@ export class ClimateChartComponent implements AfterViewInit, OnChanges, OnDestro
 
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const d = this.data;
+    const token = (name: string): string =>
+      getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    const gridColor = token('--chart-grid');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     this.chart = new Chart(ctx, {
       type: 'bar',
@@ -59,8 +62,8 @@ export class ClimateChartComponent implements AfterViewInit, OnChanges, OnDestro
             type: 'bar',
             label: 'Niederschlag (mm)',
             data: d.precipitations,
-            backgroundColor: 'rgba(54, 162, 235, 0.6)',
-            borderColor: 'rgba(54, 162, 235, 1)',
+            backgroundColor: token('--chart-precip'),
+            borderColor: token('--chart-precip'),
             borderWidth: 1,
             yAxisID: 'y',
             order: 2,
@@ -69,8 +72,8 @@ export class ClimateChartComponent implements AfterViewInit, OnChanges, OnDestro
             type: 'line',
             label: 'Temperatur (°C)',
             data: d.temperatures,
-            borderColor: 'rgba(255, 99, 132, 1)',
-            backgroundColor: 'rgba(255, 99, 132, 0.1)',
+            borderColor: token('--chart-temp'),
+            backgroundColor: token('--chart-temp'),
             borderWidth: 2,
             pointRadius: 4,
             tension: 0.3,
@@ -91,12 +94,12 @@ export class ClimateChartComponent implements AfterViewInit, OnChanges, OnDestro
           legend: { position: 'top' },
         },
         scales: {
-          x: { grid: { color: '#e0e0e0' } },
+          x: { grid: { color: gridColor } },
           y: {
             type: 'linear',
             position: 'left',
             title: { display: true, text: 'Niederschlag (mm)' },
-            grid: { color: '#e0e0e0' },
+            grid: { color: gridColor },
             min: 0,
           },
           y2: {

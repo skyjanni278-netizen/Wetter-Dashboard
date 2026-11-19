@@ -1,0 +1,206 @@
+/* ==========================================================================
+   tokens.css – Wetter-Dashboard Heubach
+   Einzige Datei mit festen Farb- und Schriftwerten.
+   Kontraste (WCAG 2.2) siehe docs/umbau/02-verbesserungen-und-design.md, E3.3
+   ========================================================================== */
+
+/* ---------- 1. Schriften, lokal als woff2 (SIL Open Font License 1.1) ---------- */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/assets/fonts/inter-latin-wght-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 500 700;
+  font-display: swap;
+  src: url('/assets/fonts/space-grotesk-latin-wght-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+:root {
+  /* ---------- 2. Farben: Vorgabe ---------- */
+  --color-bg: #F4F2EE;
+  --color-surface: #FBFAF7;
+  --color-surface-muted: #EDE8E0;
+  --color-text: #1B1F24;
+  --color-text-muted: #3E434A;
+  --color-text-subtle: #5A5F66;
+  --color-border: #D6D1C7;          /* nur Struktur/Deko: 1,36–1,46:1 */
+  --color-border-strong: #C9C3B8;   /* nur Struktur/Deko: 1,44–1,68:1 */
+  --color-accent: #C2571A;          /* nur große Schrift, Fokus, Diagramm: 3,69–4,31:1 */
+  --color-accent-bright: #E8772E;   /* nur Kanten/Linien hell; Text nur auf Dunkel */
+
+  /* ---------- 3. Farben: Ergänzungen ---------- */
+  /* Dunklere Akzentstufe für kleinen Text und Links: 5,60 / 6,00 / 5,13:1 */
+  --color-accent-strong: #A04512;
+  --color-accent-strong-hover: #8A3B0F;   /* 6,35–7,42:1 */
+  --color-accent-strong-active: #74310C;  /* 7,87–9,20:1 */
+  --color-on-accent: #FBFAF7;             /* Text auf accent-strong: 6,00:1 */
+
+  /* Rahmen, der ein Bedienelement erkennbar macht (Felder, Sekundärbutton): 3,64–4,26:1 */
+  --color-border-control: #7D776C;
+
+  /* Fokus: >= 3,69:1 gegen bg / surface / surface-muted */
+  --color-focus: #C2571A;
+  --focus-width: 3px;
+  --focus-offset: 2px;
+
+  /* Status */
+  --color-danger: #A3242B;          /* 6,05–7,07:1; auf danger-bg 6,15:1 */
+  --color-danger-bg: #F7E7E4;
+  --color-success: #2F6A3B;         /* 5,31–6,20:1; auf success-bg 5,45:1 */
+  --color-success-bg: #E6EEE2;
+  --color-notice: #A04512;          /* = accent-strong; Hinweis/Vorhersage-Kicker */
+  --color-notice-line: #E8772E;     /* = accent-bright; 4px-Linie, Deko */
+  --color-notice-bg: #EDE8E0;       /* = surface-muted */
+  --color-skeleton: #EDE8E0;        /* Deko, 1,17:1 gegen surface */
+
+  /* Rohwerte für dunkle Bereiche (angewendet über .surface-dark) */
+  --dark-bg: #1B1F24;
+  --dark-surface-hover: #262B31;
+  --dark-text: #F4F2EE;             /* 14,81 / 12,76:1 */
+  --dark-text-muted: #D6D1C7;       /* 10,89 / 9,38:1 */
+  --dark-text-subtle: #C9C3B8;      /*  9,45 / 8,14:1 */
+  --dark-accent: #E8772E;           /*  5,61 / 4,83:1 */
+  --dark-accent-hover: #F09A5C;     /*  7,48:1 */
+  --dark-accent-active: #F4B382;    /*  Text #1B1F24 darauf 9,16:1 */
+  --dark-border: #3A4047;           /* Deko, 1,58:1 */
+
+  /* ---------- 4. Diagramm (Chart.js liest die Werte per getComputedStyle) ---------- */
+  --chart-temp: #C2571A;            /* Linie: 4,31:1 auf surface, 3,69:1 im Vorhersageband */
+  --chart-precip: #3D6A8A;          /* Balken: 5,55:1 auf surface, 4,75:1 im Band */
+  --chart-compare: #5A5F66;         /* Vorjahr (N06), gestrichelt: 6,16:1 */
+  --chart-forecast-band: #EDE8E0;   /* Hintergrund Vorhersagebereich, Deko */
+  --chart-forecast-dash: 6 4;       /* borderDash der Vorhersagelinie in px */
+  --chart-grid: #D6D1C7;            /* Gitter, Deko */
+  --chart-axis: #5A5F66;            /* Achsenlinie und Ticks: 6,16:1 */
+  --chart-now: #1B1F24;             /* Linie "Jetzt": 15,87:1 */
+  --chart-tooltip-bg: #1B1F24;
+  --chart-tooltip-text: #F4F2EE;    /* 14,81:1 */
+
+  /* ---------- 5. Schrift ---------- */
+  --font-heading: 'Space Grotesk', sans-serif;
+  --font-body: 'Inter', sans-serif;
+
+  --fs-xs: 0.75rem;                                       /* 12px */
+  --fs-sm: 0.875rem;                                      /* 14px */
+  --fs-base: 1rem;                                        /* 16px */
+  --fs-md: clamp(1.125rem, 1.021rem + 0.442vw, 1.375rem); /* 18 -> 22px */
+  --fs-lg: clamp(1.5rem, 1.189rem + 1.326vw, 2.25rem);    /* 24 -> 36px */
+  --fs-xl: clamp(2.5rem, 1.878rem + 2.652vw, 4rem);       /* 40 -> 64px */
+
+  --lh-tight: 1.1;
+  --lh-heading: 1.25;
+  --lh-body: 1.5;
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+  --tracking-kicker: 0.08em;
+  --tracking-heading: -0.01em;
+
+  /* ---------- 6. Abstände ---------- */
+  --space-1: 0.25rem;  /*  4px */
+  --space-2: 0.5rem;   /*  8px */
+  --space-3: 1rem;     /* 16px */
+  --space-4: 1.5rem;   /* 24px */
+  --space-5: 2rem;     /* 32px */
+  --space-6: 3rem;     /* 48px */
+  --space-7: 4rem;     /* 64px */
+
+  /* ---------- 7. Layout ---------- */
+  --content-max: 75rem;           /* 1200px, wie bisher (app.css:12) */
+  --page-margin: var(--space-3);  /* mobil 16px */
+  --gutter: var(--space-3);       /* mobil 16px */
+  --target-min: 2.75rem;          /* 44px Klickfläche */
+
+  /* ---------- 8. Radien und Linien ---------- */
+  --radius: 8px;                  /* ersetzt das alte --radius: 14px (styles.css:42) */
+  --radius-pill: 999px;
+  --line: 1px;
+  --line-strong: 2px;
+  --edge-card: 6px;
+  --edge-notice: 4px;
+
+  /* ---------- 9. Bewegung ---------- */
+  --motion-duration: 0.5s;
+  --motion-distance: 16px;
+  --motion-stagger: 80ms;
+  --motion-stagger-max: 5;        /* 5 x 80ms + 500ms = 900ms < 1s */
+  --motion-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --motion-fast: 150ms;           /* Hover-Übergänge */
+}
+
+/* Tablet und größer: mehr Rand und Gutter (48em = 768px) */
+@media (min-width: 48em) {
+  :root {
+    --page-margin: var(--space-5);
+    --gutter: var(--space-4);
+  }
+}
+
+/* ---------- 10. Dunkler Bereich: Header, Footer, Hero ----------
+   Eigenschaften, die in :root per Wert gesetzt sind, werden hier neu gesetzt,
+   weil var() in :root bereits aufgelöst vererbt wird.
+   Regel: Fehler- und Erfolgsboxen sowie Formularfelder kommen in .surface-dark
+   nicht vor. danger, danger-bg, success, success-bg, border-control und accent
+   werden deshalb hier nicht überschrieben (danger #A3242B auf #1B1F24 nur 2,24:1). */
+.surface-dark {
+  --color-bg: var(--dark-bg);
+  --color-surface: var(--dark-bg);
+  --color-surface-muted: var(--dark-surface-hover);
+  --color-text: var(--dark-text);
+  --color-text-muted: var(--dark-text-muted);
+  --color-text-subtle: var(--dark-text-subtle);
+  --color-border: var(--dark-border);
+  --color-border-strong: var(--dark-border);
+  --color-accent-strong: var(--dark-accent);
+  --color-accent-strong-hover: var(--dark-accent-hover);
+  --color-accent-strong-active: var(--dark-accent-active);
+  --color-on-accent: var(--dark-bg);
+  --color-notice: var(--dark-accent);
+  --color-notice-line: var(--dark-accent);
+  --color-notice-bg: var(--dark-surface-hover);
+  --color-skeleton: var(--dark-surface-hover);
+  --color-focus: var(--dark-accent);   /* 5,61:1 auf #1B1F24, 4,83:1 auf #262B31 */
+  background-color: var(--color-bg);
+  color: var(--color-text);
+}
+
+/* ---------- 11. Einblenden ---------- */
+@keyframes reveal-up {
+  from { opacity: 0; transform: translateY(var(--motion-distance)); }
+  to   { opacity: 1; transform: none; }
+}
+
+.reveal {
+  animation: reveal-up var(--motion-duration) var(--motion-ease) both;
+  animation-delay: calc(min(var(--reveal-index, 0), var(--motion-stagger-max)) * var(--motion-stagger));
+}
+
+/* ---------- 12. Reduzierte Bewegung ---------- */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-duration: 0s;
+    --motion-distance: 0px;
+    --motion-stagger: 0ms;
+    --motion-fast: 0ms;
+  }
+  .reveal { animation: none; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

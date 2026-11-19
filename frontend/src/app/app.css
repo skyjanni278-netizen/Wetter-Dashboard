@@ -1,11 +1,11 @@
 .site-header {
   background: linear-gradient(135deg, var(--sky-dark) 0%, var(--sky-mid) 60%, var(--sky-light) 100%);
-  color: white;
+  color: var(--color-on-accent);
   padding: 0 1.5rem;
   position: sticky;
   top: 0;
   z-index: 100;
-  box-shadow: 0 2px 16px rgba(3, 105, 161, 0.35);
+  box-shadow: none;
 }
 
 .header-inner {
@@ -31,13 +31,13 @@
 .main-nav {
   display: flex;
   gap: 0.25rem;
-  background: rgba(255,255,255,0.15);
+  background: var(--color-accent-strong-hover);
   border-radius: 10px;
   padding: 0.25rem;
 }
 
 .main-nav a {
-  color: rgba(255,255,255,0.85);
+  color: var(--color-on-accent);
   text-decoration: none;
   padding: 0.4rem 1.1rem;
   border-radius: 7px;
@@ -51,12 +51,12 @@
 }
 
 .main-nav a:hover {
-  background: rgba(255,255,255,0.2);
-  color: white;
+  background: var(--color-accent-strong-active);
+  color: var(--color-on-accent);
 }
 
 .main-nav a.active {
-  background: white;
+  background: var(--color-surface);
   color: var(--sky-dark);
   font-weight: 600;
 }
@@ -89,15 +89,15 @@
 
 main {
   min-height: calc(100vh - 116px);
-  background: #f0f9ff;
+  background: var(--color-bg);
 }
 
 .site-footer {
   background: var(--sky-dark);
-  color: rgba(255,255,255,0.55);
+  color: var(--color-on-accent);
   text-align: center;
   padding: 1rem;
   font-size: 0.82rem;
 }
 
-.site-footer a { color: rgba(255,255,255,0.75); }
+.site-footer a { color: var(--color-on-accent); }

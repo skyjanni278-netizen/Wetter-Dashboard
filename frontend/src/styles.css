@@ -1,45 +1,72 @@
 *, *::before, *::after { box-sizing: border-box; }
 
-:focus-visible {
-  outline: 3px solid #1B1F24;      /* innen, direkt am Element */
-  outline-offset: 0;
-  box-shadow: 0 0 0 5px #FFFFFF;   /* 2 px weißer Saum außerhalb des Rings */
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
-}
-
-button, input, select, textarea { font: inherit; }
+html { color-scheme: light; }
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: #f0f9ff;
-  color: #0f172a;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: var(--fw-regular) var(--fs-base) / var(--lh-body) var(--font-body);
 }
 
+h1, h2, h3 {
+  font-family: var(--font-heading);
+  line-height: var(--lh-heading);
+  letter-spacing: var(--tracking-heading);
+  margin: 0 0 var(--space-3);
+}
+
+h1 { font-size: var(--fs-lg); font-weight: var(--fw-bold); }
+h2 { font-size: var(--fs-md); font-weight: var(--fw-semibold); }
+
+a { color: var(--color-accent-strong); text-underline-offset: 0.2em; }
+a:hover { color: var(--color-accent-strong-hover); text-decoration-thickness: 2px; }
+
+/* Übergang bis Teil 1b: zweifarbiger Fokusring aus Schritt 0.2, jetzt aus Tokens */
+:focus-visible {
+  outline: 3px solid var(--color-text);          /* innen, direkt am Element */
+  outline-offset: 0;
+  box-shadow: 0 0 0 5px var(--color-surface);    /* 2 px heller Saum außerhalb des Rings */
+}
+
+button, input, select, textarea { font: inherit; color: inherit; }
+
+.kicker {
+  font: var(--fw-semibold) var(--fs-xs) / 1.3 var(--font-body);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-kicker);
+  color: var(--color-accent-strong);
+}
+
+.num { font-variant-numeric: tabular-nums; }
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Alias-Variablen: alte Namen zeigen bis zum Seitenumbau auf die neuen Tokens (E3.10).
+   --radius hat denselben Namen und kommt direkt aus tokens.css. */
 :root {
-  --sky-dark:   #0369a1;
-  --sky-mid:    #0ea5e9;
-  --sky-light:  #38bdf8;
-  --sky-pale:   #e0f2fe;
-  --white:      #ffffff;
-  --gray-50:    #f8fafc;
-  --gray-100:   #f1f5f9;
-  --gray-400:   #94a3b8;
-  --gray-600:   #475569;
-  --gray-900:   #0f172a;
-  --red:        #ef4444;
-  --blue:       #3b82f6;
-  --green:      #10b981;
-  --amber:      #f59e0b;
-  --purple:     #8b5cf6;
-  --shadow-sm:  0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
-  --shadow-md:  0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.05);
-  --radius:     14px;
+  --sky-dark:   var(--color-accent-strong);
+  --sky-mid:    var(--color-focus);
+  --sky-light:  var(--color-accent-bright);
+  --sky-pale:   var(--color-surface-muted);
+  --white:      var(--color-surface);
+  --gray-50:    var(--color-bg);
+  --gray-100:   var(--color-surface-muted);
+  --gray-400:   var(--color-text-subtle);
+  --gray-600:   var(--color-text-muted);
+  --gray-900:   var(--color-text);
+  --red:        var(--color-accent-bright);
+  --blue:       var(--color-accent-bright);
+  --green:      var(--color-accent-bright);
+  --amber:      var(--color-accent-bright);
+  --purple:     var(--color-accent-bright);
+  --shadow-sm:  none;
+  --shadow-md:  none;
 }
