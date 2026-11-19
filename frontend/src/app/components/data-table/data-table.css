@@ -47,9 +47,14 @@ tbody tr:hover { background-color: var(--color-surface-muted); }
 .cell-end { text-align: right; }
 tbody .cell-end { white-space: nowrap; }
 
+.cell-icon { margin-right: var(--space-1); }
+
 .cell-empty { color: var(--color-text-subtle); }
 
 @media (max-width: 47.99em) {
   table { font-size: var(--fs-sm); }
   th, td { padding-inline: var(--space-1); }
+
+  /* Wettertext unter dem Symbol */
+  .cell-icon { display: block; margin-right: 0; }
 }

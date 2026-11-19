@@ -194,25 +194,3 @@ app-card.chart-card { padding-inline: var(--space-2); }
 @media (min-width: 48em) {
   app-card.chart-card { padding-inline: var(--space-4); }
 }
-
-/* Alias-Variablen: alte Namen zeigen bis zum Seitenumbau auf die neuen Tokens (E3.10).
-   --radius hat denselben Namen und kommt direkt aus tokens.css. */
-:root {
-  --sky-dark:   var(--color-accent-strong);
-  --sky-mid:    var(--color-focus);
-  --sky-light:  var(--color-accent-bright);
-  --sky-pale:   var(--color-surface-muted);
-  --white:      var(--color-surface);
-  --gray-50:    var(--color-bg);
-  --gray-100:   var(--color-surface-muted);
-  --gray-400:   var(--color-text-subtle);
-  --gray-600:   var(--color-text-muted);
-  --gray-900:   var(--color-text);
-  --red:        var(--color-accent-bright);
-  --blue:       var(--color-accent-bright);
-  --green:      var(--color-accent-bright);
-  --amber:      var(--color-accent-bright);
-  --purple:     var(--color-accent-bright);
-  --shadow-sm:  none;
-  --shadow-md:  none;
-}

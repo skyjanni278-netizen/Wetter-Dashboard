@@ -59,6 +59,14 @@ export class TodayPageComponent implements OnInit {
     { key: 'rain', label: 'Nieder\u00ADschlag', align: 'end' },
   ];
 
+  /** Schmale Variante unter 48em: Max/Min zusammen, vier Spalten. */
+  readonly forecastColumnsNarrow: DataTableColumn[] = [
+    { key: 'day', label: 'Tag', rowHeader: true },
+    { key: 'weather', label: 'Wetter' },
+    { key: 'maxmin', label: 'Max / Min', align: 'end' },
+    { key: 'rain', label: 'Nieder\u00ADschlag', align: 'end' },
+  ];
+
   /** Grenzen des Datumsfelds (V12, F19). */
   readonly minDate = DATA_START;
   readonly maxDate = berlinToday();
@@ -189,11 +197,14 @@ export class TodayPageComponent implements OnInit {
     this.forecast().map(f => {
       const [, month, day] = f.date.split('-');
       const label = `${DAY_NAMES[new Date(f.date + 'T12:00:00').getDay()]} ${day}.${month}.`;
+      const max = this.unitPipe.transform(f.maxTemp, '°', '1.0-0');
+      const min = this.unitPipe.transform(f.minTemp, '°', '1.0-0');
       return {
         day: f.date === berlinToday() ? 'Heute' : label,
-        weather: `${getWeatherIcon(f.weathercode)} ${describeWeather(f.weathercode)}`,
-        max: this.unitPipe.transform(f.maxTemp, '°', '1.0-0'),
-        min: this.unitPipe.transform(f.minTemp, '°', '1.0-0'),
+        weather: { icon: getWeatherIcon(f.weathercode), text: describeWeather(f.weathercode) },
+        max,
+        min,
+        maxmin: `${max} / ${min}`,
         rain: this.unitPipe.transform(f.precipitation, 'mm', '1.1-1'),
       };
     })

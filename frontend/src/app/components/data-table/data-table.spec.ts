@@ -67,4 +67,32 @@ describe('DataTableComponent', () => {
     expect(cell.textContent?.trim()).toBe('Keine Werte vorhanden.');
     expect(cell.getAttribute('colspan')).toBe('3');
   });
+
+  it('Icon-Zelle: Symbol aria-hidden, Text sichtbar', () => {
+    const el = create([{ hour: '1.', temp: { icon: '☀️', text: 'Sonnig' }, kind: 'x' }]);
+    const td = el.querySelectorAll('tbody td')[0];
+    expect(td.querySelector('[aria-hidden="true"]')?.textContent).toBe('☀️');
+    expect(td.textContent).toContain('Sonnig');
+  });
+
+  describe('columnsNarrow', () => {
+    function mockMedia(matches: boolean) {
+      vi.stubGlobal('matchMedia', () => ({ matches, addEventListener: () => {}, removeEventListener: () => {} }));
+    }
+    afterEach(() => vi.unstubAllGlobals());
+    const narrow: DataTableColumn[] = [{ key: 'hour', label: 'Std', rowHeader: true }];
+
+    it('schmal: nur der schmale Spaltensatz', () => {
+      mockMedia(true);
+      const el = create(rows, { columnsNarrow: narrow });
+      expect(Array.from(el.querySelectorAll('thead th')).map(th => th.textContent?.trim())).toEqual(['Std']);
+      expect(el.querySelectorAll('tbody tr')[0].children.length).toBe(1);
+    });
+
+    it('breit: normaler Spaltensatz', () => {
+      mockMedia(false);
+      const el = create(rows, { columnsNarrow: narrow });
+      expect(el.querySelectorAll('thead th').length).toBe(3);
+    });
+  });
 });
