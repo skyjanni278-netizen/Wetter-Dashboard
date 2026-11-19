@@ -60,14 +60,13 @@ export async function fetchTodayData(): Promise<DayData> {
 }
 
 export async function fetchForecast(): Promise<DayForecast[]> {
-  const today = new Date().toISOString().slice(0, 10);
+  // forecast_days beginnt automatisch mit dem heutigen Tag (in TIMEZONE)
   const response = await axios.get('https://api.open-meteo.com/v1/forecast', {
     params: {
       latitude: LATITUDE,
       longitude: LONGITUDE,
       daily: 'temperature_2m_max,temperature_2m_min,precipitation_sum,weathercode',
       timezone: TIMEZONE,
-      start_date: today,
       forecast_days: 7,
     },
   });

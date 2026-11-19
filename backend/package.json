@@ -5,6 +5,7 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "ts-node src/server.ts",
+    "backfill": "ts-node src/backfill.ts",
     "build": "tsc",
     "start": "node dist/server.js"
   },
