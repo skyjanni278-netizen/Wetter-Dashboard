@@ -4,14 +4,22 @@
       <h1>Wetter Heubach</h1>
       <p>Ostalbkreis, Baden-Württemberg</p>
     </div>
-    <div class="controls">
-      <button class="nav-btn" (click)="loadPreviousDay()" aria-label="Vorheriger Tag">&#8249;</button>
-      <div class="field">
-        <label for="date-input">Datum</label>
-        <input id="date-input" type="date" [value]="selectedDate()" (change)="onDateChange($event)" />
+    <div>
+      <div class="controls">
+        <button class="nav-btn" (click)="loadPreviousDay()" [disabled]="prevDisabled()" aria-label="Vorheriger Tag">&#8249;</button>
+        <div class="field">
+          <label for="date-input">Tag wählen</label>
+          <input #dateInput id="date-input" type="date" [min]="minDate" [max]="maxDate" [value]="selectedDate()"
+                 [attr.aria-invalid]="fieldError() ? 'true' : null"
+                 [attr.aria-describedby]="fieldError() ? 'date-error' : null"
+                 (change)="onDateChange($event)" (keydown)="onDateKeydown($event)" (blur)="onDateBlur()" />
+        </div>
+        <button class="nav-btn" (click)="loadNextDay()" [disabled]="nextDisabled()" aria-label="Nächster Tag">&#8250;</button>
+        <button (click)="loadToday()">Heute</button>
       </div>
-      <button class="nav-btn" (click)="loadNextDay()" [disabled]="isToday() || isFuture()" aria-label="Nächster Tag">&#8250;</button>
-      <button (click)="loadToday()">Heute</button>
+      @if (fieldError(); as message) {
+        <p id="date-error" class="error field-error" role="alert">{{ message }}</p>
+      }
     </div>
   </div>
 
@@ -19,14 +27,28 @@
     <div class="future-notice">
       <span class="fn-icon" aria-hidden="true">🔮</span>
       <div>
-        <strong>{{ selectedDate() }}</strong>
+        <strong>Vorhersage für den {{ formatDateDe(selectedDate()) }}</strong>
         <p>Für dieses Datum liegen noch keine Messdaten vor.</p>
+        @if (futureForecast(); as f) {
+          <p>
+            <span aria-hidden="true">{{ getWeatherIcon(f.weathercode) }}</span>
+            {{ describeWeather(f.weathercode) }} · max. {{ f.maxTemp | unit:'°C':'1.0-0' }} · min. {{ f.minTemp | unit:'°C':'1.0-0' }} · {{ f.precipitation | unit:'mm':'1.1-1' }}
+          </p>
+        }
+        <a routerLink="/" class="link-btn">Zurück zu heute</a>
       </div>
     </div>
   }
 
   @if (!isFuture()) {
   <div aria-live="polite" aria-atomic="true">
+    @if (invalidDate()) {
+      <div class="error">
+        <strong>Ungültiges Datum</strong>
+        <p>Die Adresse enthält kein gültiges Datum.</p>
+        <a routerLink="/" class="link-btn">Zu heute</a>
+      </div>
+    }
     @if (loading()) { <div class="loading">Daten werden geladen...</div> }
     @if (error())   { <div class="error">{{ error() }}</div> }
     @if (state() === 'error') { <button type="button" class="retry-btn" (click)="retry()">Erneut versuchen</button> }

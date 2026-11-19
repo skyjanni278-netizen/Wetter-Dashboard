@@ -1,6 +1,8 @@
 import { Injectable, inject } from '@angular/core';
 import { Title } from '@angular/platform-browser';
 import { RouterStateSnapshot, TitleStrategy } from '@angular/router';
+import { isValidIsoDate } from './berlin-date';
+import { isValidMonthParam, isValidYearParam } from './route-params';
 
 export const SITE_TITLE = 'Wetter Heubach';
 
@@ -19,15 +21,34 @@ export function fullTitle(viewPart: string): string {
   return viewPart ? `${viewPart} – ${SITE_TITLE}` : SITE_TITLE;
 }
 
-/** „19. November 2026“ aus YYYY-MM-DD */
-export function longDateLabel(isoDate: string): string {
-  const [y, m, d] = isoDate.split('-');
+/** „19. November 2026“ aus YYYY-MM-DD; bei ungültigem Datum ein leerer Text (kein „NaN. undefined“). */
+export function longDateLabel(isoDate: string | null | undefined): string {
+  if (!isValidIsoDate(isoDate)) return '';
+  const [y, m, d] = isoDate!.split('-');
   return `${parseInt(d, 10)}. ${MONTH_LONG[parseInt(m, 10) - 1]} ${y}`;
 }
 
-/** „November 2026“ aus Jahr und Monat (jeweils als Text oder Zahl) */
+/** „November 2026“ aus Jahr und Monat (jeweils als Text oder Zahl); bei ungültigem Monat ein leerer Text. */
 export function monthLabel(year: string | number, month: string | number): string {
-  return `${MONTH_LONG[parseInt(String(month), 10) - 1]} ${year}`;
+  const name = MONTH_LONG[parseInt(String(month), 10) - 1];
+  return name ? `${name} ${year}` : '';
+}
+
+/** Tagesansicht: „10. November 2026 – Heute“, bei ungültigem Datum „Ungültiges Datum“. */
+export function dayViewTitle(date: string | null | undefined): string {
+  return isValidIsoDate(date) ? viewTitle('Heute', longDateLabel(date)) : 'Ungültiges Datum';
+}
+
+/** Monatsansicht: „März 2025 – Monat“, bei ungültigen Parametern „Ungültiger Monat“. */
+export function monthViewTitle(year: string | null | undefined, month: string | null | undefined): string {
+  return isValidYearParam(year) && isValidMonthParam(month)
+    ? viewTitle('Monat', monthLabel(year!, month!))
+    : 'Ungültiger Monat';
+}
+
+/** Jahresansicht: „2025 – Jahr“, bei ungültigem Jahr „Ungültiges Jahr“. */
+export function yearViewTitle(year: string | null | undefined): string {
+  return isValidYearParam(year) ? viewTitle('Jahr', year) : 'Ungültiges Jahr';
 }
 
 /** Setzt den Titel für Heute-, Monats- und Jahresansicht, wenn sich die Auswahl ändert. */

@@ -5,6 +5,7 @@
       <div class="field">
         <label for="year-select">Jahr</label>
         <select id="year-select" (change)="onYearChange($event)">
+          @if (invalid()) { <option value="" disabled selected>–</option> }
           @for (y of years; track y) {
             <option [value]="y" [selected]="y === selectedYear()">{{ y }}</option>
           }
@@ -14,6 +15,13 @@
   </div>
 
   <div aria-live="polite" aria-atomic="true">
+    @if (invalid()) {
+      <div class="error">
+        <strong>Ungültiges Jahr</strong>
+        <p>Die Adresse enthält kein gültiges Jahr. Daten gibt es ab {{ dataStartYear }}.</p>
+        <a routerLink="/jahr" class="link-btn">Zum aktuellen Jahr</a>
+      </div>
+    }
     @if (loading()) {
       <div class="loading">Daten werden geladen...</div>
     }

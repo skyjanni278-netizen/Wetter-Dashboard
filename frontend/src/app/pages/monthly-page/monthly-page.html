@@ -5,6 +5,7 @@
       <div class="field">
         <label for="year-select">Jahr</label>
         <select id="year-select" (change)="onYearChange($event)">
+          @if (!yearValid()) { <option value="" disabled selected>–</option> }
           @for (y of years; track y) {
             <option [value]="y" [selected]="y === selectedYear()">{{ y }}</option>
           }
@@ -13,6 +14,7 @@
       <div class="field">
         <label for="month-select">Monat</label>
         <select id="month-select" (change)="onMonthChange($event)">
+          @if (!monthValid()) { <option value="" disabled selected>–</option> }
           @for (m of months; track m.value) {
             <option [value]="m.value" [selected]="m.value === selectedMonth()">{{ m.label }}</option>
           }
@@ -22,6 +24,13 @@
   </div>
 
   <div aria-live="polite" aria-atomic="true">
+    @if (invalid()) {
+      <div class="error">
+        <strong>Ungültiger Monat</strong>
+        <p>Die Adresse enthält keinen gültigen Monat. Daten gibt es ab {{ dataStartYear }}.</p>
+        <a routerLink="/monat" class="link-btn">Zum aktuellen Monat</a>
+      </div>
+    }
     @if (loading()) {
       <div class="loading">Daten werden geladen...</div>
     }

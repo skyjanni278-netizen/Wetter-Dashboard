@@ -5,7 +5,7 @@
       <span class="logo-text">Wetter Heubach</span>
     </div>
     <nav class="main-nav">
-      <a routerLink="/" routerLinkActive="active" ariaCurrentWhenActive="page" [routerLinkActiveOptions]="{exact: true}">Heute</a>
+      <a routerLink="/" [class.active]="dayViewActive()" [attr.aria-current]="dayViewActive() ? 'page' : null">Heute</a>
       <a routerLink="/monat" routerLinkActive="active" ariaCurrentWhenActive="page">Monat</a>
       <a routerLink="/jahr" routerLinkActive="active" ariaCurrentWhenActive="page">Jahr</a>
       <a routerLink="/statistiken" routerLinkActive="active" ariaCurrentWhenActive="page">Rekorde</a>

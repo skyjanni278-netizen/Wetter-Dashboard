@@ -1,4 +1,4 @@
-import { berlinToday, berlinHour, addDays } from './berlin-date';
+import { berlinToday, berlinHour, addDays, isValidIsoDate } from './berlin-date';
 
 describe('berlin-date', () => {
   describe('berlinToday', () => {
@@ -86,6 +86,24 @@ describe('berlin-date', () => {
 
     it('ungültiges Datum wirft RangeError', () => {
       expect(() => addDays('', 1)).toThrow(RangeError);
+    });
+  });
+
+  describe('isValidIsoDate', () => {
+    it('gültige Kalendertage, auch der 29.02. im Schaltjahr', () => {
+      expect(isValidIsoDate('2026-11-19')).toBe(true);
+      expect(isValidIsoDate('2028-02-29')).toBe(true);
+      expect(isValidIsoDate('2025-01-01')).toBe(true);
+    });
+
+    it('ungültig: Format, Kalender, leer', () => {
+      expect(isValidIsoDate('2026-02-30')).toBe(false);
+      expect(isValidIsoDate('2027-02-29')).toBe(false);
+      expect(isValidIsoDate('2026-13-01')).toBe(false);
+      expect(isValidIsoDate('2026-04-31')).toBe(false);
+      expect(isValidIsoDate('abc')).toBe(false);
+      expect(isValidIsoDate('')).toBe(false);
+      expect(isValidIsoDate(undefined)).toBe(false);
     });
   });
 });

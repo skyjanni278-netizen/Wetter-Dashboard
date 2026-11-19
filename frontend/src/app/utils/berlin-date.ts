@@ -50,6 +50,16 @@ export function addDays(date: string, days: number): string {
   return `${pad(d.getUTCFullYear(), 4)}-${pad(d.getUTCMonth() + 1, 2)}-${pad(d.getUTCDate(), 2)}`;
 }
 
+/** Prüft YYYY-MM-DD auf Format und Kalender: „2026-02-30“ und „abc“ sind ungültig. */
+export function isValidIsoDate(date: string | null | undefined): boolean {
+  const match = ISO_DATE.exec(date ?? '');
+  if (!match) return false;
+  const [y, m, d] = [Number(match[1]), Number(match[2]), Number(match[3])];
+  const check = new Date(0);
+  check.setUTCFullYear(y, m - 1, d);
+  return check.getUTCFullYear() === y && check.getUTCMonth() === m - 1 && check.getUTCDate() === d;
+}
+
 /** YYYY-MM-DD als TT.MM.JJJJ */
 export function formatDateDe(date: string): string {
   const match = ISO_DATE.exec(date);

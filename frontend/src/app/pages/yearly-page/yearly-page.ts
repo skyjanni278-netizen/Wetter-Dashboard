@@ -1,7 +1,8 @@
-import { Component, signal, computed, effect, inject } from '@angular/core';
+import { Component, signal, computed, effect, inject, input } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { Title } from '@angular/platform-browser';
-import { Observable, of, catchError, map, startWith, switchMap } from 'rxjs';
+import { Router, RouterLink } from '@angular/router';
+import { Observable, of, catchError, distinctUntilChanged, map, startWith, switchMap } from 'rxjs';
 import { WeatherService } from '../../services/weather.service';
 import { YearSummary } from '../../models/weather';
 import { LoadResult, LoadState } from '../../models/load-state';
@@ -9,7 +10,8 @@ import { ClimateChartComponent, ClimateChartDataset } from '../../components/cli
 import { berlinToday } from '../../utils/berlin-date';
 import { DATA_START } from '../../config/data-range';
 import { UnitPipe } from '../../pipes/unit.pipe';
-import { setPageTitle, viewTitle } from '../../utils/page-title';
+import { setPageTitle, yearViewTitle } from '../../utils/page-title';
+import { isValidYearParam } from '../../utils/route-params';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
 const EMPTY_MESSAGE = 'Keine gespeicherten Daten für dieses Jahr.';
@@ -17,16 +19,24 @@ const EMPTY_MESSAGE = 'Keine gespeicherten Daten für dieses Jahr.';
 @Component({
   selector: 'app-yearly-page',
   standalone: true,
-  imports: [ClimateChartComponent, UnitPipe],
+  imports: [ClimateChartComponent, UnitPipe, RouterLink],
   templateUrl: './yearly-page.html',
   styleUrl: './yearly-page.css'
 })
 export class YearlyPageComponent {
   private weather = inject(WeatherService);
   private title = inject(Title);
-  private currentYear = berlinToday().slice(0, 4);
+  private router = inject(Router);
+  private today = berlinToday();
+  private currentYear = this.today.slice(0, 4);
+  readonly dataStartYear = DATA_START.slice(0, 4);
 
-  selectedYear = signal(this.currentYear);
+  /** Route-Parameter aus `/jahr/:year` (V08); auf `/jahr` nicht gesetzt. */
+  readonly year = input<string | undefined>();
+
+  /** Auswahl, nur aus der URL abgeleitet; ohne Parameter das aktuelle Berliner Jahr. */
+  selectedYear = computed(() => this.year() ?? this.currentYear);
+  invalid = computed(() => !isValidYearParam(this.selectedYear(), this.today));
   yearData = signal<YearSummary[] | null>(null);
   state = signal<LoadState>('idle');
   loading = computed(() => this.state() === 'loading');
@@ -66,20 +76,27 @@ export class YearlyPageComponent {
   });
 
   constructor() {
-    effect(() => setPageTitle(this.title, 'Jahr', this.selectedYear()));
+    effect(() => setPageTitle(this.title, yearViewTitle(this.selectedYear())));
 
-    // switchMap bricht den Request für eine überholte Auswahl ab (V03, F04)
+    // distinctUntilChanged: genau 1 Request je Wechsel, auch wenn Router und Signal gleichzeitig melden.
+    // switchMap bricht den Request für eine überholte Auswahl ab (V03, F04).
     toObservable(this.request).pipe(
+      distinctUntilChanged((a, b) => a.year === b.year),
       switchMap(({ year }) => this.loadYear(year)),
       takeUntilDestroyed(),
     ).subscribe(result => this.applyResult(result));
   }
 
+  /** Auswahlfeld navigiert über den Router (V08). */
   onYearChange(event: Event): void {
-    this.selectedYear.set((event.target as HTMLSelectElement).value);
+    this.router.navigate(['/jahr', (event.target as HTMLSelectElement).value]);
   }
 
   private loadYear(year: string): Observable<LoadResult<YearSummary[]>> {
+    // Ungültige Parameter lösen keinen Request aus
+    if (!isValidYearParam(year, this.today)) {
+      return of<LoadResult<YearSummary[]>>({ state: 'idle', data: null, message: null });
+    }
     return this.weather.getYear(year).pipe(
       map((res): LoadResult<YearSummary[]> => res.data.length > 0
         ? { state: 'success', data: res.data, message: null }

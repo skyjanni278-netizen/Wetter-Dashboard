@@ -40,3 +40,6 @@
 
 .field { display: flex; flex-direction: column; gap: 0.2rem; }
 .field label { font-size: 0.8rem; font-weight: 600; color: var(--gray-600); }
+
+/* Link im Hinweis bei ungültigen Parametern (V08), wie .link-btn der Heute-Seite */
+.link-btn { display: inline-flex; align-items: center; min-height: 2.75rem; color: var(--sky-dark); text-decoration: underline; }
