@@ -12,7 +12,7 @@
 .page-title h1 { margin: 0 0 0.2rem; font-size: 2rem; font-weight: 800; color: var(--gray-900); letter-spacing: -0.03em; }
 .page-title p  { margin: 0; color: var(--gray-400); font-size: 0.9rem; }
 
-.controls { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; }
+.controls { display: flex; gap: 0.6rem; align-items: flex-end; flex-wrap: wrap; }
 
 .controls input[type="date"] {
   padding: 0.5rem 0.85rem;
@@ -162,4 +162,29 @@
   .forecast-day { padding: 0.75rem 0.25rem; min-width: 0; }
   .hero-card { padding: 1.5rem; }
   .hero-temp { font-size: 2.5rem; }
+}
+
+.field { display: flex; flex-direction: column; gap: 0.2rem; }
+.field label { font-size: 0.8rem; font-weight: 600; color: var(--gray-600); }
+
+.link-btn {
+  background: none;
+  border: none;
+  padding: 0.5rem 0;
+  min-height: 2.75rem;
+  color: var(--sky-dark);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.forecast-link { margin: 0 0 1.25rem; }
+.retry-btn {
+  margin-top: 0.5rem;
+  padding: 0.5rem 1.1rem;
+  min-height: 2.75rem;
+  background: white;
+  color: var(--sky-dark);
+  border: 1.5px solid var(--sky-mid);
+  border-radius: 9px;
+  cursor: pointer;
+  font-weight: 600;
 }

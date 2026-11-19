@@ -1,30 +1,49 @@
-export function getWeatherIcon(code: number): string {
-  if (code === 0) return '☀️';
-  if (code === 1) return '🌤️';
-  if (code === 2) return '⛅';
-  if (code === 3) return '☁️';
-  if (code <= 48) return '🌫️';
-  if (code <= 55) return '🌦️';
-  if (code <= 65) return '🌧️';
-  if (code <= 77) return '🌨️';
-  if (code <= 82) return '🌦️';
-  if (code <= 86) return '🌨️';
-  return '⛈️';
+/** WMO-Wettercodes, wie Open-Meteo sie liefert (V19, F26). */
+const WEATHER_CODES: Record<number, { icon: string; description: string }> = {
+  0: { icon: '☀️', description: 'Klarer Himmel' },
+  1: { icon: '🌤️', description: 'Überwiegend klar' },
+  2: { icon: '⛅', description: 'Teilweise bewölkt' },
+  3: { icon: '☁️', description: 'Bedeckt' },
+  45: { icon: '🌫️', description: 'Nebel' },
+  48: { icon: '🌫️', description: 'Reifnebel' },
+  51: { icon: '🌦️', description: 'Nieselregen' },
+  53: { icon: '🌦️', description: 'Nieselregen' },
+  55: { icon: '🌦️', description: 'Nieselregen' },
+  56: { icon: '🌧️', description: 'Gefrierender Niesel' },
+  57: { icon: '🌧️', description: 'Gefrierender Niesel' },
+  61: { icon: '🌧️', description: 'Regen' },
+  63: { icon: '🌧️', description: 'Regen' },
+  65: { icon: '🌧️', description: 'Regen' },
+  66: { icon: '🌧️', description: 'Gefrierender Regen' },
+  67: { icon: '🌧️', description: 'Gefrierender Regen' },
+  71: { icon: '🌨️', description: 'Schneefall' },
+  73: { icon: '🌨️', description: 'Schneefall' },
+  75: { icon: '🌨️', description: 'Schneefall' },
+  77: { icon: '🌨️', description: 'Schneefall' },
+  80: { icon: '🌦️', description: 'Regenschauer' },
+  81: { icon: '🌦️', description: 'Regenschauer' },
+  82: { icon: '🌦️', description: 'Regenschauer' },
+  85: { icon: '🌨️', description: 'Schneeschauer' },
+  86: { icon: '🌨️', description: 'Schneeschauer' },
+  95: { icon: '⛈️', description: 'Gewitter' },
+  96: { icon: '⛈️', description: 'Gewitter mit Hagel' },
+  99: { icon: '⛈️', description: 'Gewitter mit Hagel' },
+};
+
+const UNKNOWN_ICON = '❓';
+
+export function getWeatherIcon(code: number | null): string {
+  if (code === null || code === undefined) return UNKNOWN_ICON;
+  return WEATHER_CODES[code]?.icon ?? UNKNOWN_ICON;
 }
 
-export function getWeatherDescription(code: number): string {
-  if (code === 0) return 'Klarer Himmel';
-  if (code === 1) return 'Überwiegend klar';
-  if (code === 2) return 'Teilweise bewölkt';
-  if (code === 3) return 'Bedeckt';
-  if (code <= 48) return 'Nebel';
-  if (code <= 55) return 'Nieselregen';
-  if (code <= 65) return 'Regen';
-  if (code <= 77) return 'Schneefall';
-  if (code <= 82) return 'Regenschauer';
-  if (code <= 86) return 'Schneeschauer';
-  return 'Gewitter';
+export function describeWeather(code: number | null): string {
+  if (code === null || code === undefined) return 'Keine Angabe';
+  return WEATHER_CODES[code]?.description ?? 'Unbekannt';
 }
+
+/** Bisheriger Name, bleibt für bestehende Aufrufer erhalten. */
+export const getWeatherDescription = describeWeather;
 
 export function getWindDirection(degrees: number): string {
   const dirs = ['N', 'NO', 'O', 'SO', 'S', 'SW', 'W', 'NW'];

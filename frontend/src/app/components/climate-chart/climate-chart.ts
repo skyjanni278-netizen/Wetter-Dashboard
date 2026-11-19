@@ -82,6 +82,7 @@ export class ClimateChartComponent implements AfterViewInit, OnChanges, OnDestro
       },
       options: {
         animation: { duration: reducedMotion ? 0 : 400 },
+        locale: 'de-DE',
         responsive: true,
         maintainAspectRatio: false,
         interaction: { mode: 'index', intersect: false },

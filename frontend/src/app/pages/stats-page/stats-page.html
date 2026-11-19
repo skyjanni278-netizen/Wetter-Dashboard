@@ -15,7 +15,7 @@
         <div class="record-body">
           <div class="record-label">Heißester Tag</div>
           @if (stats()!.hottestDay) {
-            <div class="record-value">{{ stats()!.hottestDay!.value | number:'1.1-1' }} °C</div>
+            <div class="record-value">{{ stats()!.hottestDay!.value | unit:'°C':'1.1-1' }}</div>
             <div class="record-date">{{ formatDate(stats()!.hottestDay!.date) }}</div>
           } @else {
             <div class="record-na">Noch keine Daten</div>
@@ -28,7 +28,7 @@
         <div class="record-body">
           <div class="record-label">Kältester Tag</div>
           @if (stats()!.coldestDay) {
-            <div class="record-value">{{ stats()!.coldestDay!.value | number:'1.1-1' }} °C</div>
+            <div class="record-value">{{ stats()!.coldestDay!.value | unit:'°C':'1.1-1' }}</div>
             <div class="record-date">{{ formatDate(stats()!.coldestDay!.date) }}</div>
           } @else {
             <div class="record-na">Noch keine Daten</div>
@@ -41,7 +41,7 @@
         <div class="record-body">
           <div class="record-label">Regenreichster Tag</div>
           @if (stats()!.rainiestDay) {
-            <div class="record-value">{{ stats()!.rainiestDay!.value | number:'1.1-1' }} mm</div>
+            <div class="record-value">{{ stats()!.rainiestDay!.value | unit:'mm':'1.1-1' }}</div>
             <div class="record-date">{{ formatDate(stats()!.rainiestDay!.date) }}</div>
           } @else {
             <div class="record-na">Noch keine Daten</div>

@@ -2,17 +2,22 @@
   <div class="page-header">
     <h1>Monatsdiagramm – Heubach</h1>
     <div class="controls">
-      <select aria-label="Jahr auswählen" (change)="onYearChange($event)">
-        @for (y of years; track y) {
-          <option [value]="y" [selected]="y === selectedYear()">{{ y }}</option>
-        }
-      </select>
-      <select aria-label="Monat auswählen" (change)="onMonthChange($event)">
-        @for (m of months; track m.value) {
-          <option [value]="m.value" [selected]="m.value === selectedMonth()">{{ m.label }}</option>
-        }
-      </select>
-      <button (click)="loadData()">Laden</button>
+      <div class="field">
+        <label for="year-select">Jahr</label>
+        <select id="year-select" (change)="onYearChange($event)">
+          @for (y of years; track y) {
+            <option [value]="y" [selected]="y === selectedYear()">{{ y }}</option>
+          }
+        </select>
+      </div>
+      <div class="field">
+        <label for="month-select">Monat</label>
+        <select id="month-select" (change)="onMonthChange($event)">
+          @for (m of months; track m.value) {
+            <option [value]="m.value" [selected]="m.value === selectedMonth()">{{ m.label }}</option>
+          }
+        </select>
+      </div>
     </div>
   </div>
 
@@ -34,11 +39,11 @@
       </div>
       <div class="summary-card temp">
         <span class="label">Ø Temperatur</span>
-        <span class="value">{{ avgTemp() | number:'1.1-1' }} °C</span>
+        <span class="value">{{ avgTemp() | unit:'°C':'1.1-1' }}</span>
       </div>
       <div class="summary-card precip">
         <span class="label">Gesamtniederschlag</span>
-        <span class="value">{{ totalPrecip() | number:'1.1-1' }} mm</span>
+        <span class="value">{{ totalPrecip() | unit:'mm':'1.1-1' }}</span>
       </div>
       <div class="summary-card days">
         <span class="label">Gespeicherte Tage</span>

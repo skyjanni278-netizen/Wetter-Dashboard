@@ -3,6 +3,7 @@ import { Observable, Subject, of, throwError } from 'rxjs';
 import { TodayPageComponent } from './today-page';
 import { WeatherService } from '../../services/weather.service';
 import { DayData, HourlyEntry } from '../../models/weather';
+import { berlinToday } from '../../utils/berlin-date';
 
 function hour(h: number, temperature: number | null, date = '2026-11-10'): HourlyEntry {
   return {
@@ -43,7 +44,7 @@ function setup(data: DayData) {
   }).componentInstance;
 }
 
-describe('TodayPageComponent Min/Max (Ist-Verhalten)', () => {
+describe('TodayPageComponent Min/Max', () => {
   it('Tag ohne null-Werte ergibt korrektes Min/Max', () => {
     const c = setup({ date: '2026-11-10', location: 'Heubach', hourly: [hour(0, 3), hour(12, 9.5), hour(18, -1)] });
     expect(c.dayMinTemp()).toBe(-1);
@@ -51,11 +52,18 @@ describe('TodayPageComponent Min/Max (Ist-Verhalten)', () => {
     expect(c.dayTempRange()).toBe(10.5);
   });
 
-  it('null-Temperatur in einer Stunde ergibt Min/Max 0', () => {
-    // IST-Verhalten, wird in Schritt 7 geändert (F15): Math.min/max behandelt null als 0
+  it('null-Temperatur in einer Stunde wird ignoriert, Minimum ist der kleinste echte Wert (V13, F15)', () => {
     const c = setup({ date: '2026-11-10', location: 'Heubach', hourly: [hour(0, 3), hour(12, null), hour(18, 5)] });
-    expect(c.dayMinTemp()).toBe(0);
+    expect(c.dayMinTemp()).toBe(3);
     expect(c.dayMaxTemp()).toBe(5);
+    expect(c.dayTempRange()).toBe(2);
+  });
+
+  it('nur null-Temperaturen ergeben null statt 0', () => {
+    const c = setup({ date: '2026-11-10', location: 'Heubach', hourly: [hour(0, null), hour(12, null)] });
+    expect(c.dayMinTemp()).toBeNull();
+    expect(c.dayMaxTemp()).toBeNull();
+    expect(c.dayTempRange()).toBeNull();
   });
 });
 
@@ -79,9 +87,10 @@ describe('TodayPageComponent Zustandsmodell (V02)', () => {
     fixture.detectChanges();
     expect(c.state()).toBe('error');
     expect(c.dayData()).toBeNull();
-    expect(c.error()).toBe('Serverfehler');
+    expect(c.error()).toBe('Server nicht erreichbar.');
     const el = fixture.nativeElement as HTMLElement;
-    expect(el.querySelector('.error')?.textContent).toContain('Serverfehler');
+    expect(el.querySelector('.error')?.textContent).toContain('Server nicht erreichbar.');
+    expect(el.querySelector('.retry-btn')).not.toBeNull();
     expect(el.querySelector('.hero-card')).toBeNull();
     expect(el.querySelector('.summary-grid')).toBeNull();
   });
@@ -102,7 +111,7 @@ describe('TodayPageComponent Zustandsmodell (V02)', () => {
     fixture.detectChanges();
     expect(c.state()).toBe('empty');
     expect(c.dayData()).toBeNull();
-    expect(c.error()).toBe('Keine Daten für 2024-12-31 gefunden.');
+    expect(c.error()).toBe('Für den 31.12.2024 liegen keine Daten vor. Daten gibt es ab dem 01.01.2025.');
   });
 
   it('beim Laden bleiben alte Daten sichtbar, der Inhaltsbereich trägt aria-busy', () => {
@@ -133,6 +142,51 @@ describe('TodayPageComponent Zustandsmodell (V02)', () => {
     expect(c.state()).toBe('success');
     expect(c.dayData()?.date).toBe('2026-11-11');
     expect(el.querySelector('[aria-busy="true"]')).toBeNull();
+  });
+});
+
+describe('TodayPageComponent Vorschau (V17) und Fehlertexte (V20)', () => {
+  const forecast = [{ date: '2026-11-19', maxTemp: 8, minTemp: 2, precipitation: 0, weathercode: 3 }];
+
+  function withForecast() {
+    TestBed.configureTestingModule({
+      providers: [{ provide: WeatherService, useValue: {
+        getToday: () => of(day(berlinToday(), 5)),
+        getDay: (date: string) => of(day(date, 7)),
+        getForecast: () => of(forecast),
+      } }],
+    });
+    const fixture = TestBed.createComponent(TodayPageComponent);
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  it('Vorschau nur bei heute, an vergangenen Tagen stattdessen der Link', () => {
+    const fixture = withForecast();
+    const el = fixture.nativeElement as HTMLElement;
+    const c = fixture.componentInstance;
+    expect(el.querySelector('.forecast-strip')).not.toBeNull();
+    expect(el.querySelector('.link-btn')).toBeNull();
+
+    c.selectedDate.set('2026-11-10');
+    fixture.detectChanges();
+    expect(el.querySelector('.forecast-strip')).toBeNull();
+    const link = el.querySelector('.link-btn') as HTMLButtonElement;
+    expect(link.textContent).toContain('Aktuelle 7-Tage-Vorschau');
+
+    link.click();
+    fixture.detectChanges();
+    expect(c.isToday()).toBe(true);
+    expect(el.querySelector('.forecast-strip')).not.toBeNull();
+  });
+
+  it('Netzwerkfehler (Status 0) ergibt „Server nicht erreichbar.“', () => {
+    const fixture = create({
+      getToday: () => throwError(() => ({ status: 0 })),
+      getDay: () => throwError(() => ({ status: 0 })),
+      getForecast: () => of([]),
+    });
+    expect(fixture.componentInstance.error()).toBe('Server nicht erreichbar.');
   });
 });
 

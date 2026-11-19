@@ -1,23 +1,21 @@
-import { getWeatherIcon, getWeatherDescription, getWindDirection } from './weather-icon';
+import { getWeatherIcon, describeWeather, getWindDirection } from './weather-icon';
 
-describe('weather-icon (Ist-Verhalten)', () => {
+describe('weather-icon (WMO-Tabelle, V19)', () => {
   const cases: [number, string, string][] = [
     [0, '☀️', 'Klarer Himmel'],
     [1, '🌤️', 'Überwiegend klar'],
     [2, '⛅', 'Teilweise bewölkt'],
     [3, '☁️', 'Bedeckt'],
     [45, '🌫️', 'Nebel'],
-    [48, '🌫️', 'Nebel'],
+    [48, '🌫️', 'Reifnebel'],
     [51, '🌦️', 'Nieselregen'],
     [55, '🌦️', 'Nieselregen'],
-    // IST-Verhalten, wird in Schritt 7 geändert (F26): gefrierender Nieselregen wird als Regen angezeigt
-    [56, '🌧️', 'Regen'],
-    [57, '🌧️', 'Regen'],
+    [56, '🌧️', 'Gefrierender Niesel'],
+    [57, '🌧️', 'Gefrierender Niesel'],
     [61, '🌧️', 'Regen'],
     [65, '🌧️', 'Regen'],
-    // IST-Verhalten, wird in Schritt 7 geändert (F26): gefrierender Regen wird als Schneefall angezeigt
-    [66, '🌨️', 'Schneefall'],
-    [67, '🌨️', 'Schneefall'],
+    [66, '🌧️', 'Gefrierender Regen'],
+    [67, '🌧️', 'Gefrierender Regen'],
     [71, '🌨️', 'Schneefall'],
     [77, '🌨️', 'Schneefall'],
     [80, '🌦️', 'Regenschauer'],
@@ -25,20 +23,27 @@ describe('weather-icon (Ist-Verhalten)', () => {
     [85, '🌨️', 'Schneeschauer'],
     [86, '🌨️', 'Schneeschauer'],
     [95, '⛈️', 'Gewitter'],
-    [99, '⛈️', 'Gewitter'],
+    [96, '⛈️', 'Gewitter mit Hagel'],
+    [99, '⛈️', 'Gewitter mit Hagel'],
   ];
 
   for (const [code, icon, desc] of cases) {
     it(`Code ${code} -> ${icon} / ${desc}`, () => {
       expect(getWeatherIcon(code)).toBe(icon);
-      expect(getWeatherDescription(code)).toBe(desc);
+      expect(describeWeather(code)).toBe(desc);
     });
   }
 
-  it('null -> Nebel', () => {
-    // IST-Verhalten, wird in Schritt 7 geändert (F26)
-    expect(getWeatherIcon(null as unknown as number)).toBe('🌫️');
-    expect(getWeatherDescription(null as unknown as number)).toBe('Nebel');
+  it('describeWeather: 66 / 57 / 100 / null', () => {
+    expect(describeWeather(66)).toBe('Gefrierender Regen');
+    expect(describeWeather(57)).toBe('Gefrierender Niesel');
+    expect(describeWeather(100)).toBe('Unbekannt');
+    expect(describeWeather(null)).toBe('Keine Angabe');
+  });
+
+  it('unbekannter Code und null haben ein neutrales Symbol', () => {
+    expect(getWeatherIcon(100)).toBe('❓');
+    expect(getWeatherIcon(null)).toBe('❓');
   });
 
   describe('getWindDirection', () => {
@@ -49,7 +54,7 @@ describe('weather-icon (Ist-Verhalten)', () => {
       it(`${deg} Grad -> ${dir}`, () => expect(getWindDirection(deg)).toBe(dir));
     }
     it('null -> N', () => {
-      // IST-Verhalten, wird in Schritt 7 geändert (F26)
+      // Ist-Verhalten, unverändert
       expect(getWindDirection(null as unknown as number)).toBe('N');
     });
   });

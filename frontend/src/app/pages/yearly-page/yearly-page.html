@@ -2,12 +2,14 @@
   <div class="page-header">
     <h1>Jahresdiagramm – Heubach</h1>
     <div class="controls">
-      <select aria-label="Jahr auswählen" (change)="onYearChange($event)">
-        @for (y of years; track y) {
-          <option [value]="y" [selected]="y === selectedYear()">{{ y }}</option>
-        }
-      </select>
-      <button (click)="loadData()">Laden</button>
+      <div class="field">
+        <label for="year-select">Jahr</label>
+        <select id="year-select" (change)="onYearChange($event)">
+          @for (y of years; track y) {
+            <option [value]="y" [selected]="y === selectedYear()">{{ y }}</option>
+          }
+        </select>
+      </div>
     </div>
   </div>
 
@@ -29,19 +31,19 @@
       </div>
       <div class="summary-card temp">
         <span class="label">Ø Jahrestemperatur</span>
-        <span class="value">{{ avgTemp() | number:'1.1-1' }} °C</span>
+        <span class="value">{{ avgTemp() | unit:'°C':'1.1-1' }}</span>
       </div>
       <div class="summary-card temp-max">
         <span class="label">Wärmster Monat (Ø)</span>
-        <span class="value">{{ maxTemp() | number:'1.1-1' }} °C</span>
+        <span class="value">{{ maxTemp() | unit:'°C':'1.1-1' }}</span>
       </div>
       <div class="summary-card temp-min">
         <span class="label">Kältester Monat (Ø)</span>
-        <span class="value">{{ minTemp() | number:'1.1-1' }} °C</span>
+        <span class="value">{{ minTemp() | unit:'°C':'1.1-1' }}</span>
       </div>
       <div class="summary-card precip">
         <span class="label">Jahresniederschlag</span>
-        <span class="value">{{ totalPrecip() | number:'1.0-0' }} mm</span>
+        <span class="value">{{ totalPrecip() | unit:'mm':'1.0-0' }}</span>
       </div>
     </div>
 

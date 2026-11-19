@@ -117,11 +117,11 @@ Das Dashboard ist erreichbar unter `http://localhost:4200`.
 
 > Beim ersten Start dauert es einen kurzen Moment, bis der Scheduler die Daten von Open-Meteo geladen und gespeichert hat.
 
-### Testdaten generieren (optional)
-Falls Verlaufsdaten für Tests benötigt werden:
+### Historische Daten laden (optional)
+Falls Verlaufsdaten benötigt werden, lädt das Backfill-Skript echte Daten von Open-Meteo:
 ```bash
 cd backend
-npx ts-node src/seed-data.ts
+npm run backfill
 ```
 
 ---
@@ -187,7 +187,7 @@ Die API ruft Open-Meteo **niemals** direkt bei einem Seitenaufruf auf — alle D
 
 ## Produktivbetrieb
 
-Für den dauerhaften Betrieb (z.B. Raspberry Pi oder Server) empfiehlt sich [PM2](https://pm2.keymaster.io/):
+Für den dauerhaften Betrieb (z.B. Raspberry Pi oder Server) empfiehlt sich [PM2](https://pm2.keymetrics.io/):
 
 ```bash
 cd backend

@@ -104,11 +104,19 @@ describe('MonthlyPageComponent', () => {
     expect(requests.get('2025/01')!.observed).toBe(false);
   });
 
-  it('„Laden“ lädt dieselbe Auswahl erneut', () => {
-    let count = 0;
-    const fixture = create((y, m) => { count++; return of(response(y, m, 5)); });
-    fixture.componentInstance.loadData();
-    fixture.detectChanges();
-    expect(count).toBe(2);
+  it('Jahresliste reicht von 2025 bis zum aktuellen Berliner Jahr (V18, F20)', () => {
+    const fixture = create((y, m) => of(response(y, m, 5)));
+    const current = parseInt(berlinToday().slice(0, 4), 10);
+    const expected = Array.from({ length: current - 2025 + 1 }, (_, i) => String(current - i));
+    expect(fixture.componentInstance.years).toEqual(expected);
+    expect(fixture.componentInstance.years.at(-1)).toBe('2025');
+  });
+
+  it('kein Button „Laden“, Selects haben sichtbare Labels (V15, V22)', () => {
+    const fixture = create((y, m) => of(response(y, m, 5)));
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('button')).toBeNull();
+    expect(el.querySelector('label[for="year-select"]')).not.toBeNull();
+    expect(el.querySelector('label[for="month-select"]')).not.toBeNull();
   });
 });

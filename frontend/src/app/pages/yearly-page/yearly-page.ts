@@ -1,13 +1,15 @@
-import { Component, signal, computed, inject } from '@angular/core';
+import { Component, signal, computed, effect, inject } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
-import { FormsModule } from '@angular/forms';
-import { DecimalPipe } from '@angular/common';
+import { Title } from '@angular/platform-browser';
 import { Observable, of, catchError, map, startWith, switchMap } from 'rxjs';
 import { WeatherService } from '../../services/weather.service';
 import { YearSummary } from '../../models/weather';
 import { LoadResult, LoadState } from '../../models/load-state';
 import { ClimateChartComponent, ClimateChartDataset } from '../../components/climate-chart/climate-chart';
 import { berlinToday } from '../../utils/berlin-date';
+import { DATA_START } from '../../config/data-range';
+import { UnitPipe } from '../../pipes/unit.pipe';
+import { setPageTitle, viewTitle } from '../../utils/page-title';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
 const EMPTY_MESSAGE = 'Keine gespeicherten Daten für dieses Jahr.';
@@ -15,12 +17,13 @@ const EMPTY_MESSAGE = 'Keine gespeicherten Daten für dieses Jahr.';
 @Component({
   selector: 'app-yearly-page',
   standalone: true,
-  imports: [FormsModule, ClimateChartComponent, DecimalPipe],
+  imports: [ClimateChartComponent, UnitPipe],
   templateUrl: './yearly-page.html',
   styleUrl: './yearly-page.css'
 })
 export class YearlyPageComponent {
   private weather = inject(WeatherService);
+  private title = inject(Title);
   private currentYear = berlinToday().slice(0, 4);
 
   selectedYear = signal(this.currentYear);
@@ -29,11 +32,13 @@ export class YearlyPageComponent {
   loading = computed(() => this.state() === 'loading');
   error = signal<string | null>(null);
 
-  /** Erhöht sich bei „Laden“, damit auch ohne Auswahlwechsel neu geladen wird. */
-  private reloadCount = signal(0);
-  private request = computed(() => ({ year: this.selectedYear(), reload: this.reloadCount() }));
+  private request = computed(() => ({ year: this.selectedYear() }));
 
-  years = Array.from({ length: 5 }, (_, i) => (parseInt(this.currentYear, 10) - i).toString());
+  /** Jahre von DATA_START bis zum aktuellen Berliner Jahr, neuestes zuerst (V18, F20). */
+  years = Array.from(
+    { length: parseInt(this.currentYear, 10) - parseInt(DATA_START.slice(0, 4), 10) + 1 },
+    (_, i) => (parseInt(this.currentYear, 10) - i).toString(),
+  );
 
   chartData = computed<ClimateChartDataset | null>(() => {
     const data = this.yearData();
@@ -61,6 +66,8 @@ export class YearlyPageComponent {
   });
 
   constructor() {
+    effect(() => setPageTitle(this.title, 'Jahr', this.selectedYear()));
+
     // switchMap bricht den Request für eine überholte Auswahl ab (V03, F04)
     toObservable(this.request).pipe(
       switchMap(({ year }) => this.loadYear(year)),
@@ -70,10 +77,6 @@ export class YearlyPageComponent {
 
   onYearChange(event: Event): void {
     this.selectedYear.set((event.target as HTMLSelectElement).value);
-  }
-
-  loadData(): void {
-    this.reloadCount.update(n => n + 1);
   }
 
   private loadYear(year: string): Observable<LoadResult<YearSummary[]>> {

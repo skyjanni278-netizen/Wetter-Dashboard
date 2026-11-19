@@ -3,7 +3,7 @@
 .page-header { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 1rem; margin-bottom: 2rem; }
 .page-header h1 { margin: 0; font-size: 2rem; font-weight: 800; color: var(--gray-900); letter-spacing: -0.03em; }
 
-.controls { display: flex; gap: 0.6rem; align-items: center; }
+.controls { display: flex; gap: 0.6rem; align-items: flex-end; }
 .controls select {
   padding: 0.5rem 0.85rem; border: 1.5px solid #cbd5e1; border-radius: 9px;
   font-size: 0.9rem; background: white;
@@ -37,3 +37,6 @@
 
 .loading { text-align: center; padding: 4rem; color: var(--gray-400); }
 .error { background: #fef2f2; border: 1.5px solid #fca5a5; color: #dc2626; padding: 1rem 1.5rem; border-radius: 10px; margin-bottom: 1.5rem; }
+
+.field { display: flex; flex-direction: column; gap: 0.2rem; }
+.field label { font-size: 0.8rem; font-weight: 600; color: var(--gray-600); }

@@ -26,6 +26,13 @@ describe('YearlyPageComponent', () => {
     expect((fixture.nativeElement as HTMLElement).querySelector('select')!.value).toBe(year);
   });
 
+  it('Jahresliste reicht von 2025 bis zum aktuellen Berliner Jahr, kein Button „Laden“ (V15, V18)', () => {
+    const fixture = create(y => of(response(y, 5)));
+    const current = parseInt(berlinToday().slice(0, 4), 10);
+    expect(fixture.componentInstance.years).toEqual(Array.from({ length: current - 2025 + 1 }, (_, i) => String(current - i)));
+    expect((fixture.nativeElement as HTMLElement).querySelector('button')).toBeNull();
+  });
+
   it('Fehler nach Erfolg setzt die Daten auf null (V02, F12)', () => {
     const fixture = create(y => y === '2024' ? throwError(() => ({ status: 500 })) : of(response(y, 5)));
     const c = fixture.componentInstance;

@@ -49,3 +49,9 @@ export function addDays(date: string, days: number): string {
   const d = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]) + days));
   return `${pad(d.getUTCFullYear(), 4)}-${pad(d.getUTCMonth() + 1, 2)}-${pad(d.getUTCDate(), 2)}`;
 }
+
+/** YYYY-MM-DD als TT.MM.JJJJ */
+export function formatDateDe(date: string): string {
+  const match = ISO_DATE.exec(date);
+  return match ? `${match[3]}.${match[2]}.${match[1]}` : date;
+}

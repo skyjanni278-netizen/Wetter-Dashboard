@@ -1,12 +1,12 @@
 import { Component, OnInit, signal, inject } from '@angular/core';
-import { DecimalPipe } from '@angular/common';
 import { WeatherService } from '../../services/weather.service';
 import { Stats } from '../../models/weather';
+import { UnitPipe } from '../../pipes/unit.pipe';
 
 @Component({
   selector: 'app-stats-page',
   standalone: true,
-  imports: [DecimalPipe],
+  imports: [UnitPipe],
   templateUrl: './stats-page.html',
   styleUrl: './stats-page.css'
 })

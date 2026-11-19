@@ -1,29 +1,33 @@
-import { Component, OnInit, signal, computed, inject } from '@angular/core';
+import { Component, OnInit, signal, computed, effect, inject } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
-import { FormsModule } from '@angular/forms';
 import { DecimalPipe } from '@angular/common';
+import { Title } from '@angular/platform-browser';
 import { Observable, of, catchError, map, startWith, switchMap } from 'rxjs';
 import { WeatherService } from '../../services/weather.service';
 import { DayData, DayForecast } from '../../models/weather';
 import { LoadResult, LoadState } from '../../models/load-state';
 import { ClimateChartComponent, ClimateChartDataset } from '../../components/climate-chart/climate-chart';
-import { getWeatherIcon, getWeatherDescription, getWindDirection } from '../../utils/weather-icon';
-import { berlinToday, berlinHour, addDays } from '../../utils/berlin-date';
+import { getWeatherIcon, describeWeather, getWindDirection } from '../../utils/weather-icon';
+import { berlinToday, berlinHour, addDays, formatDateDe } from '../../utils/berlin-date';
+import { DATA_START } from '../../config/data-range';
+import { UnitPipe } from '../../pipes/unit.pipe';
+import { longDateLabel, setPageTitle } from '../../utils/page-title';
 
 const DAY_NAMES = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
 
 @Component({
   selector: 'app-today-page',
   standalone: true,
-  imports: [FormsModule, DecimalPipe, ClimateChartComponent],
+  imports: [DecimalPipe, UnitPipe, ClimateChartComponent],
   templateUrl: './today-page.html',
   styleUrl: './today-page.css'
 })
 export class TodayPageComponent implements OnInit {
   private weather = inject(WeatherService);
+  private title = inject(Title);
 
   readonly getWeatherIcon = getWeatherIcon;
-  readonly getWeatherDescription = getWeatherDescription;
+  readonly describeWeather = describeWeather;
   readonly getWindDirection = getWindDirection;
 
   selectedDate = signal(berlinToday());
@@ -33,7 +37,7 @@ export class TodayPageComponent implements OnInit {
   loading = computed(() => this.state() === 'loading');
   error = signal<string | null>(null);
 
-  /** Erhöht sich bei „Heute“, damit auch ohne Datumswechsel neu geladen wird. */
+  /** Erhöht sich bei „Heute“ und „Erneut versuchen“, damit auch ohne Datumswechsel neu geladen wird. */
   private reloadCount = signal(0);
   private request = computed(() => ({ date: this.selectedDate(), reload: this.reloadCount() }));
 
@@ -53,16 +57,20 @@ export class TodayPageComponent implements OnInit {
     return data.hourly.find(h => h.time.endsWith('T12:00')) ?? data.hourly[Math.floor(data.hourly.length / 2)];
   });
 
+  /** Temperaturen ohne fehlende Werte (null), damit Min/Max nicht zu 0 werden (V13, F15). */
+  private validTemps = computed(() =>
+    (this.dayData()?.hourly ?? [])
+      .map(h => h.temperature)
+      .filter((t): t is number => t !== null && t !== undefined));
+
   dayMinTemp = computed(() => {
-    const data = this.dayData();
-    if (!data) return null;
-    return Math.min(...data.hourly.map(h => h.temperature));
+    const temps = this.validTemps();
+    return temps.length ? Math.min(...temps) : null;
   });
 
   dayMaxTemp = computed(() => {
-    const data = this.dayData();
-    if (!data) return null;
-    return Math.max(...data.hourly.map(h => h.temperature));
+    const temps = this.validTemps();
+    return temps.length ? Math.max(...temps) : null;
   });
 
   dayTempRange = computed(() => {
@@ -97,6 +105,8 @@ export class TodayPageComponent implements OnInit {
   );
 
   constructor() {
+    effect(() => setPageTitle(this.title, 'Heute', longDateLabel(this.selectedDate())));
+
     // switchMap bricht den Request für eine überholte Auswahl ab (V03, F04)
     toObservable(this.request).pipe(
       switchMap(({ date }) => this.loadDay(date)),
@@ -115,6 +125,10 @@ export class TodayPageComponent implements OnInit {
 
   loadToday(): void {
     this.selectedDate.set(berlinToday());
+    this.reloadCount.update(n => n + 1);
+  }
+
+  retry(): void {
     this.reloadCount.update(n => n + 1);
   }
 
@@ -140,11 +154,23 @@ export class TodayPageComponent implements OnInit {
       map((data): LoadResult<DayData> => data?.hourly?.length
         ? { state: 'success', data, message: null }
         : { state: 'empty', data: null, message: 'Keine Daten für diesen Tag gefunden.' }),
-      catchError(err => of<LoadResult<DayData>>(err?.status === 404
-        ? { state: 'empty', data: null, message: err?.error?.error ?? 'Keine Daten für diesen Tag gefunden.' }
-        : { state: 'error', data: null, message: err?.error?.error ?? 'Fehler beim Laden.' })),
+      catchError(err => of(this.errorResult(err, date))),
       startWith<LoadResult<DayData>>({ state: 'loading', data: null, message: null }),
     );
+  }
+
+  /** Meldung je nach Ursache (V20). */
+  private errorResult(err: { status?: number; error?: { error?: string } }, date: string): LoadResult<DayData> {
+    if (err?.status === 404) {
+      const message = date < DATA_START
+        ? `Für den ${formatDateDe(date)} liegen keine Daten vor. Daten gibt es ab dem ${formatDateDe(DATA_START)}.`
+        : (err?.error?.error ?? 'Keine Daten für diesen Tag gefunden.');
+      return { state: 'empty', data: null, message };
+    }
+    if (!err?.status || err.status >= 500) {
+      return { state: 'error', data: null, message: 'Server nicht erreichbar.' };
+    }
+    return { state: 'error', data: null, message: err?.error?.error ?? 'Fehler beim Laden.' };
   }
 
   private applyResult(result: LoadResult<DayData>): void {
