@@ -150,6 +150,18 @@ export class TodayPageComponent implements OnInit {
     };
   });
 
+  /**
+   * Erste Vorhersagestunde im Diagramm: übergangsweise alle Stunden nach der aktuellen
+   * Berliner Stunde, nur für heute (ab Schritt 7 aus `isPrediction`).
+   */
+  chartPredictionFrom = computed<number | null>(() => {
+    const data = this.dayData();
+    if (!data || !this.isToday()) return null;
+    const now = berlinHour();
+    const index = data.hourly.findIndex(h => parseInt(h.time.slice(11, 13), 10) > now);
+    return index >= 0 ? index : null;
+  });
+
   forecastWithMeta = computed(() =>
     this.forecast().map(f => ({
       ...f,

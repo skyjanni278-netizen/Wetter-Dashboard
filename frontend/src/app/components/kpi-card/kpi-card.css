@@ -1,0 +1,39 @@
+:host {
+  display: block;
+  min-width: 0;
+}
+
+app-card { height: 100%; }
+
+.kpi-kicker { margin: 0 0 var(--space-2); }
+
+.kpi-value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1);
+  margin: 0;
+  color: var(--color-text);
+  font: var(--fw-semibold) var(--fs-lg) / var(--lh-tight) var(--font-heading);
+  letter-spacing: var(--tracking-heading);
+}
+
+.kpi-unit {
+  color: var(--color-text-muted);
+  font: var(--fw-regular) var(--fs-base) / var(--lh-body) var(--font-body);
+  letter-spacing: normal;
+}
+
+.kpi-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  color: var(--color-text-subtle);
+  font-size: var(--fs-sm);
+}
+
+.kpi-meta:empty { display: none; }
+
+.kpi-skeleton { margin-bottom: var(--space-2); }

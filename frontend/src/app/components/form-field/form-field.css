@@ -1,0 +1,60 @@
+/* Ohne View-Kapselung: alle Selektoren beginnen mit .form-field */
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.form-field-label {
+  color: var(--color-text);
+  font: var(--fw-semibold) var(--fs-sm) / var(--lh-body) var(--font-body);
+}
+
+.form-field-control {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.form-field :is(input, select) {
+  min-height: var(--target-min);
+  max-width: 100%;
+  padding: 0 0.75rem;
+  border: var(--line) solid var(--color-border-control);
+  border-radius: var(--radius);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  accent-color: var(--color-accent-strong);
+  transition: border-color var(--motion-fast);
+}
+
+.form-field :is(input, select):hover { border-color: var(--color-text-muted); }
+
+.form-field :is(input, select):disabled {
+  background-color: var(--color-surface-muted);
+  color: var(--color-text-subtle);
+}
+
+/* Fehler: Rand 2 px --color-danger (7,07:1), Innenabstand gleicht die breitere Linie aus */
+.form-field :is(input, select)[aria-invalid="true"] {
+  padding: 0 calc(0.75rem - 1px);
+  border: var(--line-strong) solid var(--color-danger);
+}
+
+.form-field-hint {
+  margin: 0;
+  color: var(--color-text-subtle);
+  font-size: var(--fs-sm);
+}
+
+.form-field-error {
+  display: flex;
+  gap: var(--space-1);
+  margin: 0;
+  color: var(--color-danger);
+  font-size: var(--fs-sm);
+}
+
+.form-field-error-symbol { font-weight: var(--fw-bold); }

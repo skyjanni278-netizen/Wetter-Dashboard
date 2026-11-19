@@ -66,6 +66,55 @@ describe('App Navigation (V08)', () => {
       expect(link(active).getAttribute('aria-current')).toBe('page');
     });
 
+  describe('Rahmen (E3.7.1, E3.7.9)', () => {
+    async function shell() {
+      await at('/statistiken');
+      const fixture = TestBed.createComponent(App);
+      fixture.detectChanges();
+      return { fixture, el: fixture.nativeElement as HTMLElement };
+    }
+
+    it('Skip-Link ist das erste fokussierbare Element und zielt auf <main id="main">', async () => {
+      const { el } = await shell();
+      const first = el.querySelector('a, button, input, select, [tabindex]') as HTMLAnchorElement;
+      expect(first.classList).toContain('skip-link');
+      expect(first.textContent?.trim()).toBe('Zum Inhalt springen');
+      expect(first.getAttribute('href')).toBe('#main');
+      const main = el.querySelector('main')!;
+      expect(main.id).toBe('main');
+      expect(main.getAttribute('tabindex')).toBe('-1');
+    });
+
+    it('Skip-Link fokussiert den Inhalt, ohne die Route zu wechseln', async () => {
+      const { fixture, el } = await shell();
+      document.body.appendChild(fixture.nativeElement);
+      const link = el.querySelector('.skip-link') as HTMLAnchorElement;
+      const event = new MouseEvent('click', { bubbles: true, cancelable: true });
+      link.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(true);
+      expect(document.activeElement).toBe(el.querySelector('main'));
+      expect(TestBed.inject(Router).url).toBe('/statistiken');
+      fixture.nativeElement.remove();
+    });
+
+    it('Header und Footer sind dunkle Flächen; Navigation hat einen Namen', async () => {
+      const { el } = await shell();
+      expect(el.querySelector('header')?.classList).toContain('surface-dark');
+      expect(el.querySelector('footer')?.classList).toContain('surface-dark');
+      expect(el.querySelector('nav')?.getAttribute('aria-label')).toBe('Hauptnavigation');
+    });
+
+    it('Footer: statischer Text und Open-Meteo-Attribution, kein lastFetch', async () => {
+      const { el } = await shell();
+      const footer = el.querySelector('footer')!;
+      expect(footer.textContent).toContain('Wetterdaten für Heubach');
+      const links = Array.from(footer.querySelectorAll('a')).map(a => a.getAttribute('href'));
+      expect(links).toContain('https://open-meteo.com');
+      expect(links).toContain('https://creativecommons.org/licenses/by/4.0/');
+      expect(footer.textContent).not.toContain('Zuletzt aktualisiert');
+    });
+  });
+
   it('unbekannter Pfad leitet auf / um', async () => {
     TestBed.configureTestingModule({
       providers: [

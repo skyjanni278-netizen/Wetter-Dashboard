@@ -1,0 +1,52 @@
+:host { display: block; min-width: 0; }
+
+/* Sicherheitsnetz für sehr schmale Ansichten; die Seite selbst scrollt nie waagerecht */
+.table-scroll { max-width: 100%; overflow-x: auto; }
+
+/* Tabellensemantik bleibt: kein display: grid an Tabellenelementen (E3.7.5) */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--color-text);
+  font-size: var(--fs-base);
+}
+
+caption {
+  margin-bottom: var(--space-2);
+  color: var(--color-text-muted);
+  font-weight: var(--fw-semibold);
+  text-align: left;
+}
+
+th, td {
+  padding: var(--space-2) var(--space-2);
+  border-bottom: var(--line) solid var(--color-border);
+  text-align: left;
+  vertical-align: middle;
+}
+
+th:first-child, td:first-child { padding-left: 0; }
+th:last-child, td:last-child { padding-right: 0; }
+
+thead th {
+  border-bottom: var(--line-strong) solid var(--color-border-strong);
+  color: var(--color-text-muted);
+  font: var(--fw-semibold) var(--fs-xs) / 1.3 var(--font-body);
+  letter-spacing: var(--tracking-kicker);
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+tbody th { font-weight: var(--fw-semibold); }
+
+tbody tr { transition: background-color var(--motion-fast); }
+tbody tr:hover { background-color: var(--color-surface-muted); }
+
+.cell-end { text-align: right; }
+
+.cell-empty { color: var(--color-text-subtle); }
+
+@media (max-width: 47.99em) {
+  table { font-size: var(--fs-sm); }
+}

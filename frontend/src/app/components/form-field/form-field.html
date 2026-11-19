@@ -1,0 +1,13 @@
+<label class="form-field-label" [for]="fieldId()">{{ label() }}</label>
+<div class="form-field-control">
+  <ng-content />
+</div>
+@if (hint()) {
+  <p class="form-field-hint" [id]="hintId()">{{ hint() }}</p>
+}
+@if (error()) {
+  <p class="form-field-error" [id]="errorId()" role="alert">
+    <span class="form-field-error-symbol" aria-hidden="true">!</span>
+    <span>{{ error() }}</span>
+  </p>
+}

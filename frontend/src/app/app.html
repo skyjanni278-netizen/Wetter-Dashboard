@@ -1,10 +1,11 @@
-<header class="site-header">
+<header class="site-header surface-dark">
+  <a class="skip-link btn btn-primary" href="#main" (click)="skipToMain($event)">Zum Inhalt springen</a>
   <div class="header-inner">
     <div class="logo">
-      <span class="logo-icon" aria-hidden="true">⛅</span>
       <span class="logo-text">Wetter Heubach</span>
+      <span class="kicker logo-kicker">Ostalbkreis</span>
     </div>
-    <nav class="main-nav">
+    <nav class="main-nav" aria-label="Hauptnavigation">
       <a routerLink="/" [class.active]="dayViewActive()" [attr.aria-current]="dayViewActive() ? 'page' : null">Heute</a>
       <a routerLink="/monat" routerLinkActive="active" ariaCurrentWhenActive="page">Monat</a>
       <a routerLink="/jahr" routerLinkActive="active" ariaCurrentWhenActive="page">Jahr</a>
@@ -13,10 +14,24 @@
   </div>
 </header>
 
-<main>
+<main id="main" tabindex="-1">
   <router-outlet />
 </main>
 
-<footer class="site-footer">
-  <p>Daten: <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a> &mdash; Standort: Heubach, Ostalbkreis</p>
+<footer class="site-footer surface-dark">
+  <div class="footer-inner">
+    <section class="footer-block" aria-labelledby="footer-source">
+      <h2 id="footer-source" class="kicker">Datenquelle</h2>
+      <p>
+        Wetterdaten:
+        <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a>
+        (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener license">CC BY 4.0</a>)
+      </p>
+    </section>
+    <!-- Block „Datenstand“ (E3.7.9): bis Schritt 2 nur statischer Text, Express-lastFetch wird nicht gelesen -->
+    <section class="footer-block" aria-labelledby="footer-location">
+      <h2 id="footer-location" class="kicker">Standort</h2>
+      <p>Wetterdaten für Heubach</p>
+    </section>
+  </div>
 </footer>

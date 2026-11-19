@@ -1,0 +1,9 @@
+<p class="kicker notice-kicker">
+  @if (variant() === 'forecast') {
+    <span aria-hidden="true">◔</span>
+  }
+  {{ kickerText() }}
+</p>
+<div class="notice-body">
+  <ng-content />
+</div>

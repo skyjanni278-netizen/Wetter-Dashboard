@@ -1,0 +1,8 @@
+:host { display: block; min-width: 0; }
+
+.state-message { margin: 0; }
+
+.state-details {
+  margin: 0;
+  padding-left: var(--space-4);
+}

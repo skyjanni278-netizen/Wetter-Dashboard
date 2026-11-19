@@ -1,0 +1,23 @@
+:host {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: 100%;
+  padding: var(--space-1) 0.75rem;
+  border: var(--line-strong) solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  color: var(--color-text-muted);
+  font: var(--fw-semibold) var(--fs-xs) / 1.3 var(--font-body);
+  letter-spacing: var(--tracking-kicker);
+  text-transform: uppercase;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+/* Vorhersage: Rand Deko, Text 6,00 / 5,13:1 */
+:host(.chip-forecast) {
+  border-color: var(--color-accent-bright);
+  color: var(--color-accent-strong);
+}
+
+.chip-symbol { font-size: var(--fs-sm); line-height: 1; }

@@ -1,0 +1,38 @@
+/* Ohne View-Kapselung, damit projizierte Absätze und Listen ohne eigene Ränder auskommen;
+   alle Selektoren beginnen mit .notice */
+.notice {
+  display: block;
+  padding: var(--space-3);
+  border-left: var(--edge-notice) solid var(--color-notice-line);
+  border-radius: var(--radius);
+  background-color: var(--color-notice-bg);
+  color: var(--color-text);
+  font-size: var(--fs-base);
+  overflow-wrap: anywhere;
+}
+
+.notice-kicker {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0 0 var(--space-2);
+  color: var(--color-notice);
+}
+
+/* Projizierter Inhalt: Abstand über gap statt über die Ränder der Absätze */
+.notice-body { display: grid; gap: var(--space-2); justify-items: start; }
+.notice-body > * { margin: 0; }
+
+/* Vorhersage / Zukunft: helle Fläche, Kicker 6,00:1 */
+.notice-forecast {
+  border-left-color: var(--color-accent-bright);
+  background-color: var(--color-surface);
+}
+.notice-forecast .notice-kicker { color: var(--color-accent-strong); }
+
+/* Fehler: Linie 6,15:1 gegen die Fläche, Kicker „FEHLER“ in --color-danger */
+.notice-error {
+  border-left-color: var(--color-danger);
+  background-color: var(--color-danger-bg);
+}
+.notice-error .notice-kicker { color: var(--color-danger); }

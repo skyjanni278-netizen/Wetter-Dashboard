@@ -1,0 +1,20 @@
+<app-card [busy]="busy()" [reveal]="reveal()" [revealIndex]="revealIndex()">
+  <p class="kicker kpi-kicker">{{ kicker() }}</p>
+  @if (loading()) {
+    <app-skeleton class="kpi-skeleton" width="60%" height="var(--fs-lg)" />
+    <app-skeleton width="40%" height="var(--fs-sm)" />
+  } @else {
+    <p class="kpi-value">
+      <span class="num">{{ displayValue() }}</span>
+      @if (unit() && hasValue()) {
+        <span class="kpi-unit">{{ unit() }}</span>
+      }
+    </p>
+    <div class="kpi-meta">
+      @if (metaText()) {
+        <span>{{ metaText() }}</span>
+      }
+      <ng-content />
+    </div>
+  }
+</app-card>

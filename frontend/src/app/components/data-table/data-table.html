@@ -1,0 +1,36 @@
+<div class="table-scroll">
+  <table>
+    <caption [class.visually-hidden]="captionHidden()">{{ caption() }}</caption>
+    <thead>
+      <tr>
+        @for (col of columns(); track col.key) {
+          <th scope="col" [class.cell-end]="col.align === 'end'">{{ col.label }}</th>
+        }
+      </tr>
+    </thead>
+    <tbody>
+      @for (row of rows(); track $index) {
+        <tr>
+          @for (col of columns(); track col.key) {
+            @let value = row[col.key];
+            @if (col.rowHeader) {
+              <th scope="row" [class.cell-end]="col.align === 'end'" [class.num]="col.align === 'end'">{{ text(value) }}</th>
+            } @else {
+              <td [class.cell-end]="col.align === 'end'" [class.num]="col.align === 'end'">
+                @if (isChip(value)) {
+                  <app-chip [variant]="value.variant ?? 'status'">{{ value.chip }}</app-chip>
+                } @else {
+                  {{ text(value) }}
+                }
+              </td>
+            }
+          }
+        </tr>
+      } @empty {
+        <tr>
+          <td class="cell-empty" [attr.colspan]="columns().length">{{ emptyText() }}</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</div>

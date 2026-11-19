@@ -1,0 +1,6 @@
+:host {
+  display: block;
+  max-width: 100%;
+  border-radius: var(--radius);
+  background-color: var(--color-skeleton);
+}

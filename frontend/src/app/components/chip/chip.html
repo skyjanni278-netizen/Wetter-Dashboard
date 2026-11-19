@@ -1,0 +1,4 @@
+@if (variant() === 'forecast') {
+  <span class="chip-symbol" aria-hidden="true">◔</span>
+}
+<ng-content>{{ variant() === 'forecast' ? 'Vorhersage' : '' }}</ng-content>

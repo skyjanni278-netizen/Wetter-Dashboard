@@ -1,3 +1,28 @@
-<div class="chart-wrapper">
-  <canvas #chartCanvas></canvas>
-</div>
+<figure class="chart-figure">
+  @if (title()) {
+    <h2 class="chart-title">{{ title() }}</h2>
+  }
+  <figcaption class="chart-caption">{{ captionText() }}</figcaption>
+
+  <div class="chart-wrapper">
+    <canvas #chartCanvas role="img" [attr.aria-label]="ariaLabel()"></canvas>
+  </div>
+
+  <!-- Legende als HTML statt Chart.js-Legende (E3.8) -->
+  <ul class="chart-legend">
+    <li><span class="swatch swatch-line" aria-hidden="true"></span>Temperatur (°C), Linie</li>
+    <li><span class="swatch swatch-bar" aria-hidden="true"></span>Niederschlag (mm), Balken</li>
+    @if (hasPrediction()) {
+      <li>
+        <span class="swatch swatch-line swatch-dashed" aria-hidden="true"></span>
+        <span class="swatch swatch-bar swatch-hatched" aria-hidden="true"></span>
+        Vorhersage: gestrichelt bzw. schraffiert
+      </li>
+    }
+  </ul>
+
+  <details class="chart-details">
+    <summary class="btn btn-text"><span class="summary-label">Werte als Tabelle</span></summary>
+    <app-data-table [caption]="tableCaption()" [captionHidden]="true" [columns]="tableColumns()" [rows]="tableRows()" />
+  </details>
+</figure>

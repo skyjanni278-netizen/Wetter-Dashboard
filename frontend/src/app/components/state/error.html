@@ -1,0 +1,14 @@
+<app-notice variant="error" [announce]="announce()">
+  <p class="state-message">{{ message() }}</p>
+  @if (details().length) {
+    <ul class="state-details">
+      @for (detail of details(); track $index) {
+        <li>{{ detail }}</li>
+      }
+    </ul>
+  }
+  <ng-content />
+  @if (retryable()) {
+    <button type="button" class="btn btn-primary" (click)="retry.emit()">{{ retryLabel() }}</button>
+  }
+</app-notice>
