@@ -11,17 +11,13 @@
 import axios from 'axios';
 import { DayData, HourlyEntry, fetchForecast } from './weather-api';
 import { saveDayData, saveForecast } from './data-store';
+import { berlinDate } from './berlin-date';
 
 const LATITUDE = 48.7936;
 const LONGITUDE = 9.9369;
 const TIMEZONE = 'Europe/Berlin';
 const HOURLY_VARS = 'temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m';
 const RECENT_DAYS = 10; // diese Tage kommen aus der Forecast-API
-
-/** Datum als YYYY-MM-DD in deutscher Zeit */
-function berlinDate(d: Date): string {
-  return d.toLocaleDateString('sv-SE', { timeZone: TIMEZONE });
-}
 
 function addDays(date: string, days: number): string {
   const d = new Date(`${date}T12:00:00Z`);

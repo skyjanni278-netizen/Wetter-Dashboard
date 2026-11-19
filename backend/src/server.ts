@@ -1,14 +1,13 @@
 import express from 'express';
-import cors from 'cors';
 import helmet from 'helmet';
 import { startScheduler, getSchedulerStatus } from './scheduler';
 import { loadDayData, loadForecast, getMonthSummary, getYearSummary, countStoredDays, getStats } from './data-store';
+import { berlinDate } from './berlin-date';
 
 const app = express();
 const PORT = parseInt(process.env['PORT'] ?? '3000', 10);
 
 app.use(helmet());
-app.use(cors());
 app.use(express.json());
 
 app.get('/api/status', (_req, res) => {
@@ -22,7 +21,7 @@ app.get('/api/status', (_req, res) => {
 });
 
 app.get('/api/data/today', (_req, res) => {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = berlinDate();
   const data = loadDayData(today);
   if (!data) {
     res.status(404).json({ error: 'Keine Daten für heute gefunden. Warte auf ersten Abruf.' });
@@ -78,6 +77,6 @@ app.get('/api/stats', (_req, res) => {
 
 startScheduler();
 
-app.listen(PORT, () => {
-  console.log(`Wetter-Dashboard Backend läuft auf http://localhost:${PORT}`);
+app.listen(PORT, '127.0.0.1', () => {
+  console.log(`Wetter-Dashboard Backend läuft auf http://127.0.0.1:${PORT}`);
 });

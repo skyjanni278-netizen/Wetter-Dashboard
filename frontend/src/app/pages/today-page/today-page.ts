@@ -1,10 +1,14 @@
 import { Component, OnInit, signal, computed, inject } from '@angular/core';
+import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { DecimalPipe } from '@angular/common';
+import { Observable, of, catchError, map, startWith, switchMap } from 'rxjs';
 import { WeatherService } from '../../services/weather.service';
 import { DayData, DayForecast } from '../../models/weather';
+import { LoadResult, LoadState } from '../../models/load-state';
 import { ClimateChartComponent, ClimateChartDataset } from '../../components/climate-chart/climate-chart';
 import { getWeatherIcon, getWeatherDescription, getWindDirection } from '../../utils/weather-icon';
+import { berlinToday, berlinHour, addDays } from '../../utils/berlin-date';
 
 const DAY_NAMES = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
 
@@ -22,19 +26,24 @@ export class TodayPageComponent implements OnInit {
   readonly getWeatherDescription = getWeatherDescription;
   readonly getWindDirection = getWindDirection;
 
-  selectedDate = signal(new Date().toISOString().slice(0, 10));
+  selectedDate = signal(berlinToday());
   dayData = signal<DayData | null>(null);
   forecast = signal<DayForecast[]>([]);
-  loading = signal(false);
+  state = signal<LoadState>('idle');
+  loading = computed(() => this.state() === 'loading');
   error = signal<string | null>(null);
 
-  isToday  = computed(() => this.selectedDate() === new Date().toISOString().slice(0, 10));
-  isFuture = computed(() => this.selectedDate() >   new Date().toISOString().slice(0, 10));
+  /** Erhöht sich bei „Heute“, damit auch ohne Datumswechsel neu geladen wird. */
+  private reloadCount = signal(0);
+  private request = computed(() => ({ date: this.selectedDate(), reload: this.reloadCount() }));
+
+  isToday  = computed(() => this.selectedDate() === berlinToday());
+  isFuture = computed(() => this.selectedDate() >   berlinToday());
 
   currentHourEntry = computed(() => {
     const data = this.dayData();
     if (!data || !this.isToday()) return null;
-    const currentHour = `${data.date}T${String(new Date().getHours()).padStart(2, '0')}:00`;
+    const currentHour = `${data.date}T${String(berlinHour()).padStart(2, '0')}:00`;
     return data.hourly.find(h => h.time === currentHour) ?? data.hourly[data.hourly.length - 1];
   });
 
@@ -83,61 +92,65 @@ export class TodayPageComponent implements OnInit {
     this.forecast().map(f => ({
       ...f,
       dayName: DAY_NAMES[new Date(f.date + 'T12:00:00').getDay()],
-      isToday: f.date === new Date().toISOString().slice(0, 10),
+      isToday: f.date === berlinToday(),
     }))
   );
 
+  constructor() {
+    // switchMap bricht den Request für eine überholte Auswahl ab (V03, F04)
+    toObservable(this.request).pipe(
+      switchMap(({ date }) => this.loadDay(date)),
+      takeUntilDestroyed(),
+    ).subscribe(result => this.applyResult(result));
+  }
+
   ngOnInit(): void {
-    this.loadData(this.selectedDate());
     this.weather.getForecast().subscribe({ next: f => this.forecast.set(f), error: () => {} });
   }
 
   onDateChange(event: Event): void {
     const date = (event.target as HTMLInputElement).value;
     this.selectedDate.set(date);
-    this.loadData(date);
   }
 
   loadToday(): void {
-    const today = new Date().toISOString().slice(0, 10);
-    this.selectedDate.set(today);
-    this.loadData(today);
+    this.selectedDate.set(berlinToday());
+    this.reloadCount.update(n => n + 1);
   }
 
   loadPreviousDay(): void {
-    const d = new Date(this.selectedDate() + 'T12:00:00');
-    d.setDate(d.getDate() - 1);
-    const date = d.toISOString().slice(0, 10);
-    this.selectedDate.set(date);
-    this.loadData(date);
+    this.selectedDate.set(addDays(this.selectedDate(), -1));
   }
 
   loadNextDay(): void {
-    const d = new Date(this.selectedDate() + 'T12:00:00');
-    d.setDate(d.getDate() + 1);
-    const date = d.toISOString().slice(0, 10);
-    const today = new Date().toISOString().slice(0, 10);
-    if (date > today) return;
+    const date = addDays(this.selectedDate(), 1);
+    if (date > berlinToday()) return;
     this.selectedDate.set(date);
-    this.loadData(date);
   }
 
-  private loadData(date: string): void {
-    const today = new Date().toISOString().slice(0, 10);
+  private loadDay(date: string): Observable<LoadResult<DayData>> {
+    const today = berlinToday();
     if (date > today) {
-      this.dayData.set(null);
-      this.error.set(null);
-      this.loading.set(false);
-      return;
+      return of<LoadResult<DayData>>({ state: 'idle', data: null, message: null });
     }
-    this.loading.set(true);
-    this.error.set(null);
     const obs = date === today
       ? this.weather.getToday()
       : this.weather.getDay(date);
-    obs.subscribe({
-      next: data => { this.dayData.set(data); this.loading.set(false); },
-      error: err => { this.error.set(err?.error?.error ?? 'Fehler beim Laden.'); this.loading.set(false); }
-    });
+    return obs.pipe(
+      map((data): LoadResult<DayData> => data?.hourly?.length
+        ? { state: 'success', data, message: null }
+        : { state: 'empty', data: null, message: 'Keine Daten für diesen Tag gefunden.' }),
+      catchError(err => of<LoadResult<DayData>>(err?.status === 404
+        ? { state: 'empty', data: null, message: err?.error?.error ?? 'Keine Daten für diesen Tag gefunden.' }
+        : { state: 'error', data: null, message: err?.error?.error ?? 'Fehler beim Laden.' })),
+      startWith<LoadResult<DayData>>({ state: 'loading', data: null, message: null }),
+    );
+  }
+
+  private applyResult(result: LoadResult<DayData>): void {
+    this.state.set(result.state);
+    this.error.set(result.message);
+    // Bei loading bleiben vorhandene Daten sichtbar; bei empty/error werden sie null (V02, F03)
+    if (result.state !== 'loading') this.dayData.set(result.data);
   }
 }

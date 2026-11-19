@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { berlinDate } from './berlin-date';
 
 const LATITUDE = 48.7936;
 const LONGITUDE = 9.9369;
@@ -55,7 +56,7 @@ export async function fetchDayData(date: string): Promise<DayData> {
 }
 
 export async function fetchTodayData(): Promise<DayData> {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = berlinDate();
   return fetchDayData(today);
 }
 

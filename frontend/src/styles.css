@@ -1,9 +1,9 @@
 *, *::before, *::after { box-sizing: border-box; }
 
 :focus-visible {
-  outline: 3px solid var(--sky-mid);
-  outline-offset: 2px;
-  border-radius: 4px;
+  outline: 3px solid #1B1F24;      /* innen, direkt am Element */
+  outline-offset: 0;
+  box-shadow: 0 0 0 5px #FFFFFF;   /* 2 px weißer Saum außerhalb des Rings */
 }
 
 @media (prefers-reduced-motion: reduce) {

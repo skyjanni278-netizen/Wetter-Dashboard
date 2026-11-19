@@ -2,9 +2,9 @@
   <div class="page-header">
     <h1>Jahresdiagramm – Heubach</h1>
     <div class="controls">
-      <select aria-label="Jahr auswählen" [value]="selectedYear()" (change)="onYearChange($event)">
+      <select aria-label="Jahr auswählen" (change)="onYearChange($event)">
         @for (y of years; track y) {
-          <option [value]="y">{{ y }}</option>
+          <option [value]="y" [selected]="y === selectedYear()">{{ y }}</option>
         }
       </select>
       <button (click)="loadData()">Laden</button>
@@ -20,7 +20,8 @@
     }
   </div>
 
-  @if (chartData() && !loading()) {
+  <div [attr.aria-busy]="loading() ? 'true' : null">
+  @if (chartData()) {
     <div class="summary-row">
       <div class="summary-card">
         <span class="label">Jahr</span>
@@ -49,4 +50,5 @@
       <app-climate-chart [data]="chartData()" />
     </div>
   }
+  </div>
 </div>

@@ -44,6 +44,10 @@
   transition: background 0.15s, color 0.15s;
   font-size: 0.9rem;
   font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
 }
 
 .main-nav a:hover {
@@ -55,6 +59,32 @@
   background: white;
   color: var(--sky-dark);
   font-weight: 600;
+}
+
+@media (max-width: 47.99em) {
+  .site-header { padding: 0 0.75rem; }
+
+  .header-inner {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    height: auto;
+    gap: 0.5rem;
+    padding: 0.5rem 0;
+  }
+
+  .logo { justify-content: center; }
+
+  .main-nav {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .main-nav a {
+    padding: 0.4rem 0.25rem;
+    text-align: center;
+    min-width: 0;
+  }
 }
 
 main {

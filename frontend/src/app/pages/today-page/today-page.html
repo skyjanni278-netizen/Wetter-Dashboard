@@ -28,7 +28,8 @@
     @if (error())   { <div class="error">{{ error() }}</div> }
   </div>
 
-  @if (dayData() && !loading()) {
+  <div [attr.aria-busy]="loading() ? 'true' : null">
+  @if (dayData()) {
     @if (isToday() && currentHourEntry()) {
       <!-- Hero-Karte (nur heute) -->
       <div class="hero-card">
@@ -124,5 +125,6 @@
       <app-climate-chart [data]="chartData()" />
     </div>
   }
+  </div> <!-- Ende Inhaltsbereich (aria-busy) -->
   } <!-- Ende @if (!isFuture()) -->
 </div>
