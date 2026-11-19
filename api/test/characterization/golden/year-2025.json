@@ -1,0 +1,65 @@
+{
+  "year": "2025",
+  "data": [
+    {
+      "month": 1,
+      "avgTemp": 1.5,
+      "totalPrecip": 77.5
+    },
+    {
+      "month": 2,
+      "avgTemp": 0.9,
+      "totalPrecip": 49.9
+    },
+    {
+      "month": 3,
+      "avgTemp": 5.1,
+      "totalPrecip": 21.9
+    },
+    {
+      "month": 4,
+      "avgTemp": 9.6,
+      "totalPrecip": 38.3
+    },
+    {
+      "month": 5,
+      "avgTemp": 12.5,
+      "totalPrecip": 49.7
+    },
+    {
+      "month": 6,
+      "avgTemp": 19.2,
+      "totalPrecip": 62.8
+    },
+    {
+      "month": 7,
+      "avgTemp": 17.9,
+      "totalPrecip": 131.4
+    },
+    {
+      "month": 8,
+      "avgTemp": 18.1,
+      "totalPrecip": 94.3
+    },
+    {
+      "month": 9,
+      "avgTemp": 13.7,
+      "totalPrecip": 132
+    },
+    {
+      "month": 10,
+      "avgTemp": 9,
+      "totalPrecip": 74.5
+    },
+    {
+      "month": 11,
+      "avgTemp": 4.2,
+      "totalPrecip": 62.7
+    },
+    {
+      "month": 12,
+      "avgTemp": 2.1,
+      "totalPrecip": 20.6
+    }
+  ]
+}

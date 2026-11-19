@@ -1,0 +1,222 @@
+{
+  "date": "2025-03-30",
+  "location": "Heubach",
+  "hourly": [
+    {
+      "time": "2025-03-30T00:00",
+      "temperature": 3.6,
+      "apparentTemperature": 1,
+      "precipitation": 0,
+      "weathercode": 0,
+      "windspeed": 5.1,
+      "winddirection": 337
+    },
+    {
+      "time": "2025-03-30T01:00",
+      "temperature": 3.1,
+      "apparentTemperature": 0.9,
+      "precipitation": 0,
+      "weathercode": 0,
+      "windspeed": 1.3,
+      "winddirection": 326
+    },
+    {
+      "time": "2025-03-30T02:00",
+      "temperature": 3.9,
+      "apparentTemperature": 1.4,
+      "precipitation": 0,
+      "weathercode": 0,
+      "windspeed": 4,
+      "winddirection": 273
+    },
+    {
+      "time": "2025-03-30T03:00",
+      "temperature": 2.9,
+      "apparentTemperature": 0.2,
+      "precipitation": 0,
+      "weathercode": 2,
+      "windspeed": 5.2,
+      "winddirection": 243
+    },
+    {
+      "time": "2025-03-30T04:00",
+      "temperature": 2.3,
+      "apparentTemperature": -0.6,
+      "precipitation": 0,
+      "weathercode": 1,
+      "windspeed": 6.2,
+      "winddirection": 229
+    },
+    {
+      "time": "2025-03-30T05:00",
+      "temperature": 1.9,
+      "apparentTemperature": -1.5,
+      "precipitation": 0,
+      "weathercode": 3,
+      "windspeed": 9.9,
+      "winddirection": 207
+    },
+    {
+      "time": "2025-03-30T06:00",
+      "temperature": 1.9,
+      "apparentTemperature": -1.5,
+      "precipitation": 0,
+      "weathercode": 3,
+      "windspeed": 10.1,
+      "winddirection": 223
+    },
+    {
+      "time": "2025-03-30T07:00",
+      "temperature": 2.8,
+      "apparentTemperature": -0.9,
+      "precipitation": 0,
+      "weathercode": 3,
+      "windspeed": 12.2,
+      "winddirection": 225
+    },
+    {
+      "time": "2025-03-30T08:00",
+      "temperature": 4.7,
+      "apparentTemperature": 1.2,
+      "precipitation": 0,
+      "weathercode": 3,
+      "windspeed": 11.6,
+      "winddirection": 234
+    },
+    {
+      "time": "2025-03-30T09:00",
+      "temperature": 6.8,
+      "apparentTemperature": 3,
+      "precipitation": 0,
+      "weathercode": 3,
+      "windspeed": 14.1,
+      "winddirection": 240
+    },
+    {
+      "time": "2025-03-30T10:00",
+      "temperature": 8.4,
+      "apparentTemperature": 3.6,
+      "precipitation": 0,
+      "weathercode": 3,
+      "windspeed": 18.9,
+      "winddirection": 256
+    },
+    {
+      "time": "2025-03-30T11:00",
+      "temperature": 9.5,
+      "apparentTemperature": 4.8,
+      "precipitation": 0,
+      "weathercode": 3,
+      "windspeed": 19.1,
+      "winddirection": 252
+    },
+    {
+      "time": "2025-03-30T12:00",
+      "temperature": 10.4,
+      "apparentTemperature": 5.9,
+      "precipitation": 0,
+      "weathercode": 3,
+      "windspeed": 19.8,
+      "winddirection": 253
+    },
+    {
+      "time": "2025-03-30T13:00",
+      "temperature": 10.9,
+      "apparentTemperature": 5.6,
+      "precipitation": 0,
+      "weathercode": 3,
+      "windspeed": 21.9,
+      "winddirection": 265
+    },
+    {
+      "time": "2025-03-30T14:00",
+      "temperature": 10.4,
+      "apparentTemperature": 5.1,
+      "precipitation": 0,
+      "weathercode": 3,
+      "windspeed": 20,
+      "winddirection": 273
+    },
+    {
+      "time": "2025-03-30T15:00",
+      "temperature": 9.1,
+      "apparentTemperature": 4.3,
+      "precipitation": 0.2,
+      "weathercode": 51,
+      "windspeed": 21.5,
+      "winddirection": 300
+    },
+    {
+      "time": "2025-03-30T16:00",
+      "temperature": 7.6,
+      "apparentTemperature": 2.9,
+      "precipitation": 0.2,
+      "weathercode": 51,
+      "windspeed": 21.6,
+      "winddirection": 285
+    },
+    {
+      "time": "2025-03-30T17:00",
+      "temperature": 7.5,
+      "apparentTemperature": 3,
+      "precipitation": 0,
+      "weathercode": 3,
+      "windspeed": 21.3,
+      "winddirection": 275
+    },
+    {
+      "time": "2025-03-30T18:00",
+      "temperature": 7.3,
+      "apparentTemperature": 2.8,
+      "precipitation": 0,
+      "weathercode": 1,
+      "windspeed": 21.5,
+      "winddirection": 267
+    },
+    {
+      "time": "2025-03-30T19:00",
+      "temperature": 6.3,
+      "apparentTemperature": 2.1,
+      "precipitation": 0,
+      "weathercode": 3,
+      "windspeed": 18.7,
+      "winddirection": 273
+    },
+    {
+      "time": "2025-03-30T20:00",
+      "temperature": 6.6,
+      "apparentTemperature": 2,
+      "precipitation": 0,
+      "weathercode": 3,
+      "windspeed": 21.2,
+      "winddirection": 263
+    },
+    {
+      "time": "2025-03-30T21:00",
+      "temperature": 6.2,
+      "apparentTemperature": 1.6,
+      "precipitation": 0.1,
+      "weathercode": 51,
+      "windspeed": 21.6,
+      "winddirection": 277
+    },
+    {
+      "time": "2025-03-30T22:00",
+      "temperature": 5.9,
+      "apparentTemperature": 1.4,
+      "precipitation": 0.4,
+      "weathercode": 51,
+      "windspeed": 22.1,
+      "winddirection": 285
+    },
+    {
+      "time": "2025-03-30T23:00",
+      "temperature": 5.4,
+      "apparentTemperature": 1.1,
+      "precipitation": 0.4,
+      "weathercode": 51,
+      "windspeed": 18.4,
+      "winddirection": 293
+    }
+  ]
+}

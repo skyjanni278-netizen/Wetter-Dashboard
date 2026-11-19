@@ -1,0 +1,161 @@
+{
+  "year": "2026",
+  "month": "01",
+  "data": [
+    {
+      "day": 1,
+      "avgTemp": -2.2,
+      "totalPrecip": 0
+    },
+    {
+      "day": 2,
+      "avgTemp": -0.3,
+      "totalPrecip": 3.9
+    },
+    {
+      "day": 3,
+      "avgTemp": -3.5,
+      "totalPrecip": 0.9
+    },
+    {
+      "day": 4,
+      "avgTemp": -3.6,
+      "totalPrecip": 0
+    },
+    {
+      "day": 5,
+      "avgTemp": -6.9,
+      "totalPrecip": 0
+    },
+    {
+      "day": 6,
+      "avgTemp": -7.9,
+      "totalPrecip": 0.3
+    },
+    {
+      "day": 7,
+      "avgTemp": -6.4,
+      "totalPrecip": 0.4
+    },
+    {
+      "day": 8,
+      "avgTemp": -1,
+      "totalPrecip": 6.8
+    },
+    {
+      "day": 9,
+      "avgTemp": 3.7,
+      "totalPrecip": 6.2
+    },
+    {
+      "day": 10,
+      "avgTemp": -0.4,
+      "totalPrecip": 10.7
+    },
+    {
+      "day": 11,
+      "avgTemp": -5,
+      "totalPrecip": 0.3
+    },
+    {
+      "day": 12,
+      "avgTemp": 0.5,
+      "totalPrecip": 4.8
+    },
+    {
+      "day": 13,
+      "avgTemp": 3.9,
+      "totalPrecip": 0.1
+    },
+    {
+      "day": 14,
+      "avgTemp": 5.2,
+      "totalPrecip": 0
+    },
+    {
+      "day": 15,
+      "avgTemp": 5,
+      "totalPrecip": 0.2
+    },
+    {
+      "day": 16,
+      "avgTemp": 3,
+      "totalPrecip": 0
+    },
+    {
+      "day": 17,
+      "avgTemp": -0.5,
+      "totalPrecip": 0
+    },
+    {
+      "day": 18,
+      "avgTemp": -0.7,
+      "totalPrecip": 0
+    },
+    {
+      "day": 19,
+      "avgTemp": -0.6,
+      "totalPrecip": 0
+    },
+    {
+      "day": 20,
+      "avgTemp": -1.2,
+      "totalPrecip": 0
+    },
+    {
+      "day": 21,
+      "avgTemp": -1.7,
+      "totalPrecip": 0
+    },
+    {
+      "day": 22,
+      "avgTemp": -3.2,
+      "totalPrecip": 0
+    },
+    {
+      "day": 23,
+      "avgTemp": -1.6,
+      "totalPrecip": 0
+    },
+    {
+      "day": 24,
+      "avgTemp": -1.6,
+      "totalPrecip": 1
+    },
+    {
+      "day": 25,
+      "avgTemp": -1.8,
+      "totalPrecip": 9.5
+    },
+    {
+      "day": 26,
+      "avgTemp": 0.3,
+      "totalPrecip": 11.1
+    },
+    {
+      "day": 27,
+      "avgTemp": -0.2,
+      "totalPrecip": 3.3
+    },
+    {
+      "day": 28,
+      "avgTemp": 0.9,
+      "totalPrecip": 2.7
+    },
+    {
+      "day": 29,
+      "avgTemp": -0.1,
+      "totalPrecip": 8.7
+    },
+    {
+      "day": 30,
+      "avgTemp": -0.2,
+      "totalPrecip": 0
+    },
+    {
+      "day": 31,
+      "avgTemp": 0.2,
+      "totalPrecip": 0
+    }
+  ]
+}

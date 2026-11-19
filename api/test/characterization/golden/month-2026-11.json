@@ -1,0 +1,101 @@
+{
+  "year": "2026",
+  "month": "11",
+  "data": [
+    {
+      "day": 1,
+      "avgTemp": 4.9,
+      "totalPrecip": 0.1
+    },
+    {
+      "day": 2,
+      "avgTemp": 3.4,
+      "totalPrecip": 0
+    },
+    {
+      "day": 3,
+      "avgTemp": 4.2,
+      "totalPrecip": 0
+    },
+    {
+      "day": 4,
+      "avgTemp": 4.8,
+      "totalPrecip": 0
+    },
+    {
+      "day": 5,
+      "avgTemp": 3.8,
+      "totalPrecip": 0
+    },
+    {
+      "day": 6,
+      "avgTemp": 1.8,
+      "totalPrecip": 0
+    },
+    {
+      "day": 7,
+      "avgTemp": 5.1,
+      "totalPrecip": 0
+    },
+    {
+      "day": 8,
+      "avgTemp": 5.8,
+      "totalPrecip": 0
+    },
+    {
+      "day": 9,
+      "avgTemp": 5,
+      "totalPrecip": 0.4
+    },
+    {
+      "day": 10,
+      "avgTemp": 6.9,
+      "totalPrecip": 2.2
+    },
+    {
+      "day": 11,
+      "avgTemp": 10.4,
+      "totalPrecip": 9.5
+    },
+    {
+      "day": 12,
+      "avgTemp": 9.1,
+      "totalPrecip": 0.5
+    },
+    {
+      "day": 13,
+      "avgTemp": 2.5,
+      "totalPrecip": 0
+    },
+    {
+      "day": 14,
+      "avgTemp": 1.9,
+      "totalPrecip": 0
+    },
+    {
+      "day": 15,
+      "avgTemp": 6.2,
+      "totalPrecip": 0.1
+    },
+    {
+      "day": 16,
+      "avgTemp": 9.4,
+      "totalPrecip": 3.3
+    },
+    {
+      "day": 17,
+      "avgTemp": 11,
+      "totalPrecip": 13.5
+    },
+    {
+      "day": 18,
+      "avgTemp": 10,
+      "totalPrecip": 5.4
+    },
+    {
+      "day": 19,
+      "avgTemp": 9,
+      "totalPrecip": 5.8
+    }
+  ]
+}

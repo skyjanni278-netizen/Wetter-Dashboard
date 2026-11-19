@@ -1,0 +1,222 @@
+{
+  "date": "2026-11-08",
+  "location": "Heubach",
+  "hourly": [
+    {
+      "time": "2026-11-08T00:00",
+      "temperature": 5.4,
+      "apparentTemperature": 3.6,
+      "precipitation": 0,
+      "weathercode": 3,
+      "windspeed": 3.4,
+      "winddirection": 133
+    },
+    {
+      "time": "2026-11-08T01:00",
+      "temperature": 5.6,
+      "apparentTemperature": 3.9,
+      "precipitation": 0,
+      "weathercode": 3,
+      "windspeed": 3.1,
+      "winddirection": 118
+    },
+    {
+      "time": "2026-11-08T02:00",
+      "temperature": 5.5,
+      "apparentTemperature": 3.8,
+      "precipitation": 0,
+      "weathercode": 3,
+      "windspeed": 3.5,
+      "winddirection": 129
+    },
+    {
+      "time": "2026-11-08T03:00",
+      "temperature": 5.7,
+      "apparentTemperature": 3.9,
+      "precipitation": 0,
+      "weathercode": 3,
+      "windspeed": 3.8,
+      "winddirection": 131
+    },
+    {
+      "time": "2026-11-08T04:00",
+      "temperature": 5.7,
+      "apparentTemperature": 3.7,
+      "precipitation": 0,
+      "weathercode": 3,
+      "windspeed": 5.1,
+      "winddirection": 141
+    },
+    {
+      "time": "2026-11-08T05:00",
+      "temperature": 5.4,
+      "apparentTemperature": 3.1,
+      "precipitation": 0,
+      "weathercode": 3,
+      "windspeed": 6.7,
+      "winddirection": 144
+    },
+    {
+      "time": "2026-11-08T06:00",
+      "temperature": 5.3,
+      "apparentTemperature": 3,
+      "precipitation": 0,
+      "weathercode": 3,
+      "windspeed": 6.6,
+      "winddirection": 147
+    },
+    {
+      "time": "2026-11-08T07:00",
+      "temperature": 4.6,
+      "apparentTemperature": 2.4,
+      "precipitation": 0,
+      "weathercode": 3,
+      "windspeed": 4.9,
+      "winddirection": 147
+    },
+    {
+      "time": "2026-11-08T08:00",
+      "temperature": 4.5,
+      "apparentTemperature": 2.1,
+      "precipitation": 0,
+      "weathercode": 2,
+      "windspeed": 6.1,
+      "winddirection": 135
+    },
+    {
+      "time": "2026-11-08T09:00",
+      "temperature": 6,
+      "apparentTemperature": 3.6,
+      "precipitation": 0,
+      "weathercode": 3,
+      "windspeed": 6.5,
+      "winddirection": 146
+    },
+    {
+      "time": "2026-11-08T10:00",
+      "temperature": 7,
+      "apparentTemperature": 4.3,
+      "precipitation": 0,
+      "weathercode": 3,
+      "windspeed": 8.6,
+      "winddirection": 157
+    },
+    {
+      "time": "2026-11-08T11:00",
+      "temperature": 7.6,
+      "apparentTemperature": 5,
+      "precipitation": 0,
+      "weathercode": 1,
+      "windspeed": 7.6,
+      "winddirection": 142
+    },
+    {
+      "time": "2026-11-08T12:00",
+      "temperature": 8.9,
+      "apparentTemperature": 6.5,
+      "precipitation": 0,
+      "weathercode": 0,
+      "windspeed": 6.7,
+      "winddirection": 161
+    },
+    {
+      "time": "2026-11-08T13:00",
+      "temperature": 10,
+      "apparentTemperature": 7.9,
+      "precipitation": 0,
+      "weathercode": 3,
+      "windspeed": 5.2,
+      "winddirection": 200
+    },
+    {
+      "time": "2026-11-08T14:00",
+      "temperature": 9.8,
+      "apparentTemperature": 7.8,
+      "precipitation": 0,
+      "weathercode": 3,
+      "windspeed": 4.6,
+      "winddirection": 206
+    },
+    {
+      "time": "2026-11-08T15:00",
+      "temperature": 9.4,
+      "apparentTemperature": 7.5,
+      "precipitation": 0,
+      "weathercode": 2,
+      "windspeed": 3.4,
+      "winddirection": 174
+    },
+    {
+      "time": "2026-11-08T16:00",
+      "temperature": 8.4,
+      "apparentTemperature": 6.9,
+      "precipitation": 0,
+      "weathercode": 1,
+      "windspeed": 2.7,
+      "winddirection": 122
+    },
+    {
+      "time": "2026-11-08T17:00",
+      "temperature": 5.6,
+      "apparentTemperature": 3.4,
+      "precipitation": 0,
+      "weathercode": 1,
+      "windspeed": 4.4,
+      "winddirection": 111
+    },
+    {
+      "time": "2026-11-08T18:00",
+      "temperature": 4.4,
+      "apparentTemperature": 2,
+      "precipitation": 0,
+      "weathercode": 1,
+      "windspeed": 4.8,
+      "winddirection": 117
+    },
+    {
+      "time": "2026-11-08T19:00",
+      "temperature": 4.5,
+      "apparentTemperature": 2.1,
+      "precipitation": 0,
+      "weathercode": 1,
+      "windspeed": 6.2,
+      "winddirection": 126
+    },
+    {
+      "time": "2026-11-08T20:00",
+      "temperature": 3.3,
+      "apparentTemperature": 0.7,
+      "precipitation": 0,
+      "weathercode": 1,
+      "windspeed": 5.9,
+      "winddirection": 133
+    },
+    {
+      "time": "2026-11-08T21:00",
+      "temperature": 2.8,
+      "apparentTemperature": 0.3,
+      "precipitation": 0,
+      "weathercode": 0,
+      "windspeed": 5.5,
+      "winddirection": 136
+    },
+    {
+      "time": "2026-11-08T22:00",
+      "temperature": 2,
+      "apparentTemperature": -0.7,
+      "precipitation": 0,
+      "weathercode": 0,
+      "windspeed": 5.4,
+      "winddirection": 143
+    },
+    {
+      "time": "2026-11-08T23:00",
+      "temperature": 1.2,
+      "apparentTemperature": -1.5,
+      "precipitation": 0,
+      "weathercode": 3,
+      "windspeed": 4.9,
+      "winddirection": 147
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "year": "2026",
+  "data": [
+    {
+      "month": 1,
+      "avgTemp": -0.9,
+      "totalPrecip": 70.9
+    },
+    {
+      "month": 2,
+      "avgTemp": 3.4,
+      "totalPrecip": 132.5
+    },
+    {
+      "month": 3,
+      "avgTemp": 5.2,
+      "totalPrecip": 44.7
+    },
+    {
+      "month": 4,
+      "avgTemp": 9.5,
+      "totalPrecip": 30.8
+    },
+    {
+      "month": 5,
+      "avgTemp": 14.6,
+      "totalPrecip": 53.9
+    },
+    {
+      "month": 6,
+      "avgTemp": 20.1,
+      "totalPrecip": 54.8
+    },
+    {
+      "month": 7,
+      "avgTemp": 20.7,
+      "totalPrecip": 43.8
+    },
+    {
+      "month": 8,
+      "avgTemp": 21,
+      "totalPrecip": 61.7
+    },
+    {
+      "month": 9,
+      "avgTemp": 15.8,
+      "totalPrecip": 16.9
+    },
+    {
+      "month": 10,
+      "avgTemp": 10.1,
+      "totalPrecip": 94.8
+    },
+    {
+      "month": 11,
+      "avgTemp": 6.1,
+      "totalPrecip": 40.8
+    }
+  ]
+}
