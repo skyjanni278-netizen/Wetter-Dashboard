@@ -58,3 +58,8 @@
 }
 
 .form-field-error-symbol { font-weight: var(--fw-bold); }
+
+.form-field input[type="date"]::-webkit-calendar-picker-indicator:focus-visible {
+  outline: var(--focus-width) solid var(--color-focus);
+  outline-offset: var(--focus-offset);
+}

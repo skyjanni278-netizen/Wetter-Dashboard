@@ -250,7 +250,7 @@ export class ClimateChartComponent {
 
   private applyTickLimit(chart: Chart<ChartKind, Values, string>, width: number): void {
     const x = chart.options.scales?.['x'];
-    if (x?.ticks) x.ticks.maxTicksLimit = width < NARROW_WIDTH ? 6 : 12;
+    if (x?.ticks) x.ticks.maxTicksLimit = width < NARROW_WIDTH ? 6 : 31;
   }
 
   private build(data: ClimateChartDataset): void {
@@ -333,7 +333,7 @@ export class ClimateChartComponent {
           x: {
             grid: { display: false },
             border: { color: c.axis },
-            ticks: { color: c.axis, maxRotation: 0, autoSkip: true, maxTicksLimit: narrow ? 6 : 12 },
+            ticks: { color: c.axis, maxRotation: 0, autoSkip: true, maxTicksLimit: narrow ? 6 : 31 },
           },
           y: {
             type: 'linear',

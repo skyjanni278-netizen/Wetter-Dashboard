@@ -39,6 +39,9 @@
 
 @media (min-width: 80em) {
   .split-forecast { grid-template-columns: 7fr 5fr; }
+
+  /* Kennzahlen neben der Vorschau gleichmäßig 2 × 2 */
+  .split-forecast .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 .forecast-link { margin: 0; }
