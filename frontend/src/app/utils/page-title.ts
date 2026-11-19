@@ -6,7 +6,7 @@ import { isValidMonthParam, isValidYearParam } from './route-params';
 
 export const SITE_TITLE = 'Wetter Heubach';
 
-const MONTH_LONG = [
+export const MONTH_LONG = [
   'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
   'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember',
 ];

@@ -9,8 +9,15 @@ import { LoadResult, LoadState } from '../../models/load-state';
 import { ClimateChartComponent, ClimateChartDataset } from '../../components/climate-chart/climate-chart';
 import { berlinToday } from '../../utils/berlin-date';
 import { DATA_START } from '../../config/data-range';
-import { UnitPipe } from '../../pipes/unit.pipe';
-import { monthViewTitle, setPageTitle } from '../../utils/page-title';
+import { CardComponent } from '../../components/card/card';
+import { KpiCardComponent } from '../../components/kpi-card/kpi-card';
+import { NoticeComponent } from '../../components/notice/notice';
+import { FormFieldComponent } from '../../components/form-field/form-field';
+import { SkeletonComponent } from '../../components/skeleton/skeleton';
+import { LoadingComponent } from '../../components/state/loading';
+import { EmptyComponent } from '../../components/state/empty';
+import { ErrorComponent } from '../../components/state/error';
+import { monthLabel, monthViewTitle, setPageTitle } from '../../utils/page-title';
 import { isValidMonthParam, isValidYearParam } from '../../utils/route-params';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
@@ -19,9 +26,11 @@ const EMPTY_MESSAGE = 'Keine gespeicherten Daten für diesen Monat.';
 @Component({
   selector: 'app-monthly-page',
   standalone: true,
-  imports: [ClimateChartComponent, UnitPipe, RouterLink],
+  imports: [
+    ClimateChartComponent, RouterLink, CardComponent, KpiCardComponent, NoticeComponent, FormFieldComponent,
+    SkeletonComponent, LoadingComponent, EmptyComponent, ErrorComponent,
+  ],
   templateUrl: './monthly-page.html',
-  styleUrl: './monthly-page.css'
 })
 export class MonthlyPageComponent {
   private weather = inject(WeatherService);
@@ -49,7 +58,18 @@ export class MonthlyPageComponent {
 
   private request = computed(() => ({ year: this.selectedYear(), month: this.selectedMonth() }));
 
-  monthName = computed(() => MONTH_NAMES[parseInt(this.selectedMonth(), 10) - 1]);
+  /** Überschrift: „November 2026“; bei ungültiger Auswahl nur „Monat“. */
+  headline = computed(() => this.invalid() ? 'Monat' : monthLabel(this.selectedYear(), this.selectedMonth()));
+
+  /**
+   * Zeitraum, zu dem `monthData` gehört. Während des Ladens eines anderen Monats bleiben die alten
+   * Daten stehen, ihre Achse richtet sich nach diesem Zeitraum und nicht nach der neuen Auswahl.
+   */
+  dataPeriod = signal<{ year: string; month: string } | null>(null);
+  daysInMonth = computed(() => {
+    const period = this.dataPeriod();
+    return period ? new Date(Date.UTC(Number(period.year), Number(period.month), 0)).getUTCDate() : 0;
+  });
 
   /** Jahre von DATA_START bis zum aktuellen Berliner Jahr, neuestes zuerst (V18, F20). */
   years = Array.from(
@@ -61,13 +81,17 @@ export class MonthlyPageComponent {
     label: MONTH_NAMES[i]
   }));
 
+  /** Volle Monatsachse 1. bis letzter Tag; Tage ohne Daten sind `null` und zeigen eine Lücke (V21). */
   chartData = computed<ClimateChartDataset | null>(() => {
     const data = this.monthData();
-    if (!data || data.length === 0) return null;
+    const days = this.daysInMonth();
+    if (!data || data.length === 0 || days === 0) return null;
+    const byDay = new Map(data.map(d => [d.day, d]));
+    const axis = Array.from({ length: days }, (_, i) => i + 1);
     return {
-      labels: data.map(d => `${d.day}.`),
-      temperatures: data.map(d => d.avgTemp),
-      precipitations: data.map(d => d.totalPrecip),
+      labels: axis.map(day => `${day}.`),
+      temperatures: axis.map(day => byDay.get(day)?.avgTemp ?? null),
+      precipitations: axis.map(day => byDay.get(day)?.totalPrecip ?? null),
     };
   });
 
@@ -85,9 +109,9 @@ export class MonthlyPageComponent {
     // switchMap bricht den Request für eine überholte Auswahl ab (V03, F04).
     toObservable(this.request).pipe(
       distinctUntilChanged((a, b) => a.year === b.year && a.month === b.month),
-      switchMap(({ year, month }) => this.loadMonth(year, month)),
+      switchMap(({ year, month }) => this.loadMonth(year, month).pipe(map(result => ({ result, year, month })))),
       takeUntilDestroyed(),
-    ).subscribe(result => this.applyResult(result));
+    ).subscribe(({ result, year, month }) => this.applyResult(result, year, month));
   }
 
   /** Auswahlfelder navigieren über den Router (V08); ein ungültiger Rest fällt auf den aktuellen Monat zurück. */
@@ -117,10 +141,13 @@ export class MonthlyPageComponent {
     );
   }
 
-  private applyResult(result: LoadResult<MonthSummary[]>): void {
+  private applyResult(result: LoadResult<MonthSummary[]>, year: string, month: string): void {
     this.state.set(result.state);
     this.error.set(result.message);
     // Bei loading bleiben vorhandene Daten sichtbar; bei empty/error werden sie null (V02, F12)
-    if (result.state !== 'loading') this.monthData.set(result.data);
+    if (result.state !== 'loading') {
+      this.monthData.set(result.data);
+      this.dataPeriod.set(result.data ? { year, month } : null);
+    }
   }
 }

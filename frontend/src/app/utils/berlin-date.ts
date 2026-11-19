@@ -60,6 +60,21 @@ export function isValidIsoDate(date: string | null | undefined): boolean {
   return check.getUTCFullYear() === y && check.getUTCMonth() === m - 1 && check.getUTCDate() === d;
 }
 
+const LONG_DATE_FORMAT = new Intl.DateTimeFormat('de-DE', {
+  timeZone: 'UTC',
+  weekday: 'long',
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+});
+
+/** YYYY-MM-DD als „Donnerstag, 19. November 2026“; ungültige Werte bleiben unverändert. */
+export function formatDateLongDe(date: string): string {
+  if (!isValidIsoDate(date)) return date;
+  const [y, m, d] = date.split('-').map(Number);
+  return LONG_DATE_FORMAT.format(new Date(Date.UTC(y, m - 1, d)));
+}
+
 /** YYYY-MM-DD als TT.MM.JJJJ */
 export function formatDateDe(date: string): string {
   const match = ISO_DATE.exec(date);

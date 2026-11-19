@@ -144,10 +144,11 @@ describe('TodayPageComponent Zustandsmodell (V02)', () => {
     expect(c.dayData()).toBeNull();
     expect(c.error()).toBe('Server nicht erreichbar.');
     const el = fixture.nativeElement as HTMLElement;
-    expect(el.querySelector('.error')?.textContent).toContain('Server nicht erreichbar.');
-    expect(el.querySelector('.retry-btn')).not.toBeNull();
-    expect(el.querySelector('.hero-card')).toBeNull();
-    expect(el.querySelector('.summary-grid')).toBeNull();
+    expect(el.querySelector('app-error')?.textContent).toContain('Server nicht erreichbar.');
+    expect(el.querySelector('app-error [role="alert"]')).not.toBeNull();
+    expect(el.querySelector('app-error button')?.textContent).toContain('Erneut versuchen');
+    expect(el.querySelector('.hero')).toBeNull();
+    expect(el.querySelector('.kpi-grid')).toBeNull();
   });
 
   it('404 nach Erfolg ergibt empty und Daten null', () => {
@@ -183,10 +184,9 @@ describe('TodayPageComponent Zustandsmodell (V02)', () => {
     select(fixture, '2026-11-11');
     expect(c.state()).toBe('loading');
     expect(c.dayData()?.date).toBe('2026-11-10');
-    const busy = el.querySelector('[aria-busy="true"]');
-    expect(busy).not.toBeNull();
-    expect(busy?.querySelector('.hero-card')).not.toBeNull();
-    expect(el.querySelector('.loading')).not.toBeNull();
+    // Alte Daten bleiben sichtbar, die Karten tragen aria-busy; im Seitenkopf steht der Chip „Lädt …“ (V02, V14)
+    expect(el.querySelector('.hero[aria-busy="true"]')).not.toBeNull();
+    expect(el.querySelector('.page-title app-chip')?.textContent).toContain('Lädt 11.11.2026');
 
     pending.next(day('2026-11-11', 8));
     fixture.detectChanges();
@@ -205,19 +205,19 @@ describe('TodayPageComponent Vorschau (V17) und Fehlertexte (V20)', () => {
       getDay: (date: string) => of(day(date, 7)),
       getForecast: () => of(forecast),
     }, '/');
-    expect(t.el.querySelector('.forecast-strip')).not.toBeNull();
-    expect(t.el.querySelector('.link-btn')).toBeNull();
+    expect(t.el.querySelector('.forecast-card')).not.toBeNull();
+    expect(t.el.querySelector('.forecast-link')).toBeNull();
 
     await t.harness.navigateByUrl('/tag/2026-11-10');
-    expect(t.el.querySelector('.forecast-strip')).toBeNull();
-    const link = t.el.querySelector('.link-btn') as HTMLButtonElement;
+    expect(t.el.querySelector('.forecast-card')).toBeNull();
+    const link = t.el.querySelector('.forecast-link button') as HTMLButtonElement;
     expect(link.textContent).toContain('Aktuelle 7-Tage-Vorschau');
 
     link.click();
     await t.settle();
     expect(t.router.url).toBe('/');
     expect(t.page().isToday()).toBe(true);
-    expect(t.el.querySelector('.forecast-strip')).not.toBeNull();
+    expect(t.el.querySelector('.forecast-card')).not.toBeNull();
   });
 
   it('Netzwerkfehler (Status 0) ergibt „Server nicht erreichbar.“', () => {
@@ -286,7 +286,7 @@ describe('TodayPageComponent Route-Parameter (V08, F11, F19)', () => {
     expect(calls).toEqual(['2026-11-10']);
     expect(t.input().value).toBe('2026-11-10');
     expect(t.title()).toBe('10. November 2026 – Heute – Wetter Heubach');
-    expect(t.el.querySelector('.hero-card')).not.toBeNull();
+    expect(t.el.querySelector('.hero')).not.toBeNull();
   });
 
   it.each(['2026-02-30', 'abc', '2026-13-01'])('ungültiges Datum „%s“: Hinweis mit Link auf heute, kein Request, keine Umleitung', async date => {
@@ -294,7 +294,7 @@ describe('TodayPageComponent Route-Parameter (V08, F11, F19)', () => {
     const t = await routed(mock, `/tag/${date}`);
     expect(calls).toEqual([]);
     expect(t.router.url).toBe(`/tag/${date}`);
-    const hint = t.el.querySelector('.error') as HTMLElement;
+    const hint = t.el.querySelector('app-notice.notice-error') as HTMLElement;
     expect(hint.textContent).toContain('Ungültiges Datum');
     const link = hint.querySelector('a') as HTMLAnchorElement;
     expect(link.getAttribute('href')).toBe('/');
@@ -332,7 +332,7 @@ describe('TodayPageComponent Route-Parameter (V08, F11, F19)', () => {
       getForecast: () => of([]),
     }, '/tag/2024-12-31');
     expect(calls).toEqual(['2024-12-31']);
-    expect(t.el.querySelector('.error')?.textContent)
+    expect(t.el.querySelector('app-empty')?.textContent)
       .toContain('Für den 31.12.2024 liegen keine Daten vor. Daten gibt es ab dem 01.01.2025.');
   });
 
@@ -426,8 +426,8 @@ describe('TodayPageComponent Bedienung über den Router (US02-8 bis US02-11)', (
     expect(t.router.url).toBe('/tag/2026-11-10');
     expect(calls).toEqual(['2026-11-10']);
     expect(t.input().getAttribute('aria-invalid')).toBe('true');
-    expect(t.input().getAttribute('aria-describedby')).toBe('date-error');
-    expect(t.el.querySelector('#date-error')?.textContent).toContain('Bitte ein Datum wählen.');
+    expect(t.input().getAttribute('aria-describedby')).toContain('date-input-error');
+    expect(t.el.querySelector('#date-input-error')?.textContent).toContain('Bitte ein Datum wählen.');
     expect(t.prev().disabled).toBe(true);
     expect(t.next().disabled).toBe(true);
     expect(t.title()).toBe(before);
@@ -439,7 +439,7 @@ describe('TodayPageComponent Bedienung über den Router (US02-8 bis US02-11)', (
     await t.settle();
     expect(t.router.url).toBe('/tag/2026-11-05');
     expect(t.input().getAttribute('aria-invalid')).toBeNull();
-    expect(t.el.querySelector('#date-error')).toBeNull();
+    expect(t.el.querySelector('#date-input-error')).toBeNull();
   });
 
   it('leeres Datumsfeld auf /: „Heute“ setzt das Feld zurück und lädt neu', async () => {
@@ -479,7 +479,7 @@ describe('TodayPageComponent Datumsfeld: Tastatureingabe und Grenzen (F09, F19)'
       expect(t.router.url).toBe('/tag/2026-11-10');
       expect(t.input().value).toBe(partial);
       expect(t.input().getAttribute('aria-invalid')).toBe('true');
-      expect(t.el.querySelector('#date-error')?.textContent).toContain(range);
+      expect(t.el.querySelector('#date-input-error')?.textContent).toContain(range);
       expect(t.prev().disabled).toBe(true);
       expect(t.next().disabled).toBe(true);
     }
@@ -490,7 +490,7 @@ describe('TodayPageComponent Datumsfeld: Tastatureingabe und Grenzen (F09, F19)'
     expect(t.router.url).toBe('/tag/2026-11-05');
     expect(calls).toEqual(['2026-11-10', '2026-11-05']);
     expect(t.input().getAttribute('aria-invalid')).toBeNull();
-    expect(t.el.querySelector('#date-error')).toBeNull();
+    expect(t.el.querySelector('#date-input-error')).toBeNull();
   });
 
   it('getipptes Datum nach heute oder vor DATA_START: Meldung, keine Navigation, kein Request', async () => {
@@ -502,7 +502,7 @@ describe('TodayPageComponent Datumsfeld: Tastatureingabe und Grenzen (F09, F19)'
       await t.settle();
       expect(t.router.url).toBe('/tag/2026-11-10');
       expect(t.input().getAttribute('aria-invalid')).toBe('true');
-      expect(t.input().getAttribute('aria-describedby')).toBe('date-error');
+      expect(t.input().getAttribute('aria-describedby')).toContain('date-input-error');
     }
     expect(calls).toEqual(['2026-11-10']);
   });
@@ -512,7 +512,7 @@ describe('TodayPageComponent Datumsfeld: Tastatureingabe und Grenzen (F09, F19)'
     const t = await routed(mock, '/');
     type(t, '');
     await t.settle();
-    expect(t.el.querySelector('#date-error')?.getAttribute('role')).toBe('alert');
+    expect(t.el.querySelector('#date-input-error')?.getAttribute('role')).toBe('alert');
   });
 
   it('‹ ist an DATA_START (01.01.2025) deaktiviert, am Folgetag nicht', async () => {
@@ -589,5 +589,53 @@ describe('TodayPageComponent Datumsfeld: getippte Eingabe wird gesammelt überno
     expect(t.router.url).toBe('/tag/2026-11-10');
     expect(calls).toEqual(['2026-11-10']);
     expect(t.input().getAttribute('aria-invalid')).toBe('true');
+  });
+});
+
+describe('TodayPageComponent Aufbau nach E3.9 (F17, F23, F24, V16)', () => {
+  const forecast: DayForecast[] = [
+    { date: berlinToday(), maxTemp: 8.4, minTemp: 2.2, precipitation: 0, weathercode: 3 },
+    { date: addDays(berlinToday(), 1), maxTemp: 9, minTemp: 1, precipitation: 2.5, weathercode: 61 },
+  ];
+
+  it('vergangener Tag: großer Wert trägt den Kicker „Höchstwert“, jeder Wert steht nur einmal, Datum ausgeschrieben', async () => {
+    const { mock } = counting();
+    const t = await routed(mock, '/tag/2026-11-10');
+    const hero = t.el.querySelector('.hero') as HTMLElement;
+    expect(hero.querySelector('.kicker')?.textContent?.trim()).toBe('Höchstwert');
+    expect(hero.querySelector('.hero-value')?.textContent).toContain('7');
+    expect(t.el.querySelector('h1')?.textContent?.trim()).toBe('Dienstag, 10. November 2026');
+    expect(t.el.querySelector('.page-title .kicker')?.textContent?.trim()).toBe('Rückblick');
+    // ISO-Datum und doppelte Datumskarte entfallen (F24)
+    expect(t.el.textContent).not.toContain('2026-11-10');
+    const kickers = Array.from(t.el.querySelectorAll('app-kpi-card .kpi-kicker')).map(k => k.textContent?.trim());
+    expect(kickers).toEqual(['Niederschlag gesamt', 'Temperaturschwankung']);
+  });
+
+  it('heute: Hero mit Kicker „Jetzt · … Uhr“, Kennzahlen als Karten mit einheitlicher Kante', async () => {
+    const { mock } = counting();
+    const t = await routed(mock, '/');
+    expect(t.el.querySelector('.hero .kicker')?.textContent).toMatch(/^\s*Jetzt · \d{2}:\d{2} Uhr\s*$/);
+    expect(t.el.querySelectorAll('app-kpi-card')).toHaveLength(4);
+    expect(t.el.querySelector('.page-title .kicker')?.textContent?.trim()).toBe('Heute');
+  });
+
+  it('7-Tage-Vorschau ist eine Tabelle mit Wettertext (Wochentag, Symbol mit Text, Max, Min, Niederschlag)', async () => {
+    const { mock } = counting(forecast);
+    const t = await routed(mock, '/');
+    const table = t.el.querySelector('.forecast-card table') as HTMLTableElement;
+    expect(table.querySelector('caption')?.textContent).toContain('7-Tage-Vorschau');
+    const heads = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent?.replace(/\u00AD/g, '').trim());
+    expect(heads).toEqual(['Tag', 'Wetter', 'Max', 'Min', 'Niederschlag']);
+    const rows = Array.from(table.querySelectorAll('tbody tr'));
+    expect(rows).toHaveLength(2);
+    const first = Array.from(rows[0].children).map(c => c.textContent?.trim());
+    expect(first[0]).toBe('Heute');
+    expect(first[1]).toContain(describeWeather(3));
+    expect(first[2]).toContain('8');
+    expect(first[3]).toContain('2');
+    expect(first[4]).toMatch(/0[.,]0/);
+    expect(rows[1].children[1].textContent).toContain(describeWeather(61));
+    expect(rows[1].children[4].textContent).toMatch(/2[.,]5/);
   });
 });

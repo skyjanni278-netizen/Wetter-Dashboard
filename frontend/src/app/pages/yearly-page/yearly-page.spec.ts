@@ -89,7 +89,7 @@ describe('YearlyPageComponent', () => {
     const t = await routed(y => { calls.push(y); return of(response(y, 5)); }, url);
     expect(calls).toEqual([]);
     expect(t.router.url).toBe(url);
-    const hint = t.el.querySelector('.error') as HTMLElement;
+    const hint = t.el.querySelector('app-notice.notice-error') as HTMLElement;
     expect(hint.textContent).toContain('Ungültiges Jahr');
     expect(hint.querySelector('a')?.getAttribute('href')).toBe('/jahr');
     expect(t.title()).toBe('Ungültiges Jahr – Wetter Heubach');
@@ -120,7 +120,7 @@ describe('YearlyPageComponent', () => {
     expect(c.chartData()).toBeNull();
     expect(c.maxTemp()).toBeNull();
     expect(c.error()).toBe('Fehler beim Laden der Jahresdaten.');
-    expect((fixture.nativeElement as HTMLElement).querySelector('.summary-row')).toBeNull();
+    expect((fixture.nativeElement as HTMLElement).querySelector('.kpi-grid')).toBeNull();
   });
 
   it('leere Antwort ergibt empty und Daten null', () => {
@@ -152,5 +152,25 @@ describe('YearlyPageComponent', () => {
     expect(c.state()).toBe('success');
     expect(c.yearData()?.[0].avgTemp).toBe(4);
     expect(requests.get('2025')!.observed).toBe(false);
+  });
+});
+
+describe('YearlyPageComponent Jahresachse und Kennzahlen (V21)', () => {
+  it('volle Achse Jan–Dez, Monate ohne Daten sind null', () => {
+    const fixture = create(y => of(response(y, 5)));
+    const chart = fixture.componentInstance.chartData()!;
+    expect(chart.labels).toEqual(['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez']);
+    expect(chart.temperatures.slice(0, 3)).toEqual([5, 6, null]);
+    expect(chart.temperatures.slice(2)).toEqual(Array(10).fill(null));
+    expect(chart.precipitations.slice(0, 3)).toEqual([10, 20, null]);
+  });
+
+  it('wärmster und kältester Monat tragen den Monatsnamen als Zusatzzeile', () => {
+    const fixture = create(y => of(response(y, 5)));
+    expect(fixture.componentInstance.warmestMonthName()).toBe('Februar');
+    expect(fixture.componentInstance.coldestMonthName()).toBe('Januar');
+    const metas = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('app-kpi-card .kpi-meta')).map(m => m.textContent?.trim());
+    expect(metas).toContain('Februar');
+    expect(metas).toContain('Januar');
   });
 });

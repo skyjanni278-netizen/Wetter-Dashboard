@@ -1,4 +1,4 @@
-import { berlinToday, berlinHour, addDays, isValidIsoDate } from './berlin-date';
+import { berlinToday, berlinHour, addDays, formatDateLongDe, isValidIsoDate } from './berlin-date';
 
 describe('berlin-date', () => {
   describe('berlinToday', () => {
@@ -104,6 +104,18 @@ describe('berlin-date', () => {
       expect(isValidIsoDate('abc')).toBe(false);
       expect(isValidIsoDate('')).toBe(false);
       expect(isValidIsoDate(undefined)).toBe(false);
+    });
+  });
+
+  describe('formatDateLongDe', () => {
+    it('Wochentag, Tag, Monatsname und Jahr auf Deutsch', () => {
+      expect(formatDateLongDe('2026-11-19')).toBe('Donnerstag, 19. November 2026');
+      expect(formatDateLongDe('2025-03-01')).toBe('Samstag, 1. März 2025');
+    });
+
+    it('ungültige Werte bleiben unverändert', () => {
+      expect(formatDateLongDe('abc')).toBe('abc');
+      expect(formatDateLongDe('2026-02-30')).toBe('2026-02-30');
     });
   });
 });

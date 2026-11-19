@@ -126,6 +126,75 @@ button, input, select, textarea { font: inherit; color: inherit; }
   white-space: nowrap;
 }
 
+/* ---------- Seitenlayout (E3.5, E3.9) ----------
+   Gemeinsam für alle vier Seiten: Seitenkopf, Abschnitte, Kennzahl-Raster, Diagrammkarte. */
+.page {
+  width: 100%;
+  max-width: calc(var(--content-max) + 2 * var(--page-margin));
+  margin: 0 auto;
+  padding: var(--space-5) var(--page-margin);
+}
+
+@media (min-width: 48em) {
+  .page { padding-block: var(--space-6); }
+}
+
+.page-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.page-title { min-width: 0; }
+.page-title .kicker { margin: 0 0 var(--space-1); }
+.page-title h1 { margin: 0; overflow-wrap: anywhere; }
+.page-title p:not(.kicker) { margin: var(--space-1) 0 0; color: var(--color-text-muted); }
+
+/* Steuerung rechts im Seitenkopf (ab 768 px), mobil darunter */
+.page-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-3);
+  max-width: 100%;
+}
+
+.page-stack { display: grid; gap: var(--space-5); }
+
+@media (min-width: 48em) {
+  .page-stack { gap: var(--space-6); }
+}
+
+/* Karten ohne großen Abstand (z. B. Hero und Kennzahlen) */
+.card-stack { display: grid; gap: var(--gutter); }
+
+/* Kennzahl-Raster: Labels wie „GESAMTNIEDERSCHLAG“ laufen nicht über (F05) */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+  gap: var(--gutter);
+}
+
+.card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+.card-head h2 { margin: 0; }
+
+/* Diagrammkarte: schmale Innenränder, damit das Canvas bei 320 px möglichst breit ist */
+app-card.chart-card { padding-inline: var(--space-2); }
+
+@media (min-width: 48em) {
+  app-card.chart-card { padding-inline: var(--space-4); }
+}
+
 /* Alias-Variablen: alte Namen zeigen bis zum Seitenumbau auf die neuen Tokens (E3.10).
    --radius hat denselben Namen und kommt direkt aus tokens.css. */
 :root {

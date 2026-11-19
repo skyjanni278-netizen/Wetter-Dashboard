@@ -1,6 +1,5 @@
 import { Component, DestroyRef, ElementRef, OnInit, signal, computed, effect, inject, input, linkedSignal, viewChild } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
-import { DecimalPipe } from '@angular/common';
 import { Title } from '@angular/platform-browser';
 import { Router, RouterLink } from '@angular/router';
 import { Observable, of, catchError, distinctUntilChanged, map, startWith, switchMap } from 'rxjs';
@@ -8,8 +7,18 @@ import { WeatherService } from '../../services/weather.service';
 import { DayData, DayForecast } from '../../models/weather';
 import { LoadResult, LoadState } from '../../models/load-state';
 import { ClimateChartComponent, ClimateChartDataset } from '../../components/climate-chart/climate-chart';
+import { CardComponent } from '../../components/card/card';
+import { KpiCardComponent } from '../../components/kpi-card/kpi-card';
+import { ChipComponent } from '../../components/chip/chip';
+import { NoticeComponent } from '../../components/notice/notice';
+import { FormFieldComponent } from '../../components/form-field/form-field';
+import { DataTableColumn, DataTableComponent, DataTableRow } from '../../components/data-table/data-table';
+import { SkeletonComponent } from '../../components/skeleton/skeleton';
+import { LoadingComponent } from '../../components/state/loading';
+import { EmptyComponent } from '../../components/state/empty';
+import { ErrorComponent } from '../../components/state/error';
 import { getWeatherIcon, describeWeather, getWindDirection } from '../../utils/weather-icon';
-import { berlinToday, berlinHour, addDays, formatDateDe, isValidIsoDate } from '../../utils/berlin-date';
+import { berlinToday, berlinHour, addDays, formatDateDe, formatDateLongDe, isValidIsoDate } from '../../utils/berlin-date';
 import { DATA_START } from '../../config/data-range';
 import { UnitPipe } from '../../pipes/unit.pipe';
 import { dayViewTitle, setPageTitle } from '../../utils/page-title';
@@ -23,7 +32,10 @@ export const KEYBOARD_COMMIT_DELAY_MS = 800;
 @Component({
   selector: 'app-today-page',
   standalone: true,
-  imports: [DecimalPipe, UnitPipe, ClimateChartComponent, RouterLink],
+  imports: [
+    UnitPipe, ClimateChartComponent, RouterLink, CardComponent, KpiCardComponent, ChipComponent, NoticeComponent,
+    FormFieldComponent, DataTableComponent, SkeletonComponent, LoadingComponent, EmptyComponent, ErrorComponent,
+  ],
   templateUrl: './today-page.html',
   styleUrl: './today-page.css'
 })
@@ -36,6 +48,16 @@ export class TodayPageComponent implements OnInit {
   readonly describeWeather = describeWeather;
   readonly getWindDirection = getWindDirection;
   readonly formatDateDe = formatDateDe;
+  private unitPipe = new UnitPipe();
+
+  /** Spalten der 7-Tage-Vorschau (E3.7.5); „Niederschlag“ mit weichem Trennstrich für schmale Ansichten. */
+  readonly forecastColumns: DataTableColumn[] = [
+    { key: 'day', label: 'Tag', rowHeader: true },
+    { key: 'weather', label: 'Wetter' },
+    { key: 'max', label: 'Max', align: 'end' },
+    { key: 'min', label: 'Min', align: 'end' },
+    { key: 'rain', label: 'Nieder\u00ADschlag', align: 'end' },
+  ];
 
   /** Grenzen des Datumsfelds (V12, F19). */
   readonly minDate = DATA_START;
@@ -162,13 +184,30 @@ export class TodayPageComponent implements OnInit {
     return index >= 0 ? index : null;
   });
 
-  forecastWithMeta = computed(() =>
-    this.forecast().map(f => ({
-      ...f,
-      dayName: DAY_NAMES[new Date(f.date + 'T12:00:00').getDay()],
-      isToday: f.date === berlinToday(),
-    }))
+  /** Zeilen der Vorschau-Tabelle: Wochentag, Wettersymbol mit Text, Max, Min, Niederschlag (F17). */
+  forecastRows = computed<DataTableRow[]>(() =>
+    this.forecast().map(f => {
+      const [, month, day] = f.date.split('-');
+      const label = `${DAY_NAMES[new Date(f.date + 'T12:00:00').getDay()]} ${day}.${month}.`;
+      return {
+        day: f.date === berlinToday() ? 'Heute' : label,
+        weather: `${getWeatherIcon(f.weathercode)} ${describeWeather(f.weathercode)}`,
+        max: this.unitPipe.transform(f.maxTemp, '°', '1.0-0'),
+        min: this.unitPipe.transform(f.minTemp, '°', '1.0-0'),
+        rain: this.unitPipe.transform(f.precipitation, 'mm', '1.1-1'),
+      };
+    })
   );
+
+  /** Überschrift: der gewählte Tag ausgeschrieben (V16, F24). */
+  headline = computed(() => this.invalidDate() ? 'Tagesansicht' : formatDateLongDe(this.selectedDate()));
+
+  /** Kicker über der Überschrift; bei ungültigem Datum keiner. */
+  pageKicker = computed(() => {
+    if (this.invalidDate()) return null;
+    if (this.isFuture()) return 'Vorhersage';
+    return this.isToday() ? 'Heute' : 'Rückblick';
+  });
 
   constructor() {
     effect(() => setPageTitle(this.title, dayViewTitle(this.selectedDate())));

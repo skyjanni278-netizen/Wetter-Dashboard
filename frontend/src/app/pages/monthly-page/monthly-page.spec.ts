@@ -119,7 +119,7 @@ describe('MonthlyPageComponent', () => {
       const t = await routed((y, m) => { calls.push(`${y}/${m}`); return of(response(y, m, 5)); }, url);
       expect(calls).toEqual([]);
       expect(t.router.url).toBe(url);
-      const hint = t.el.querySelector('.error') as HTMLElement;
+      const hint = t.el.querySelector('app-notice.notice-error') as HTMLElement;
       expect(hint.textContent).toContain('Ungültiger Monat');
       expect(hint.querySelector('a')?.getAttribute('href')).toBe('/monat');
       expect(t.title()).toBe('Ungültiger Monat – Wetter Heubach');
@@ -149,7 +149,7 @@ describe('MonthlyPageComponent', () => {
     expect(Array.from(m2.options).some(o => o.textContent?.trim() === '–')).toBe(false);
     expect(y2.value).toBe('2025');
     expect(m2.value).toBe('04');
-    expect(t.el.querySelector('.error')).toBeNull();
+    expect(t.el.querySelector('app-notice.notice-error')).toBeNull();
   });
 
   it('Fehler nach Erfolg setzt die Daten auf null (V02, F12)', () => {
@@ -165,7 +165,7 @@ describe('MonthlyPageComponent', () => {
     expect(c.monthData()).toBeNull();
     expect(c.chartData()).toBeNull();
     expect(c.error()).toBe('Fehler beim Laden der Monatsdaten.');
-    expect((fixture.nativeElement as HTMLElement).querySelector('.summary-row')).toBeNull();
+    expect((fixture.nativeElement as HTMLElement).querySelector('.kpi-grid')).toBeNull();
   });
 
   it('leere Antwort ergibt empty und Daten null', () => {
@@ -214,5 +214,45 @@ describe('MonthlyPageComponent', () => {
     expect(el.querySelector('button')).toBeNull();
     expect(el.querySelector('label[for="year-select"]')).not.toBeNull();
     expect(el.querySelector('label[for="month-select"]')).not.toBeNull();
+  });
+});
+
+describe('MonthlyPageComponent Monatsachse (V21)', () => {
+  /** Daten für den 1. bis 19. eines Monats, wie im laufenden Monat. */
+  function untilDay(year: string, month: string, last: number): MonthResponse {
+    return {
+      year, month,
+      data: Array.from({ length: last }, (_, i) => ({ day: i + 1, avgTemp: 5 + i / 10, totalPrecip: 0.5 })),
+    };
+  }
+
+  it('laufender Monat (November, Daten bis 19.): 30 Labels, danach null als Lücke', () => {
+    const fixture = create((y, m) => of(untilDay(y, m, 19)));
+    select(fixture, '2026', '11');
+    const chart = fixture.componentInstance.chartData()!;
+    expect(chart.labels).toHaveLength(30);
+    expect(chart.labels[0]).toBe('1.');
+    expect(chart.labels[29]).toBe('30.');
+    expect(chart.temperatures).toHaveLength(30);
+    expect(chart.temperatures.slice(0, 19).every(v => v !== null)).toBe(true);
+    expect(chart.temperatures.slice(19)).toEqual(Array(11).fill(null));
+    expect(chart.precipitations.slice(19)).toEqual(Array(11).fill(null));
+  });
+
+  it('die Achse folgt der Monatslänge: Dezember hat 31 Tage', () => {
+    const fixture = create((y, m) => of(untilDay(y, m, 5)));
+    select(fixture, '2026', '12');
+    expect(fixture.componentInstance.chartData()!.labels).toHaveLength(31);
+  });
+
+  it('Tage ohne Daten mitten im Monat sind ebenfalls null', () => {
+    const fixture = create((y, m) => of({
+      year: y, month: m,
+      data: [{ day: 1, avgTemp: 3, totalPrecip: 0 }, { day: 3, avgTemp: 4, totalPrecip: 1 }],
+    }));
+    select(fixture, '2025', '03');
+    const chart = fixture.componentInstance.chartData()!;
+    expect(chart.labels).toHaveLength(31);
+    expect(chart.temperatures.slice(0, 4)).toEqual([3, null, 4, null]);
   });
 });

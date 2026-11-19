@@ -1,195 +1,44 @@
-.page { max-width: 1200px; margin: 0 auto; padding: 2rem 1.5rem; }
+/* Seitenlayout (Kopf, Raster, Diagrammkarte) steht in styles.css; hier nur das Besondere der Heute-Seite */
 
-.page-header {
+/* Hero (E3.7.4): Kicker, große Zahl, Beschreibung, Gefühlt; Symbol dekorativ rechts */
+.hero-body {
   display: flex;
-  align-items: flex-start;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 1rem;
-  margin-bottom: 2rem;
+  gap: var(--space-3) var(--space-4);
 }
 
-.page-title h1 { margin: 0 0 0.2rem; font-size: 2rem; font-weight: 800; color: var(--gray-900); letter-spacing: -0.03em; }
-.page-title p  { margin: 0; color: var(--gray-400); font-size: 0.9rem; }
+.hero-main { min-width: 0; }
+.hero-main p { margin: 0; }
+.hero-main .kicker { margin-bottom: var(--space-2); }
 
-.controls { display: flex; gap: 0.6rem; align-items: flex-end; flex-wrap: wrap; }
-
-.controls input[type="date"] {
-  padding: 0.5rem 0.85rem;
-  border: 1.5px solid var(--color-border-control);
-  border-radius: 9px;
-  font-size: 0.9rem;
-  background: var(--color-surface);
-  color: var(--gray-900);
-  min-height: 2.75rem;
-  transition: border-color 0.15s;
+.hero-value {
+  color: var(--color-text);
+  font: var(--fw-semibold) var(--fs-xl) / var(--lh-tight) var(--font-heading);
+  letter-spacing: var(--tracking-heading);
 }
-.controls input[type="date"]:focus { border-color: var(--sky-mid); }
 
-.controls button {
-  padding: 0.5rem 1.1rem;
-  background: linear-gradient(135deg, var(--sky-dark), var(--sky-mid));
-  color: var(--color-on-accent);
-  border: none;
-  border-radius: 9px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  font-weight: 600;
-  min-height: 2.75rem;
-  transition: opacity 0.15s;
+.hero-desc {
+  margin-top: var(--space-2);
+  font: var(--fw-semibold) var(--fs-md) / var(--lh-heading) var(--font-heading);
 }
-.controls button:hover { opacity: 0.88; }
 
-.controls .nav-btn {
-  padding: 0.5rem 0.8rem;
-  background: var(--color-surface);
-  color: var(--sky-dark);
-  border: 1.5px solid var(--color-border-control);
-  font-size: 1.3rem;
-  font-weight: 400;
+.hero-sub {
+  margin-top: var(--space-1);
+  color: var(--color-text-subtle);
+}
+
+.hero-icon {
+  font-size: var(--fs-xl);
   line-height: 1;
-  min-width: 2.75rem;
-  transition: border-color 0.15s, background 0.15s, opacity 0.15s;
-}
-.controls .nav-btn:hover:not(:disabled) { border-color: var(--sky-mid); background: var(--sky-pale); opacity: 1; }
-.controls .nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
-
-.future-notice {
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
-  background: var(--sky-pale);
-  border: 1.5px solid var(--sky-light);
-  border-radius: var(--radius);
-  padding: 2rem 2.5rem;
-  color: var(--sky-dark);
-  margin-bottom: 1.25rem;
-}
-.fn-icon { font-size: 2.5rem; flex-shrink: 0; }
-.future-notice strong { font-size: 1.05rem; font-weight: 700; display: block; }
-.future-notice p { margin: 0.3rem 0 0; color: var(--gray-600); font-size: 0.9rem; }
-
-/* Hero-Karte */
-.hero-card {
-  background: linear-gradient(135deg, var(--sky-dark) 0%, var(--sky-mid) 100%);
-  border-radius: var(--radius);
-  padding: 2rem 2.5rem;
-  color: var(--color-on-accent);
-  display: flex;
-  align-items: center;
-  gap: 2rem;
-  margin-bottom: 1.25rem;
-  box-shadow: none;
-  flex-wrap: wrap;
 }
 
-.hero-icon { font-size: 5rem; line-height: 1; filter: none; }
+/* Kennzahlen und 7-Tage-Vorschau: Desktop 7 neben 5 von 12 Spalten (E3.5) */
+.split { display: grid; gap: var(--gutter); align-items: start; }
 
-.hero-info { flex: 1; }
-.hero-temp { font-size: 3.5rem; font-weight: 800; letter-spacing: -0.04em; line-height: 1; }
-.hero-feels { font-size: 0.95rem; opacity: 0.8; margin-top: 0.3rem; }
-.hero-desc  { font-size: 1.2rem; font-weight: 600; margin-top: 0.5rem; }
-
-.hero-meta { display: flex; flex-direction: column; gap: 0.5rem; opacity: 0.9; font-size: 0.9rem; }
-.hero-meta span { display: flex; align-items: center; gap: 0.4rem; }
-
-/* Summary-Karten */
-.summary-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 1rem;
-  margin-bottom: 1.25rem;
+@media (min-width: 80em) {
+  .split-forecast { grid-template-columns: 7fr 5fr; }
 }
 
-.summary-card {
-  background: var(--color-surface);
-  border-radius: var(--radius);
-  padding: 1.25rem 1.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  box-shadow: var(--shadow-sm);
-  border-top: 3px solid transparent;
-}
-.summary-card.precip { border-top-color: var(--blue); }
-.summary-card.wind   { border-top-color: var(--green); }
-.summary-card.date   { border-top-color: var(--amber); }
-
-.summary-card .label { font-size: 0.75rem; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
-.summary-card .value { font-size: 1.5rem; font-weight: 700; color: var(--gray-900); }
-
-/* 7-Tage */
-.forecast-strip {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 0.75rem;
-  margin-bottom: 1.25rem;
-}
-
-.forecast-day {
-  background: var(--color-surface);
-  border-radius: var(--radius);
-  padding: 1rem 0.75rem;
-  text-align: center;
-  box-shadow: var(--shadow-sm);
-  border: 1.5px solid transparent;
-  transition: border-color 0.15s, box-shadow 0.15s;
-}
-.forecast-day.today-forecast {
-  border-color: var(--sky-mid);
-  box-shadow: none;
-}
-.forecast-day .fd-day   { font-size: 0.75rem; font-weight: 700; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.4rem; }
-.forecast-day .fd-icon  { font-size: 1.8rem; margin-bottom: 0.4rem; }
-.forecast-day .fd-max   { font-size: 1rem; font-weight: 700; color: var(--gray-900); }
-.forecast-day .fd-min   { font-size: 0.8rem; color: var(--gray-400); }
-.forecast-day .fd-rain  { font-size: 0.75rem; color: var(--blue); margin-top: 0.25rem; }
-
-/* Chart */
-.chart-card {
-  background: var(--color-surface);
-  border-radius: var(--radius);
-  padding: 1.75rem;
-  box-shadow: var(--shadow-sm);
-}
-.chart-card h2 { margin: 0 0 1.25rem; font-size: 1rem; font-weight: 700; color: var(--gray-600); }
-
-.loading { text-align: center; padding: 4rem; color: var(--gray-400); }
-.error { background: var(--color-danger-bg); border: 1.5px solid var(--color-danger); color: var(--color-danger); padding: 1rem 1.5rem; border-radius: 10px; margin-bottom: 1.5rem; }
-
-@media (max-width: 700px) {
-  .forecast-strip { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.5rem; }
-  .forecast-day { padding: 0.75rem 0.25rem; min-width: 0; }
-  .hero-card { padding: 1.5rem; }
-  .hero-temp { font-size: 2.5rem; }
-}
-
-.field { display: flex; flex-direction: column; gap: 0.2rem; }
-.field label { font-size: 0.8rem; font-weight: 600; color: var(--gray-600); }
-
-.link-btn {
-  background: none;
-  border: none;
-  padding: 0.5rem 0;
-  min-height: 2.75rem;
-  color: var(--sky-dark);
-  text-decoration: underline;
-  cursor: pointer;
-}
-a.link-btn { display: inline-flex; align-items: center; }
-.forecast-link { margin: 0 0 1.25rem; }
-
-/* Datumsfeld: Meldung bei leerem Wert (V12, F09) */
-.controls input[aria-invalid="true"] { border-color: var(--red); }
-.field-error { margin: 0.5rem 0 0; padding: 0.4rem 0.75rem; font-size: 0.85rem; }
-.retry-btn {
-  margin-top: 0.5rem;
-  padding: 0.5rem 1.1rem;
-  min-height: 2.75rem;
-  background: var(--color-surface);
-  color: var(--sky-dark);
-  border: 1.5px solid var(--sky-mid);
-  border-radius: 9px;
-  cursor: pointer;
-  font-weight: 600;
-}
+.forecast-link { margin: 0; }

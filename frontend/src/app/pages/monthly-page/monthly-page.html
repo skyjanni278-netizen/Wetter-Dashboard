@@ -1,69 +1,76 @@
 <div class="page">
   <div class="page-header">
-    <h1>Monatsdiagramm – Heubach</h1>
-    <div class="controls">
-      <div class="field">
-        <label for="year-select">Jahr</label>
+    <div class="page-title">
+      <p class="kicker">Monat</p>
+      <h1>{{ headline() }}</h1>
+    </div>
+
+    <!-- Gruppe „Zeitraum“ (E3.7.3): Jahr und Monat, ohne Button „Laden“ -->
+    <div class="page-controls" role="group" aria-label="Zeitraum">
+      <app-form-field label="Jahr" fieldId="year-select">
         <select id="year-select" (change)="onYearChange($event)">
           @if (!yearValid()) { <option value="" disabled selected>–</option> }
           @for (y of years; track y) {
             <option [value]="y" [selected]="y === selectedYear()">{{ y }}</option>
           }
         </select>
-      </div>
-      <div class="field">
-        <label for="month-select">Monat</label>
+      </app-form-field>
+      <app-form-field label="Monat" fieldId="month-select">
         <select id="month-select" (change)="onMonthChange($event)">
           @if (!monthValid()) { <option value="" disabled selected>–</option> }
           @for (m of months; track m.value) {
             <option [value]="m.value" [selected]="m.value === selectedMonth()">{{ m.label }}</option>
           }
         </select>
-      </div>
+      </app-form-field>
     </div>
   </div>
 
-  <div aria-live="polite" aria-atomic="true">
+  <div class="page-stack">
     @if (invalid()) {
-      <div class="error">
-        <strong>Ungültiger Monat</strong>
+      <app-notice variant="error" kicker="Ungültiger Monat">
         <p>Die Adresse enthält keinen gültigen Monat. Daten gibt es ab {{ dataStartYear }}.</p>
-        <a routerLink="/monat" class="link-btn">Zum aktuellen Monat</a>
-      </div>
+        <a routerLink="/monat" class="btn btn-text">Zum aktuellen Monat</a>
+      </app-notice>
     }
-    @if (loading()) {
-      <div class="loading">Daten werden geladen...</div>
-    }
-    @if (error()) {
-      <div class="error">{{ error() }}</div>
-    }
-  </div>
 
-  <div [attr.aria-busy]="loading() ? 'true' : null">
-  @if (chartData()) {
-    <div class="summary-row">
-      <div class="summary-card">
-        <span class="label">Monat</span>
-        <span class="value">{{ monthName() }} {{ selectedYear() }}</span>
-      </div>
-      <div class="summary-card temp">
-        <span class="label">Ø Temperatur</span>
-        <span class="value">{{ avgTemp() | unit:'°C':'1.1-1' }}</span>
-      </div>
-      <div class="summary-card precip">
-        <span class="label">Gesamtniederschlag</span>
-        <span class="value">{{ totalPrecip() | unit:'mm':'1.1-1' }}</span>
-      </div>
-      <div class="summary-card days">
-        <span class="label">Gespeicherte Tage</span>
-        <span class="value">{{ monthData()?.length }}</span>
-      </div>
-    </div>
+    @if (state() === 'error') {
+      <app-error [message]="error() ?? 'Fehler beim Laden der Monatsdaten.'" [retryable]="false" />
+    }
+    @if (state() === 'empty') {
+      <app-empty [message]="error() ?? 'Keine gespeicherten Daten für diesen Monat.'" />
+    }
 
-    <div class="chart-card">
-      <h2>Klimadiagramm {{ monthName() }} {{ selectedYear() }}</h2>
-      <app-climate-chart [data]="chartData()" labelHeading="Tag" />
-    </div>
-  }
+    <!-- Erstes Laden: Skelett in Endgröße statt „0“ (V14) -->
+    @if (loading() && !monthData()) {
+      <app-loading>
+        <div class="card-stack">
+          <div class="kpi-grid">
+            @for (i of [0, 1, 2]; track i) {
+              <app-skeleton height="7rem" />
+            }
+          </div>
+          <app-skeleton height="24rem" />
+        </div>
+      </app-loading>
+    }
+
+    @if (chartData()) {
+      <div class="card-stack">
+        <div class="kpi-grid">
+          <app-kpi-card kicker="Ø Temperatur" [value]="avgTemp()" unit="°C"
+                        [busy]="loading()" [reveal]="true" />
+          <app-kpi-card kicker="Gesamtniederschlag" [value]="totalPrecip()" unit="mm"
+                        [busy]="loading()" [reveal]="true" [revealIndex]="1" />
+          <app-kpi-card kicker="Gespeicherte Tage" [value]="monthData()?.length" [digits]="0"
+                        [meta]="'von ' + daysInMonth() + ' Tagen'"
+                        [busy]="loading()" [reveal]="true" [revealIndex]="2" />
+        </div>
+
+        <app-card class="chart-card" [busy]="loading()" [reveal]="true" [revealIndex]="3">
+          <app-climate-chart [title]="'Klimadiagramm ' + headline()" [data]="chartData()" labelHeading="Tag" />
+        </app-card>
+      </div>
+    }
   </div>
 </div>

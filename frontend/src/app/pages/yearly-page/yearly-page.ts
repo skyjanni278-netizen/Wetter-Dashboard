@@ -9,8 +9,15 @@ import { LoadResult, LoadState } from '../../models/load-state';
 import { ClimateChartComponent, ClimateChartDataset } from '../../components/climate-chart/climate-chart';
 import { berlinToday } from '../../utils/berlin-date';
 import { DATA_START } from '../../config/data-range';
-import { UnitPipe } from '../../pipes/unit.pipe';
-import { setPageTitle, yearViewTitle } from '../../utils/page-title';
+import { CardComponent } from '../../components/card/card';
+import { KpiCardComponent } from '../../components/kpi-card/kpi-card';
+import { NoticeComponent } from '../../components/notice/notice';
+import { FormFieldComponent } from '../../components/form-field/form-field';
+import { SkeletonComponent } from '../../components/skeleton/skeleton';
+import { LoadingComponent } from '../../components/state/loading';
+import { EmptyComponent } from '../../components/state/empty';
+import { ErrorComponent } from '../../components/state/error';
+import { MONTH_LONG, setPageTitle, yearViewTitle } from '../../utils/page-title';
 import { isValidYearParam } from '../../utils/route-params';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
@@ -19,9 +26,11 @@ const EMPTY_MESSAGE = 'Keine gespeicherten Daten für dieses Jahr.';
 @Component({
   selector: 'app-yearly-page',
   standalone: true,
-  imports: [ClimateChartComponent, UnitPipe, RouterLink],
+  imports: [
+    ClimateChartComponent, RouterLink, CardComponent, KpiCardComponent, NoticeComponent, FormFieldComponent,
+    SkeletonComponent, LoadingComponent, EmptyComponent, ErrorComponent,
+  ],
   templateUrl: './yearly-page.html',
-  styleUrl: './yearly-page.css'
 })
 export class YearlyPageComponent {
   private weather = inject(WeatherService);
@@ -50,13 +59,16 @@ export class YearlyPageComponent {
     (_, i) => (parseInt(this.currentYear, 10) - i).toString(),
   );
 
+  /** Volle Jahresachse Jan–Dez; Monate ohne Daten sind `null` und zeigen eine Lücke (V21). */
   chartData = computed<ClimateChartDataset | null>(() => {
     const data = this.yearData();
     if (!data || data.length === 0) return null;
+    const byMonth = new Map(data.map(d => [d.month, d]));
+    const axis = Array.from({ length: 12 }, (_, i) => i + 1);
     return {
-      labels: data.map(d => MONTH_NAMES[d.month - 1]),
-      temperatures: data.map(d => d.avgTemp),
-      precipitations: data.map(d => d.totalPrecip),
+      labels: axis.map(month => MONTH_NAMES[month - 1]),
+      temperatures: axis.map(month => byMonth.get(month)?.avgTemp ?? null),
+      precipitations: axis.map(month => byMonth.get(month)?.totalPrecip ?? null),
     };
   });
 
@@ -74,6 +86,15 @@ export class YearlyPageComponent {
     const data = this.yearData();
     return data && data.length ? Math.min(...data.map(d => d.avgTemp)) : null;
   });
+
+  /** Ausgeschriebener Name des Monats mit dem höchsten bzw. niedrigsten Mittel (Zusatzzeile der Karten). */
+  warmestMonthName = computed(() => this.monthNameOf(this.maxTemp()));
+  coldestMonthName = computed(() => this.monthNameOf(this.minTemp()));
+
+  private monthNameOf(avgTemp: number | null): string | null {
+    const entry = avgTemp === null ? undefined : this.yearData()?.find(d => d.avgTemp === avgTemp);
+    return entry ? MONTH_LONG[entry.month - 1] : null;
+  }
 
   constructor() {
     effect(() => setPageTitle(this.title, yearViewTitle(this.selectedYear())));
