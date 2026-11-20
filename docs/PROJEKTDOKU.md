@@ -10,7 +10,7 @@ Diese Datei ist eine Landkarte des **aktuellen** Systems: was es gibt, wo es lie
 
 Lokales Wetter-Dashboard für Heubach (Ostalbkreis, 48,7936 °N, 9,9369 °O). Ein Express-Backend ruft stündlich Daten von Open-Meteo ab und legt sie als JSON-Dateien ab. Ein Angular-Frontend zeigt Tag, Monat, Jahr und Rekorde.
 
-Parallelbetrieb (Strangler-Muster): Neben Express entsteht in `api/` ein NestJS-Backend. Es liest die JSON-Dateien von Express **nur lesend** und liefert die ersten Ressourcen der neuen API. Express bleibt der einzige Schreiber. Der Dev-Proxy verteilt die Anfragen je Ressource (siehe 4.6).
+Parallelbetrieb (Strangler-Muster): Neben Express entsteht in `api/` ein NestJS-Backend. Es liest die JSON-Dateien von Express **nur lesend** und liefert die ersten Ressourcen der neuen API. Importe über `POST /api/imports` holt Nest selbst von Open-Meteo, hält sie aber **nur im Arbeitsspeicher**. Express bleibt der einzige Schreiber der Dateien. Der Dev-Proxy verteilt die Anfragen je Ressource (siehe 4.6).
 
 ```mermaid
 flowchart LR
@@ -19,6 +19,7 @@ flowchart LR
   NgServe -->|"/api/locations, /api/status an :3001"| Nest["NestJS :3001 (api/)"]
   Express -->|"liest und schreibt"| Json[("backend/data/ JSON-Dateien")]
   Nest -->|"liest nur"| Json
+  Nest -->|"POST /api/imports (nur In-Memory)"| OpenMeteo
   Scheduler["Scheduler (node-cron, im Express-Prozess)"] -->|"stündlich"| OpenMeteo["Open-Meteo API"]
   Scheduler -->|"speichert"| Json
   Backfill["npm run backfill"] -->|"Archiv und Forecast"| OpenMeteo
@@ -54,7 +55,8 @@ flowchart LR
 | `frontend/public/assets/fonts/` | lokale Schriften (woff2) und Lizenz `OFL.txt` |
 | `api/` | NestJS-11-Backend (eigene `package.json`, `nest-cli.json`, `tsconfig.json` strict, `tsconfig.build.json`, `.gitignore` für `node_modules/`, `dist/`, `coverage/`), siehe Abschnitt 3a |
 | `api/src/` | Quellen der Nest-API (Dateien siehe 3a.1) |
-| `api/test/` | e2e-Tests (`app.e2e-spec.ts`, `jest-e2e.json`) |
+| `api/test/` | e2e-Tests (`app.e2e-spec.ts`, `imports.e2e-spec.ts`, `jest-e2e.json`) |
+| `api/test/support/` | `fakes.ts`: Testhilfen für Unit- und e2e-Tests (Open-Meteo-Antworten, `fetch`-Ersatz, `FakeLegacySource`); nicht im Build |
 | `api/test/characterization/` | Golden Files der Express-API (`golden/*.json`, `capture.sh`, `README.md`) |
 | `docs/` | Dokumentation; diese Datei |
 | `docs/umbau/` | Planung des Umbaus: `01`–`05` (siehe Abschnitt 9) |
@@ -137,47 +139,97 @@ Hinweise: Der Monats-Parameter wird nur auf zwei Ziffern geprüft (kein Bereich 
 
 ## 3a. Backend (NestJS, `api/`)
 
-NestJS 11 auf Express 5 (`@nestjs/platform-express`), TypeScript strict, Jest. Stand Roadmap-Schritt 2: ein Modul (`AppModule`), Controller ohne Services, Daten aus den JSON-Dateien von Express (nur lesend, In-Memory). Lauscht nur auf `127.0.0.1`, globales Präfix `/api`.
+NestJS 11 auf Express 5 (`@nestjs/platform-express`), TypeScript strict, Jest, Zod 4 (`zod` ^4.6.7, bisher nur für Open-Meteo-Antworten). Stand Roadmap-Schritt 3: ein Modul (`AppModule`); Controller rufen nur Services auf, Services greifen über DI-Tokens auf Stores zu (3a.3). Die Stores liegen im Arbeitsspeicher und lesen den Altbestand aus den JSON-Dateien von Express (nur lesend). Lauscht nur auf `127.0.0.1`, globales Präfix `/api`.
 
 ### 3a.1 Dateien und Aufgaben
 
 | Datei (`api/src/`) | Aufgabe |
 |---|---|
 | `main.ts` | Start: `setGlobalPrefix('api')`, `listen(PORT, '127.0.0.1')`, loggt Adresse und Datenordner |
-| `app.module.ts` | einziges Modul: vier Controller, Provider `Clock` (= `SystemClock`), `LEGACY_DATA_DIR`, `LegacyFileSource` |
+| `app.module.ts` | einziges Modul: fünf Controller, die Services, die drei Stores (Tokens siehe 3a.3), `OpenMeteoClient`, `ImportRunner`, `Clock` (= `SystemClock`), `LEGACY_DATA_DIR`, `LegacyFileSource` |
 | `common/clock.ts` | `Clock` (abstrakt, zugleich DI-Token), `SystemClock`, `FixedClock` (Tests: `set`, `advance`) |
-| `common/berlin-time.ts` | `BERLIN_TIMEZONE`, `localDate`, `localHour`, `hoursInDay` (23/24/25), `isIsoDate` |
+| `common/berlin-time.ts` | `BERLIN_TIMEZONE`, `localDate`, `localHour`, `localDateTime` (Ortszeit ohne Offset), `addDays`, `hoursInDay` (23/24/25), `isIsoDate` |
+| `common/utc.ts` | `formatUtc`: Zeitpunkt als `YYYY-MM-DDTHH:MM:SSZ` (Zeitfelder der Import-Ressource, `lastSuccessfulUpdateAt`) |
 | `legacy/legacy-data-dir.ts` | Token `LEGACY_DATA_DIR`, `resolveLegacyDataDir` (Umgebungsvariable oder Standard, relativ zum Arbeitsverzeichnis) |
 | `legacy/legacy-types.ts` | Altformat der Dateien (`LegacyDayFileRaw`, `LegacyForecastRaw`) und normalisierte Typen (`LegacyHour`, `LegacyForecast`) |
-| `legacy/legacy-file-source.ts` | `LegacyFileSource`: lädt beim Start alle Tagesdateien asynchron in eine `Map<date, hours[]>`; die Datei für heute (Berliner Datum über `Clock`) und `forecast.json` liest es bei jeder Anfrage neu. Werte `number \| null`, nicht gerundet |
-| `locations/location.ts`, `locations.controller.ts` | Standort Heubach als Konstante (`id = 1`, `slug = "heubach"`) und Controller |
-| `days/day.ts`, `days.controller.ts` | Typ `Day`/`DayHour` und Controller für `today` und `:date` |
-| `forecasts/forecast.ts`, `forecasts.controller.ts` | Typ `Forecast`/`ForecastList` und Controller |
-| `status/status.ts`, `status.controller.ts` | Typ `Status` und Controller |
+| `legacy/legacy-file-source.ts` | `LegacyFileSource`: lädt beim Start alle Tagesdateien asynchron in eine `Map<date, hours[]>`; die Datei für heute (Berliner Datum über `Clock`) und `forecast.json` liest es bei jeder Anfrage neu. `getDayFile` liefert zusätzlich die Änderungszeit (`modifiedAt`, nur bei der heutigen Datei). Zeiten über `formatUtc`. Werte `number \| null`, nicht gerundet. Nur die In-Memory-Stores nutzen es |
+| `observations/observation.ts` | Typen `ObservationValues`, `ObservationHour` (`timeLocal`, `timeUtc`; `null` im Altbestand), `ObservationInput` (UTC), `UpsertCounts`, `UpsertMode` |
+| `observations/observation.store.ts`, `in-memory-observation.store.ts` | Schnittstelle `ObservationStore` (`getDay`, `getDataRange`, `upsertHours`) mit Token `OBSERVATION_STORE`; `InMemoryObservationStore` (Altbestand plus importierte Stunden, siehe 3a.4) |
+| `forecasts/forecast.store.ts`, `in-memory-forecast.store.ts` | Schnittstelle `ForecastStore` (`getLatest`, `save`) mit Token `FORECAST_STORE`; `InMemoryForecastStore` (liefert die jüngere von `forecast.json` und importierter Vorhersage) |
+| `forecasts/forecast.ts`, `forecasts.service.ts`, `forecasts.controller.ts` | Typ `Forecast`/`ForecastList`, `ForecastsService`, Controller |
+| `days/day.ts`, `days.service.ts`, `days.controller.ts` | Typ `Day`/`DayHour`, `DaysService` (`today`, `findToday`, `findOne`), Controller für `today` und `:date` |
+| `locations/location.ts`, `locations.service.ts`, `locations.controller.ts` | Standort Heubach als Konstante (`id = 1`, `slug = "heubach"`), `LocationsService`, Controller |
+| `status/status.ts`, `status.service.ts`, `status.controller.ts` | Typ `Status`/`UpdateState`, `StatusService` mit R25 (`updateStateOf`, Schwelle `UPDATE_DELAYED_AFTER_MS` = 2 h), Controller |
+| `imports/import.ts` | Typen `ImportRecord`, `ImportResource` (B2.2, mit `links.self`), `ImportKind`, `ImportStatus`, `ImportCounts`; `toImportResource`, `importPath` |
+| `imports/import.store.ts`, `in-memory-import.store.ts` | Schnittstelle `ImportStore` (`create`, `findById`, `update`, `findLastFinished`) mit Token `IMPORT_STORE` und `ImportAlreadyRunningError` (R19); `InMemoryImportStore` (IDs ab 1 nach jedem Start) |
+| `imports/create-import.input.ts` | `parseCreateImportBody`: minimale Prüfung des POST-Bodys (`kind` ∈ `range`/`gaps`, `from`/`to` gültige Daten), sonst 400. Das Zod-DTO folgt in Schritt 4 |
+| `imports/imports.service.ts` | `ImportsService`: Auftrag `queued` anlegen, danach `ImportRunner.schedule`; 409 bei laufendem Import (R19); `findOne` mit 404 |
+| `imports/import-plan.ts` | `planHourlyRequests`: Berliner Tage `from`–`to` → höchstens zwei Abfragen (Archiv für ältere Tage, Forecast-API für die letzten `RECENT_DAYS` = 10 Tage), jeweils einen UTC-Tag früher beginnend |
+| `imports/import-runner.ts` | `ImportRunner`: Ablauf eines Imports (3a.4); `schedule` (per `setImmediate`), `run`, `whenIdle` (für Tests) |
+| `imports/imports.controller.ts` | `POST /api/imports` (202, `Location`), `GET /api/imports/:id` |
+| `weather-provider/open-meteo.schema.ts` | das **eine** Variablen-Mapping (`HOURLY_VARIABLES`, `DAILY_VARIABLES`, S7) und die Zod-Schemas `OpenMeteoResponseSchema` (Stundenwerte, `utc_offset_seconds = 0`) und `OpenMeteoDailyResponseSchema` (Tagesvorhersage, `utc_offset_seconds` ∈ {3600, 7200}) (R32) |
+| `weather-provider/open-meteo.client.ts` | `OpenMeteoClient`: natives `fetch`, 15 s Zeitlimit je Versuch (`AbortSignal.timeout`), 2 Wiederholungen mit Backoff (1 s, 3 s) bei Netzfehler, Zeitüberschreitung, HTTP 5xx/429; `fetchHourly` (Archiv oder Forecast-API, `timezone=GMT`), `fetchDailyForecast` (7 Berliner Tage, `timezone=Europe/Berlin`). Fehler als `OpenMeteoError` mit `code` (`UPSTREAM_INVALID`, `UPSTREAM_TIMEOUT`, `UPSTREAM_ERROR`). Optionale Tokens `OPEN_METEO_FETCH`, `OPEN_METEO_RETRY_DELAYS_MS` für Tests |
 
-Tests: je `*.spec.ts` neben der Quelle (`berlin-time`, `clock`, `legacy-data-dir`), dazu `api/test/app.e2e-spec.ts` (alle Endpunkte mit Fixture-Dateien im Temp-Ordner und `FixedClock`).
+Tests: je `*.spec.ts` neben der Quelle (`berlin-time`, `clock`, `legacy-data-dir`, `open-meteo.client`, `import-runner`, `import-plan`, `imports.service`, `in-memory-observation.store`, `in-memory-forecast.store`, `days.service` mit Fake-Store ohne Dateien, `status.service` mit den R25-Grenzen), dazu `api/test/app.e2e-spec.ts` (GET-Endpunkte mit Fixture-Dateien im Temp-Ordner und `FixedClock`) und `api/test/imports.e2e-spec.ts` (Importe mit gemocktem `OpenMeteoClient`, kein Netzaufruf).
 
 ### 3a.2 Endpunkte
 
-Alle `GET`, Antwort JSON. Fehler im Standardformat von Nest (`{ statusCode, message, error }`), das einheitliche Fehlerformat folgt in Roadmap-Schritt 5.
+Antwort JSON. Fehler im Standardformat von Nest (`{ statusCode, message, error }`), das einheitliche Fehlerformat folgt in Roadmap-Schritt 5. **Noch ohne Anmeldung** (Schritt 10/11): deshalb nur auf `127.0.0.1` und kein Deployment vor Schritt 11.
 
-| Pfad | Antwort bei Erfolg | Fehlercodes |
+| Methode und Pfad | Antwort bei Erfolg | Fehlercodes |
 |---|---|---|
-| `/api/locations` | `{ items: [Location] }` mit genau Heubach | – |
-| `/api/locations/:id` | `Location` (`id, slug, name, postalCode, region, latitude, longitude, timezone, isDefault`) | 400 `id` keine Zahl, 404 unbekannt |
-| `/api/days/today` | `Day` für den Berliner Tag, Header `Content-Location: /api/days/<datum>` | 404 noch keine Datei für heute |
-| `/api/days/:date` | `Day`: `id, date, locationId, timezone, isToday, hoursExpected, hours[]`; Stunde: `timeLocal` (Ortszeit **ohne** Offset aus dem Altbestand), `temperature, apparentTemperature, precipitation, weatherCode, windSpeed, windDirection` | 404 keine Daten (vorerst auch bei ungültigem Datum) |
-| `/api/forecasts` | `{ items: [Forecast], fetchedAt }`; Eintrag: `locationId, date, maxTemp, minTemp, precipitationSum, weatherCode, fetchedAt`. `fetchedAt` = Änderungszeit von `forecast.json` | – (ohne Datei: `items = []`, `fetchedAt = null`) |
-| `/api/status` | `{ locationId, today, timezone, dataFrom, dataTo, lastSuccessfulUpdateAt: null, updateState: "never" }`, ohne Fehlertext | – |
+| `GET /api/locations` | `{ items: [Location] }` mit genau Heubach | – |
+| `GET /api/locations/:id` | `Location` (`id, slug, name, postalCode, region, latitude, longitude, timezone, isDefault`) | 400 `id` keine Zahl, 404 unbekannt |
+| `GET /api/days/today` | `Day` für den Berliner Tag, Header `Content-Location: /api/days/<datum>` | 404 noch keine Daten für heute |
+| `GET /api/days/:date` | `Day`: `id, date, locationId, timezone, isToday, hoursExpected, hours[]`; Stunde: `timeLocal` (Ortszeit **ohne** Offset), `temperature, apparentTemperature, precipitation, weatherCode, windSpeed, windDirection` | 404 keine Daten (vorerst auch bei ungültigem Datum) |
+| `GET /api/forecasts` | `{ items: [Forecast], fetchedAt }`; Eintrag: `locationId, date, maxTemp, minTemp, precipitationSum, weatherCode, fetchedAt`. `fetchedAt` (`YYYY-MM-DDTHH:MM:SSZ`) = Änderungszeit von `forecast.json` bzw. Abrufzeit des Imports; `date` ist ein Berliner Kalendertag | – (ohne Vorhersage: `items = []`, `fetchedAt = null`) |
+| `GET /api/status` | `{ locationId, today, timezone, dataFrom, dataTo, lastSuccessfulUpdateAt, updateState }`, ohne Fehlertext; `updateState` siehe 3a.4 | – |
+| `POST /api/imports` | Body `{ kind: "range" \| "gaps", from, to }` (Berliner Daten `YYYY-MM-DD`). **202**, Header `Location: /api/imports/<id>`, Body = Import-Ressource mit `status = "queued"` | 400 Body ungültig (nur minimal geprüft), 409 es läuft schon ein Import (`queued`/`running`), Body mit `runningImportId` |
+| `GET /api/imports/:id` | Import-Ressource (B2.2): `id, locationId, kind, status, from, to, overwriteCorrections (false), requestedBy (null), requestedAt, startedAt, finishedAt, counts { inserted, updated, unchanged, skippedCorrected (0) }, warnings[], error, links.self` | 400 `id` keine Zahl, 404 unbekannt |
 
-### 3a.3 Umgebungsvariablen (Übergang)
+Die Liste `GET /api/imports` gibt es noch nicht; ein `DELETE` entfällt (begründet in der Roadmap, Schritt 3).
+
+### 3a.3 Stores und DI-Tokens
+
+| Token | Schnittstelle | Implementierung (Schritt 3) | Schritt 9 |
+|---|---|---|---|
+| `OBSERVATION_STORE` | `ObservationStore` | `InMemoryObservationStore` (liest über `LegacyFileSource`) | TypeORM, Tabelle `observation` |
+| `FORECAST_STORE` | `ForecastStore` | `InMemoryForecastStore` (liest über `LegacyFileSource`) | TypeORM, Tabelle `daily_forecast` |
+| `IMPORT_STORE` | `ImportStore` | `InMemoryImportStore` | TypeORM, Tabelle `import` |
+| `Clock` (Klasse) | `Clock` | `SystemClock` | unverändert |
+
+Services injizieren die Stores mit `@Inject(<TOKEN>)`; Tests ersetzen sie per `overrideProvider` oder übergeben Fakes direkt.
+
+### 3a.4 Importe und Datenstand
+
+- **Ablauf** (`ImportRunner`): `queued` → `running` → `succeeded` / `partial` / `failed`. Zuerst werden **alle** Stundenwerte abgefragt (`timezone=GMT`, Zuordnung der UTC-Zeitpunkte zu Berliner Tagen über BerlinTime), erst danach geschrieben. Ein Fehler dabei (z. B. R32-Verstoß → `error.code = "UPSTREAM_INVALID"`, Zeitüberschreitung → `UPSTREAM_TIMEOUT`) ergibt `failed`, und nichts wird geschrieben. Danach wird **getrennt** die Tagesvorhersage geholt: Scheitert nur sie, bleiben die Stunden gespeichert, der Import wird `partial` mit Warnung `FORECAST_FAILED` (US08-2, F01). Unerwartete Fehler → `failed` mit `INTERNAL_ERROR`, ohne Stacktrace.
+- **Arten:** `range` legt neue Stunden an und überschreibt geänderte; `gaps` legt nur fehlende Stunden an (vorhandene zählen als `unchanged`).
+- **Speicher:** Geschrieben wird nur in `InMemoryObservationStore` und `InMemoryForecastStore`, **nie** in Dateien. Nach einem Neustart sind Importe und importierte Werte weg.
+- **Zusammenführung mit dem Altbestand:** Eine importierte Stunde ersetzt die Stunde des Altbestands mit derselben Ortszeit (`timeLocal`). Die zweite 02:00 am Ende der Sommerzeit kommt als zusätzliche Stunde hinzu. Vorrang:
+  - ältere Tage: der Import;
+  - **heute:** die neuere Quelle. Ist die Express-Datei (Änderungszeit) neuer als der letzte Schreibvorgang eines Imports für diesen Tag, gilt nur die Datei, und die importierten Stunden des Tages werden verworfen. Sonst gilt der Import. Der Schreibzeitpunkt liegt unmittelbar vor dem Abschluss des Imports (nur die Tagesvorhersage folgt noch);
+  - Vorhersage: die jüngere (`fetchedAt`) von `forecast.json` und Import.
+- **Zeitzonen:** Stundenwerte werden mit `timezone=GMT` abgefragt (`utc_offset_seconds = 0`, R32) und über BerlinTime den Berliner Tagen zugeordnet. Die Tagesvorhersage wird mit `timezone=Europe/Berlin` abgefragt, weil Max/Min/Summe für **Berliner** Kalendertage gelten müssen (Fachregel „Tag = Kalendertag Europe/Berlin“ geht vor). Ihr `utc_offset_seconds` muss 3600 oder 7200 sein, sonst `UPSTREAM_INVALID` für den Vorhersageteil (→ `partial`).
+- **Fehler- und Warncodes eines Imports:**
+
+  | Code | Art | Bedeutung | Folge |
+  |---|---|---|---|
+  | `UPSTREAM_INVALID` | `error` (Stunden) bzw. in der Warnung | Antwort verletzt `OpenMeteoResponseSchema`/`OpenMeteoDailyResponseSchema` oder ist kein JSON (R32) | Stunden: `failed`, nichts geschrieben; Tagesvorhersage: `partial` |
+  | `UPSTREAM_TIMEOUT` | `error` bzw. in der Warnung | keine Antwort innerhalb von 15 s, auch nach 2 Wiederholungen | wie oben |
+  | `UPSTREAM_ERROR` | `error` bzw. in der Warnung | HTTP-Fehler (4xx sofort, 5xx/429 nach 2 Wiederholungen) oder Netzwerkfehler | wie oben |
+  | `INTERNAL_ERROR` | `error` | unerwarteter Fehler in Nest (z. B. im Store), Meldung ohne Stacktrace | `failed` |
+  | `FORECAST_FAILED` | `warnings[]` | Tagesvorhersage nicht gespeichert; die Meldung nennt den Code der Ursache in Klammern | `partial`, Stunden gespeichert |
+  | `INTERRUPTED` | `error` | Neustart während eines Laufs (R19) | noch nicht verwendet: Importe liegen nur im Arbeitsspeicher und sind nach einem Neustart weg (ab Schritt 9) |
+- **`updateState`** (R25, `StatusService`): maßgeblich ist der zuletzt abgeschlossene Import mit `kind` ∈ `scheduled`/`range`/`gaps` und `status` ∈ `succeeded`/`partial`. Gibt es keinen → `never`, `lastSuccessfulUpdateAt = null`. Sonst `lastSuccessfulUpdateAt` = dessen `finishedAt`, `ok` bis einschließlich 2 h danach, darüber `delayed`. Da Express-Läufe keine Nest-Importe sind, zeigt Nest nach jedem Start `never`, bis ein Import über Nest gelaufen ist.
+
+### 3a.5 Umgebungsvariablen (Übergang)
 
 | Variable | Standard | Zweck |
 |---|---|---|
 | `PORT` | `3001` | Port; Host ist immer `127.0.0.1` |
 | `LEGACY_DATA_DIR` | `../backend/data` | Ordner mit den Express-Dateien; relativ zum Arbeitsverzeichnis (bei npm-Skripten `api/`) |
 
-### 3a.4 Skripte
+### 3a.6 Skripte
 
 | Befehl (in `api/`) | Wirkung |
 |---|---|
@@ -319,7 +371,7 @@ Regeln:
 | Erster Lauf | kann wegen der langsamen Platte (jsdom laden, ca. 130 s) mit dem Worker-Timeout abbrechen; erneut starten, danach ist der Cache warm |
 | stylelint | `cd frontend && npm run lint:css` (Basis `stylelint-config-standard`, siehe `.stylelintrc.json`) |
 | Backend Express | keine automatisierten Tests |
-| Backend Nest (`api/`) | Jest + ts-jest: `cd api && npm test` (Unit: BerlinTime mit vier Tagen Zeitumstellung und Mitternacht MEZ/MESZ, Clock, Datenordner), `npm run test:e2e` (alle Endpunkte mit supertest, Fixture-Dateien im Temp-Ordner, `FixedClock`) |
+| Backend Nest (`api/`) | Jest + ts-jest: `cd api && npm test` (Unit: BerlinTime mit vier Tagen Zeitumstellung und Mitternacht MEZ/MESZ, Clock, Datenordner, Open-Meteo-Client mit `fetch`-Ersatz und R32-Fällen, ImportRunner mit gemocktem Client und `FixedClock` (`partial`, `UPSTREAM_INVALID`), R19, R25-Grenzen, Stores, `DaysService` mit Fake-Store), `npm run test:e2e` (GET-Endpunkte mit Fixture-Dateien im Temp-Ordner und `FixedClock`; Importe mit gemocktem `OpenMeteoClient`: 202 + `Location`, 409, 404). Kein Test ruft Open-Meteo wirklich auf; Testhilfen in `api/test/support/fakes.ts` |
 | Golden Files | `api/test/characterization/golden/` (Antworten der Express-API vom 19.11.2026: `day-*`, `month-*`, `year-*`, `stats.json`). Zweck: Vergleichsstand für eine spätere neue API. Aufnehmen mit `bash api/test/characterization/capture.sh` bei laufendem Backend (`BASE` ändert die Adresse); das Skript **überschreibt** `golden/`. Bekannte Abweichungen und Hinweise stehen in `api/test/characterization/README.md` |
 | axe-core | als devDependency im Frontend vorhanden, Prüfwerkzeug für Barrierefreiheit (z. B. im Browser oder in einem Skript); in den Specs ist es derzeit nicht eingebunden |
 
@@ -360,6 +412,10 @@ Reihenfolge für die Entwicklung: zuerst Express (`:3000`) und Nest (`:3001`), d
 | `seed-data.ts` | überschreibt echte Dateien im Mai 2026, siehe 3.5 |
 | `backend/data/` | nicht im Git; nie löschen oder überschreiben, nur lesen |
 | Nest-Cache der Altdaten | `LegacyFileSource` liest alle Tagesdateien nur beim Start; neu gelesen werden je Anfrage nur die Datei für heute und `forecast.json`. Ändert ein Backfill ältere Tage, liefert Nest den alten Stand bis zum Neustart (gilt bis Schritt 9) |
+| Nest-Importe nur im Arbeitsspeicher | `POST /api/imports` ruft Open-Meteo wirklich auf, schreibt aber nur in den Arbeitsspeicher. Nach einem Neustart sind Importe, IDs (wieder ab 1) und importierte Werte weg, `updateState` ist wieder `never`. Für ältere Tage haben importierte Stunden Vorrang vor den Dateien; für heute gilt die neuere Quelle, sodass die stündlich neu geschriebene Datei von Express einen Import überholt (3a.4) |
+| Stunden UTC, Tage Berlin | Stundenwerte fragt Nest mit `timezone=GMT` ab, die Tagesvorhersage mit `timezone=Europe/Berlin`. Wer eine weitere Open-Meteo-Abfrage ergänzt, muss entscheiden, welche Regel gilt, und das passende Schema (Offset 0 bzw. 3600/7200) verwenden |
+| Offener schreibender Endpunkt | `POST /api/imports` hat noch keine Anmeldung (Schritt 10/11) und nur eine minimale Eingabeprüfung (Schritt 4: Reihenfolge, Zukunft, Höchstdauer). Deshalb nur auf `127.0.0.1` und nicht auf den Pi |
+| Altbestand um eine Stunde versetzt (Z1) | Ein Import vom 01.–03.10.2026 meldet alle 72 Stunden als `updated`: Die Werte der Altdatei stehen eine Stunde zu früh (Wert von 01:00 MESZ unter `00:00`), passend zur Annahme „fester Offset +01:00“ aus Z1. Nach einem Import zeigen diese Tage in Nest die richtig zugeordneten Werte, alle anderen den Altbestand |
 
 ---
 

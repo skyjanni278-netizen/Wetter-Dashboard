@@ -1,4 +1,12 @@
-import { BERLIN_TIMEZONE, hoursInDay, isIsoDate, localDate, localHour } from './berlin-time';
+import {
+  addDays,
+  BERLIN_TIMEZONE,
+  hoursInDay,
+  isIsoDate,
+  localDate,
+  localDateTime,
+  localHour,
+} from './berlin-time';
 
 describe('BerlinTime (C6)', () => {
   it('Zeitzone ist Europe/Berlin', () => {
@@ -80,6 +88,34 @@ describe('BerlinTime (C6)', () => {
       expect(localHour(new Date('2025-03-30T01:00:00Z'))).toBe(3);
       expect(localHour(new Date('2025-10-26T00:30:00Z'))).toBe(2);
       expect(localHour(new Date('2025-10-26T01:30:00Z'))).toBe(2);
+    });
+  });
+
+  describe('localDateTime', () => {
+    it('liefert die Ortszeit ohne Offset (MEZ und MESZ)', () => {
+      expect(localDateTime(new Date('2026-11-19T23:00:00Z'))).toBe('2026-11-20T00:00');
+      expect(localDateTime(new Date('2026-09-30T22:00:00Z'))).toBe('2026-10-01T00:00');
+    });
+
+    it('25.10.2026: 00:00Z und 01:00Z sind beide 02:00 Ortszeit', () => {
+      expect(localDateTime(new Date('2026-10-25T00:00:00Z'))).toBe('2026-10-25T02:00');
+      expect(localDateTime(new Date('2026-10-25T01:00:00Z'))).toBe('2026-10-25T02:00');
+    });
+  });
+
+  describe('addDays', () => {
+    it.each([
+      ['2026-10-01', -1, '2026-09-30'],
+      ['2026-12-31', 1, '2027-01-01'],
+      ['2024-02-28', 1, '2024-02-29'],
+      ['2026-03-29', 1, '2026-03-30'],
+      ['2026-11-20', -10, '2026-11-10'],
+    ])('%s %+i → %s', (date, days, expected) => {
+      expect(addDays(date, days)).toBe(expected);
+    });
+
+    it('wirft bei ungültigem Datum', () => {
+      expect(() => addDays('2026-02-30', 1)).toThrow(RangeError);
     });
   });
 

@@ -71,6 +71,25 @@ export function localHour(instant: Date): number {
   return localParts(instant).hour;
 }
 
+/**
+ * Berliner Ortszeit eines Zeitpunkts ohne Offset als `YYYY-MM-DDTHH:MM` (Form des Altbestands).
+ * Am Ende der Sommerzeit ergeben zwei Zeitpunkte dieselbe Ortszeit (02:00 MESZ und MEZ).
+ */
+export function localDateTime(instant: Date): string {
+  const p = localParts(instant);
+  return `${pad(p.year, 4)}-${pad(p.month, 2)}-${pad(p.day, 2)}T${pad(p.hour, 2)}:${pad(p.minute, 2)}`;
+}
+
+/** Kalendertag `date` plus `days` Tage (auch negativ), unabhängig von Zeitzone und Zeitumstellung. */
+export function addDays(date: string, days: number): string {
+  const match = ISO_DATE.exec(date);
+  if (!match || !isIsoDate(date)) {
+    throw new RangeError(`Ungültiges Datum: "${date}"`);
+  }
+  const shifted = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]) + days));
+  return shifted.toISOString().slice(0, 10);
+}
+
 /** Abstand Berlin zu UTC in Millisekunden zum gegebenen Zeitpunkt (+1 h MEZ, +2 h MESZ). */
 function offsetMs(instant: number): number {
   const p = localParts(new Date(instant));

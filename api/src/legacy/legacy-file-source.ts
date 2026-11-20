@@ -3,8 +3,10 @@ import path from 'node:path';
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { isIsoDate, localDate } from '../common/berlin-time';
 import { Clock } from '../common/clock';
+import { formatUtc } from '../common/utc';
 import { LEGACY_DATA_DIR } from './legacy-data-dir';
 import {
+  LegacyDayFile,
   LegacyDayFileRaw,
   LegacyForecast,
   LegacyForecastRaw,
@@ -68,15 +70,24 @@ export class LegacyFileSource implements OnModuleInit {
 
   /** Stunden eines Tages oder `null`, wenn es keine Daten gibt. */
   async getDay(date: string): Promise<LegacyHour[] | null> {
+    return (await this.getDayFile(date))?.hours ?? null;
+  }
+
+  /**
+   * Stunden eines Tages mit der Änderungszeit der Datei. `modifiedAt` gibt es nur für die heutige
+   * Datei, weil nur sie bei jeder Anfrage neu gelesen wird; sonst `null`.
+   */
+  async getDayFile(date: string): Promise<LegacyDayFile | null> {
     if (!isIsoDate(date)) return null;
     if (date === this.today()) {
-      const fresh = await this.readDayFile(date);
+      const fresh = await this.readDayFile(date, true);
       if (fresh) {
-        this.days.set(date, fresh);
+        this.days.set(date, fresh.hours);
         return fresh;
       }
     }
-    return this.days.get(date) ?? null;
+    const hours = this.days.get(date);
+    return hours ? { hours, modifiedAt: null } : null;
   }
 
   /** Erster und letzter Tag mit Daten (heutige Datei eingeschlossen) oder `null`. */
@@ -110,7 +121,7 @@ export class LegacyFileSource implements OnModuleInit {
           precipitationSum: numberOrNull(entry.precipitation),
           weatherCode: numberOrNull(entry.weathercode),
         }));
-      return { days, fetchedAt: info.mtime.toISOString() };
+      return { days, fetchedAt: formatUtc(info.mtime) };
     } catch (error) {
       if (!isNotFound(error)) {
         this.logger.warn(`${FORECAST_FILE} nicht lesbar: ${errorText(error)}`);
@@ -142,23 +153,27 @@ export class LegacyFileSource implements OnModuleInit {
         .map(name => DAY_FILE.exec(name)?.[1])
         .filter((date): date is string => date !== undefined && isIsoDate(date) && date.startsWith(month));
       const loaded = await Promise.all(files.map(async date => [date, await this.readDayFile(date)] as const));
-      for (const [date, hours] of loaded) {
-        if (hours) this.days.set(date, hours);
+      for (const [date, file] of loaded) {
+        if (file) this.days.set(date, file.hours);
       }
     }
 
     this.logger.log(`${this.days.size} Tagesdateien aus ${this.dataDir} geladen (${Date.now() - started} ms)`);
   }
 
-  private async readDayFile(date: string): Promise<LegacyHour[] | null> {
+  private async readDayFile(date: string, withModifiedAt = false): Promise<LegacyDayFile | null> {
     const file = path.join(this.dataDir, date.slice(0, 7), `${date}.json`);
     try {
-      const parsed: unknown = JSON.parse(await readFile(file, 'utf-8'));
+      const [content, info] = await Promise.all([
+        readFile(file, 'utf-8'),
+        withModifiedAt ? stat(file) : Promise.resolve(null),
+      ]);
+      const parsed: unknown = JSON.parse(content);
       if (!isDayFile(parsed)) {
         this.logger.warn(`${file} hat kein gültiges Format, wird ignoriert`);
         return null;
       }
-      return parsed.hourly.map(toHour);
+      return { hours: parsed.hourly.map(toHour), modifiedAt: info ? formatUtc(info.mtime) : null };
     } catch (error) {
       if (!isNotFound(error)) {
         this.logger.warn(`${file} nicht lesbar: ${errorText(error)}`);

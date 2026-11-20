@@ -41,6 +41,12 @@ export interface LegacyHour {
   windDirection: number | null;
 }
 
+/** Inhalt einer Tagesdatei; `modifiedAt` (UTC) nur bei frisch gelesenen Dateien, sonst `null`. */
+export interface LegacyDayFile {
+  hours: LegacyHour[];
+  modifiedAt: string | null;
+}
+
 /** Normalisierter Vorhersagetag. */
 export interface LegacyForecastDay {
   date: string;
