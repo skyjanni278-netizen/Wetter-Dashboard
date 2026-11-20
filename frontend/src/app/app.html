@@ -28,10 +28,19 @@
         (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener license">CC BY 4.0</a>)
       </p>
     </section>
-    <!-- Block „Datenstand“ (E3.7.9): bis Schritt 2 nur statischer Text, Express-lastFetch wird nicht gelesen -->
+    <!-- Block „Datenstand“ (E3.7.9): Ort und Datenzeitraum aus /api/status (Nest, Schritt 2).
+         Beim Laden und bei Fehler bleibt der statische Text; die zweite Zeile behält ihre Höhe. -->
     <section class="footer-block" aria-labelledby="footer-location">
       <h2 id="footer-location" class="kicker">Standort</h2>
-      <p>Wetterdaten für Heubach</p>
+      <p>Wetterdaten für {{ footerLocationName() }}</p>
+      <p class="footer-range" [attr.data-state]="footer().state">
+        @if (footerRange(); as range) {
+          Daten vom <time [attr.datetime]="range.from">{{ range.fromLabel }}</time>
+          bis <time [attr.datetime]="range.to">{{ range.toLabel }}</time>
+        } @else if (footer().state === 'loading') {
+          <app-skeleton width="14rem" height="1em" />
+        }
+      </p>
     </section>
   </div>
 </footer>

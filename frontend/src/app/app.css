@@ -139,6 +139,9 @@ main {
 .footer-block h2 { margin: 0 0 var(--space-1); }
 .footer-block p { margin: 0; }
 
+/* Datenzeitraum: Zeile behält ihre Höhe beim Laden und bei Fehler (kein Layoutsprung) */
+.footer-range { min-height: 1lh; }
+
 .site-footer a {
   display: inline-block;
   padding: var(--space-1) 0;

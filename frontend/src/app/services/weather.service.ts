@@ -1,7 +1,8 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { DayData, MonthResponse, YearResponse, StatusResponse, DayForecast, Stats } from '../models/weather';
+import { DayData, MonthResponse, YearResponse, DayForecast, Stats } from '../models/weather';
+import { Location, Status } from '../models/api';
 
 const API = '/api';
 
@@ -9,8 +10,14 @@ const API = '/api';
 export class WeatherService {
   private http = inject(HttpClient);
 
-  getStatus(): Observable<StatusResponse> {
-    return this.http.get<StatusResponse>(`${API}/status`);
+  /** Neue API (Nest, Proxy an :3001): Datenstand ohne Fehlertext. */
+  getStatus(): Observable<Status> {
+    return this.http.get<Status>(`${API}/status`);
+  }
+
+  /** Neue API (Nest, Proxy an :3001): ein Standort. */
+  getLocation(id: number): Observable<Location> {
+    return this.http.get<Location>(`${API}/locations/${id}`);
   }
 
   getToday(): Observable<DayData> {

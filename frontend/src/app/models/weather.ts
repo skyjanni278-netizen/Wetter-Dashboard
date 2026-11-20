@@ -37,13 +37,6 @@ export interface YearResponse {
   data: YearSummary[];
 }
 
-export interface StatusResponse {
-  lastFetch: string | null;
-  lastStatus: 'ok' | 'error';
-  lastError: string | null;
-  storedDays: number;
-}
-
 export interface DayForecast {
   date: string;
   maxTemp: number;

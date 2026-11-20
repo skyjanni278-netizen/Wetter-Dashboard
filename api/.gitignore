@@ -1,0 +1,8 @@
+# Abhängigkeiten und Build
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Logs
+*.log

@@ -1,6 +1,6 @@
 # Projektdokumentation – Wetter-Dashboard Heubach
 
-> Stand: 20.11.2026 · Commit `33acb33` · Pflege: siehe Abschnitt „11. Pflege dieser Datei“
+> Stand: 20.11.2026 · Roadmap-Schritt 2 (Basis `7b3c416`) · Pflege: siehe Abschnitt „11. Pflege dieser Datei“
 
 Diese Datei ist eine Landkarte des **aktuellen** Systems: was es gibt, wo es liegt, wie es zusammenhängt. Sie enthält keinen Code und keine Planung (die steht in `docs/umbau/`).
 
@@ -10,20 +10,20 @@ Diese Datei ist eine Landkarte des **aktuellen** Systems: was es gibt, wo es lie
 
 Lokales Wetter-Dashboard für Heubach (Ostalbkreis, 48,7936 °N, 9,9369 °O). Ein Express-Backend ruft stündlich Daten von Open-Meteo ab und legt sie als JSON-Dateien ab. Ein Angular-Frontend zeigt Tag, Monat, Jahr und Rekorde.
 
+Parallelbetrieb (Strangler-Muster): Neben Express entsteht in `api/` ein NestJS-Backend. Es liest die JSON-Dateien von Express **nur lesend** und liefert die ersten Ressourcen der neuen API. Express bleibt der einzige Schreiber. Der Dev-Proxy verteilt die Anfragen je Ressource (siehe 4.6).
+
 ```mermaid
 flowchart LR
   Browser["Browser"] -->|"http://localhost:4200"| NgServe["ng serve :4200 (Proxy /api)"]
-  NgServe -->|"/api/* an 127.0.0.1:3000"| Express["Express :3000 (backend/)"]
+  NgServe -->|"/api/* (Rest) an :3000"| Express["Express :3000 (backend/)"]
+  NgServe -->|"/api/locations, /api/status an :3001"| Nest["NestJS :3001 (api/)"]
   Express -->|"liest und schreibt"| Json[("backend/data/ JSON-Dateien")]
+  Nest -->|"liest nur"| Json
   Scheduler["Scheduler (node-cron, im Express-Prozess)"] -->|"stündlich"| OpenMeteo["Open-Meteo API"]
   Scheduler -->|"speichert"| Json
   Backfill["npm run backfill"] -->|"Archiv und Forecast"| OpenMeteo
   Backfill -->|"speichert"| Json
-  Nest["api/ NestJS :3001 (geplant, noch nicht vorhanden)"]
-  NgServe -.->|"später je Ressource"| Nest
 ```
-
-`api/` enthält heute nur `test/characterization/` (Golden Files der Express-API). Ein NestJS-Projekt gibt es noch nicht.
 
 ---
 
@@ -37,7 +37,7 @@ flowchart LR
 | `backend/src/` | TypeScript-Quellen des Backends (Dateien siehe 3.1) |
 | `backend/data/` | Laufzeitdaten, **nicht im Git**: Ordner `YYYY-MM/` mit Tagesdateien plus `forecast.json` (Stand: 23 Monatsordner und `forecast.json`) |
 | `frontend/` | Angular-21-App (eigene `package.json`, Angular-CLI-Konfiguration, stylelint, Vitest) |
-| `frontend/proxy.conf.json` | Dev-Proxy: `/api` an `http://localhost:3000` |
+| `frontend/proxy.conf.json` | Dev-Proxy: `/api/locations` und `/api/status` an `http://localhost:3001` (Nest), Rest `/api` an `http://localhost:3000` (Express), siehe 4.6 |
 | `frontend/vitest.config.mjs` | Vitest-Ergänzung (`maxWorkers: 2`) |
 | `frontend/.stylelintrc.json` | stylelint-Regeln (u. a. `color-no-hex`), `tokens.css` ausgenommen |
 | `frontend/src/main.ts`, `index.html` | Einstieg, `lang="de"`, Standardtitel „Wetter Heubach“ |
@@ -45,13 +45,16 @@ flowchart LR
 | `frontend/src/app/components/` | gemeinsame UI-Komponenten (siehe 4.3), je Ordner `.ts/.html/.css/.spec.ts` |
 | `frontend/src/app/pages/` | vier Seiten, je ein Ordner (siehe 4.2) |
 | `frontend/src/app/services/` | `weather.service.ts` (HTTP zum Backend) |
-| `frontend/src/app/models/` | Typen: `weather.ts`, `load-state.ts` |
+| `frontend/src/app/models/` | Typen: `weather.ts` (Express), `api.ts` (neue API), `load-state.ts` |
 | `frontend/src/app/pipes/` | `unit.pipe.ts` |
 | `frontend/src/app/utils/` | Datum, Titel, Parameterprüfung, Wettersymbole |
 | `frontend/src/app/config/` | `data-range.ts` (Datenbeginn) |
 | `frontend/src/styles/` | `tokens.css` (Design-Tokens, Schriften, `.surface-dark`) |
 | `frontend/src/styles.css` | globale Klassen: Buttons, Seitenlayout, Raster, `.kicker`, `.visually-hidden` |
 | `frontend/public/assets/fonts/` | lokale Schriften (woff2) und Lizenz `OFL.txt` |
+| `api/` | NestJS-11-Backend (eigene `package.json`, `nest-cli.json`, `tsconfig.json` strict, `tsconfig.build.json`, `.gitignore` für `node_modules/`, `dist/`, `coverage/`), siehe Abschnitt 3a |
+| `api/src/` | Quellen der Nest-API (Dateien siehe 3a.1) |
+| `api/test/` | e2e-Tests (`app.e2e-spec.ts`, `jest-e2e.json`) |
 | `api/test/characterization/` | Golden Files der Express-API (`golden/*.json`, `capture.sh`, `README.md`) |
 | `docs/` | Dokumentation; diese Datei |
 | `docs/umbau/` | Planung des Umbaus: `01`–`05` (siehe Abschnitt 9) |
@@ -89,7 +92,7 @@ Alle Endpunkte sind `GET`. Fehlerantworten haben die Form `{ "error": "<Text>" }
 | `/api/forecast` | Liste `[{ date, maxTemp, minTemp, precipitation, weathercode }]` (7 Tage ab heute) | 404 noch keine `forecast.json` |
 | `/api/stats` | `{ hottestDay, coldestDay, rainiestDay, driestStreak, totalDays }`, Felder `null`, wenn keine Daten | – |
 
-Hinweise: Der Monats-Parameter wird nur auf zwei Ziffern geprüft (kein Bereich 01–12). Alle Zusammenfassungen werden bei jeder Anfrage aus den Dateien berechnet (kein Cache).
+Hinweise: Der Monats-Parameter wird nur auf zwei Ziffern geprüft (kein Bereich 01–12). Alle Zusammenfassungen werden bei jeder Anfrage aus den Dateien berechnet (kein Cache). `/api/status` von Express ist über den Dev-Proxy nicht mehr erreichbar, weil der Proxy diesen Pfad an Nest gibt (4.6); direkt auf `127.0.0.1:3000` antwortet Express weiter.
 
 ### 3.3 Scheduler und Datenabruf
 
@@ -129,6 +132,61 @@ Hinweise: Der Monats-Parameter wird nur auf zwei Ziffern geprüft (kein Bereich 
 | `npm start` | `node dist/server.js` (nach `build`) |
 | `npm run backfill` | lädt Daten ab 2025-01-01 bis heute nach; Startdatum optional: `npm run backfill -- 2024-06-01`; schreibt auch `forecast.json` und überschreibt vorhandene Tagesdateien dieser Tage |
 | `src/seed-data.ts` | **Warnung:** nur von Hand mit `ts-node`, kein npm-Skript; schreibt 6 künstliche Tage (Mai 2026) und **überschreibt** dort vorhandene echte Dateien. Nicht auf echten Daten ausführen |
+
+---
+
+## 3a. Backend (NestJS, `api/`)
+
+NestJS 11 auf Express 5 (`@nestjs/platform-express`), TypeScript strict, Jest. Stand Roadmap-Schritt 2: ein Modul (`AppModule`), Controller ohne Services, Daten aus den JSON-Dateien von Express (nur lesend, In-Memory). Lauscht nur auf `127.0.0.1`, globales Präfix `/api`.
+
+### 3a.1 Dateien und Aufgaben
+
+| Datei (`api/src/`) | Aufgabe |
+|---|---|
+| `main.ts` | Start: `setGlobalPrefix('api')`, `listen(PORT, '127.0.0.1')`, loggt Adresse und Datenordner |
+| `app.module.ts` | einziges Modul: vier Controller, Provider `Clock` (= `SystemClock`), `LEGACY_DATA_DIR`, `LegacyFileSource` |
+| `common/clock.ts` | `Clock` (abstrakt, zugleich DI-Token), `SystemClock`, `FixedClock` (Tests: `set`, `advance`) |
+| `common/berlin-time.ts` | `BERLIN_TIMEZONE`, `localDate`, `localHour`, `hoursInDay` (23/24/25), `isIsoDate` |
+| `legacy/legacy-data-dir.ts` | Token `LEGACY_DATA_DIR`, `resolveLegacyDataDir` (Umgebungsvariable oder Standard, relativ zum Arbeitsverzeichnis) |
+| `legacy/legacy-types.ts` | Altformat der Dateien (`LegacyDayFileRaw`, `LegacyForecastRaw`) und normalisierte Typen (`LegacyHour`, `LegacyForecast`) |
+| `legacy/legacy-file-source.ts` | `LegacyFileSource`: lädt beim Start alle Tagesdateien asynchron in eine `Map<date, hours[]>`; die Datei für heute (Berliner Datum über `Clock`) und `forecast.json` liest es bei jeder Anfrage neu. Werte `number \| null`, nicht gerundet |
+| `locations/location.ts`, `locations.controller.ts` | Standort Heubach als Konstante (`id = 1`, `slug = "heubach"`) und Controller |
+| `days/day.ts`, `days.controller.ts` | Typ `Day`/`DayHour` und Controller für `today` und `:date` |
+| `forecasts/forecast.ts`, `forecasts.controller.ts` | Typ `Forecast`/`ForecastList` und Controller |
+| `status/status.ts`, `status.controller.ts` | Typ `Status` und Controller |
+
+Tests: je `*.spec.ts` neben der Quelle (`berlin-time`, `clock`, `legacy-data-dir`), dazu `api/test/app.e2e-spec.ts` (alle Endpunkte mit Fixture-Dateien im Temp-Ordner und `FixedClock`).
+
+### 3a.2 Endpunkte
+
+Alle `GET`, Antwort JSON. Fehler im Standardformat von Nest (`{ statusCode, message, error }`), das einheitliche Fehlerformat folgt in Roadmap-Schritt 5.
+
+| Pfad | Antwort bei Erfolg | Fehlercodes |
+|---|---|---|
+| `/api/locations` | `{ items: [Location] }` mit genau Heubach | – |
+| `/api/locations/:id` | `Location` (`id, slug, name, postalCode, region, latitude, longitude, timezone, isDefault`) | 400 `id` keine Zahl, 404 unbekannt |
+| `/api/days/today` | `Day` für den Berliner Tag, Header `Content-Location: /api/days/<datum>` | 404 noch keine Datei für heute |
+| `/api/days/:date` | `Day`: `id, date, locationId, timezone, isToday, hoursExpected, hours[]`; Stunde: `timeLocal` (Ortszeit **ohne** Offset aus dem Altbestand), `temperature, apparentTemperature, precipitation, weatherCode, windSpeed, windDirection` | 404 keine Daten (vorerst auch bei ungültigem Datum) |
+| `/api/forecasts` | `{ items: [Forecast], fetchedAt }`; Eintrag: `locationId, date, maxTemp, minTemp, precipitationSum, weatherCode, fetchedAt`. `fetchedAt` = Änderungszeit von `forecast.json` | – (ohne Datei: `items = []`, `fetchedAt = null`) |
+| `/api/status` | `{ locationId, today, timezone, dataFrom, dataTo, lastSuccessfulUpdateAt: null, updateState: "never" }`, ohne Fehlertext | – |
+
+### 3a.3 Umgebungsvariablen (Übergang)
+
+| Variable | Standard | Zweck |
+|---|---|---|
+| `PORT` | `3001` | Port; Host ist immer `127.0.0.1` |
+| `LEGACY_DATA_DIR` | `../backend/data` | Ordner mit den Express-Dateien; relativ zum Arbeitsverzeichnis (bei npm-Skripten `api/`) |
+
+### 3a.4 Skripte
+
+| Befehl (in `api/`) | Wirkung |
+|---|---|
+| `npm start` | `nest start` (baut und startet) |
+| `npm run start:dev` | `nest start --watch` |
+| `npm run start:prod` | `node dist/main` (nach `build`) |
+| `npm run build` | `nest build` nach `api/dist/` |
+| `npm test` | Unit-Tests (Jest, `src/**/*.spec.ts`) |
+| `npm run test:e2e` | e2e-Tests (`test/jest-e2e.json`, supertest) |
 
 ---
 
@@ -186,8 +244,9 @@ Ordner `frontend/src/app/components/`. Alle Selektoren beginnen mit `app-`.
 
 | Datei (`frontend/src/app/…`) | Exporte | Zweck |
 |---|---|---|
-| `services/weather.service.ts` | `WeatherService`: `getStatus`, `getToday`, `getDay`, `getMonth`, `getYear`, `getForecast`, `getStats` | ein HTTP-Aufruf je Endpunkt aus 3.2, Basis `/api` |
-| `models/weather.ts` | `HourlyEntry`, `DayData`, `MonthSummary`, `MonthResponse`, `YearSummary`, `YearResponse`, `StatusResponse`, `DayForecast`, `StatsRecord`, `Stats` | Typen der API-Antworten |
+| `services/weather.service.ts` | `WeatherService`: `getStatus`, `getLocation(id)` (neue API, 3a.2); `getToday`, `getDay`, `getMonth`, `getYear`, `getForecast`, `getStats` (Express, 3.2) | ein HTTP-Aufruf je Endpunkt, Basis `/api` |
+| `models/weather.ts` | `HourlyEntry`, `DayData`, `MonthSummary`, `MonthResponse`, `YearSummary`, `YearResponse`, `DayForecast`, `StatsRecord`, `Stats` | Typen der Express-Antworten |
+| `models/api.ts` | `Location`, `LocationList`, `UpdateState`, `Status`, `DayHour`, `Day`, `Forecast`, `ForecastList` | Typen der neuen API (3a.2), Messwerte `number \| null` |
 | `models/load-state.ts` | `LoadState`, `LoadResult<T>` | Ladezustand `idle/loading/success/empty/error` |
 | `pipes/unit.pipe.ts` | `UnitPipe` (`unit`), `UNIT_SEPARATOR` | Zahl in deutscher Schreibweise plus Einheit, fehlend = „–“ |
 | `utils/berlin-date.ts` | `berlinToday`, `berlinHour`, `addDays`, `isValidIsoDate`, `formatDateLongDe`, `formatDateDe` | Datumsrechnung in Europe/Berlin |
@@ -196,7 +255,7 @@ Ordner `frontend/src/app/components/`. Alle Selektoren beginnen mit `app-`.
 | `utils/weather-icon.ts` | `getWeatherIcon`, `describeWeather`, `getWeatherDescription`, `getWindDirection` | WMO-Wettercode zu Symbol und Text, Windrichtung |
 | `config/data-range.ts` | `DATA_START` (`2025-01-01`) | erster Tag mit Daten (Übergangslösung) |
 | `app.config.ts` | `appConfig` | Router mit Input-Binding, HttpClient, Locale `de-DE`, `AppTitleStrategy` |
-| `app.ts` | `App` | Kopfzeile mit Navigation (Heute, Monat, Jahr, Rekorde), Skip-Link, Footer mit Datenquelle |
+| `app.ts` | `App`, `footerData`, `FooterDataState` | Kopfzeile mit Navigation (Heute, Monat, Jahr, Rekorde), Skip-Link, Footer mit Datenquelle und Block Standort/Datenstand: „Wetterdaten für <Ort>“ (Name aus `getLocation(status.locationId)`) und „Daten vom TT.MM.JJJJ bis TT.MM.JJJJ“ (`dataFrom`–`dataTo` aus `getStatus`). Ein Request-Paar je App-Start. Beim Laden ein `app-skeleton` in der Zeitraum-Zeile; bei Fehler oder ohne Zeitraum nur der statische Text „Wetterdaten für Heubach“, die Zeile behält ihre Höhe |
 
 ### 4.5 Zustände und Datenfluss
 
@@ -208,6 +267,18 @@ Ordner `frontend/src/app/components/`. Alle Selektoren beginnen mit `app-`.
 6. Die Vorlage zeigt je Zustand `app-loading`, `app-empty`, `app-error` oder den Inhalt. „Erneut versuchen“ erhöht einen Zähler und löst denselben Weg neu aus.
 
 Die Auswahl steht ausschließlich in der URL; Select und Datumsfeld rufen `router.navigate` auf.
+
+### 4.6 Dev-Proxy: Verteilung je Ressource
+
+Quelle: `frontend/proxy.conf.json`. Der Dev-Server nimmt den **ersten** passenden Eintrag; der Fallback `/api` steht deshalb zuletzt. Gelistet werden nur Ressourcen, die das Frontend schon von Nest liest.
+
+| Pfad-Präfix | Ziel | Backend |
+|---|---|---|
+| `/api/locations` | `http://localhost:3001` | Nest |
+| `/api/status` | `http://localhost:3001` | Nest |
+| `/api` (alles andere, z. B. `/api/data/*`, `/api/forecast`, `/api/stats`) | `http://localhost:3000` | Express |
+
+`/api/days` und `/api/forecasts` von Nest sind direkt auf `127.0.0.1:3001` erreichbar, über den Proxy aber noch nicht (die Seiten werden erst später umgestellt).
 
 ---
 
@@ -247,7 +318,8 @@ Regeln:
 | Umfang | 19 Spec-Dateien (im Dateisystem gezählt), 210 Tests laut letztem bekannten Lauf; je Komponente, Seite, Service, Pipe und Util eine `*.spec.ts` neben der Quelle, dazu `app.spec.ts` |
 | Erster Lauf | kann wegen der langsamen Platte (jsdom laden, ca. 130 s) mit dem Worker-Timeout abbrechen; erneut starten, danach ist der Cache warm |
 | stylelint | `cd frontend && npm run lint:css` (Basis `stylelint-config-standard`, siehe `.stylelintrc.json`) |
-| Backend | keine automatisierten Tests |
+| Backend Express | keine automatisierten Tests |
+| Backend Nest (`api/`) | Jest + ts-jest: `cd api && npm test` (Unit: BerlinTime mit vier Tagen Zeitumstellung und Mitternacht MEZ/MESZ, Clock, Datenordner), `npm run test:e2e` (alle Endpunkte mit supertest, Fixture-Dateien im Temp-Ordner, `FixedClock`) |
 | Golden Files | `api/test/characterization/golden/` (Antworten der Express-API vom 19.11.2026: `day-*`, `month-*`, `year-*`, `stats.json`). Zweck: Vergleichsstand für eine spätere neue API. Aufnehmen mit `bash api/test/characterization/capture.sh` bei laufendem Backend (`BASE` ändert die Adresse); das Skript **überschreibt** `golden/`. Bekannte Abweichungen und Hinweise stehen in `api/test/characterization/README.md` |
 | axe-core | als devDependency im Frontend vorhanden, Prüfwerkzeug für Barrierefreiheit (z. B. im Browser oder in einem Skript); in den Specs ist es derzeit nicht eingebunden |
 
@@ -261,13 +333,16 @@ Regeln:
 | Backend bauen | `backend/` | `npm run build` |
 | Backend aus dem Build starten | `backend/` | `npm start` |
 | Historische Daten laden | `backend/` | `npm run backfill` oder `npm run backfill -- YYYY-MM-DD` |
-| Frontend entwickeln (:4200, Proxy auf :3000) | `frontend/` | `npm start` (= `ng serve`) |
+| Nest-API starten (:3001, nur `127.0.0.1`) | `api/` | `npm start` oder `npm run start:dev` (Watch); Port/Datenordner über `PORT`, `LEGACY_DATA_DIR` |
+| Nest-API bauen / aus dem Build starten | `api/` | `npm run build` / `npm run start:prod` |
+| Nest-API testen | `api/` | `npm test` (Unit), `npm run test:e2e` |
+| Frontend entwickeln (:4200, Proxy auf :3000 und :3001) | `frontend/` | `npm start` (= `ng serve`) |
 | Frontend bauen | `frontend/` | `npm run build` (Ausgabe in `frontend/dist/`) |
 | Frontend-Tests | `frontend/` | `npm test -- --watch=false` |
 | CSS prüfen | `frontend/` | `npm run lint:css` |
 | Golden Files neu aufnehmen | Repo-Wurzel | `bash api/test/characterization/capture.sh` (Backend muss laufen) |
 
-Reihenfolge für die Entwicklung: zuerst Backend (`:3000`), dann Frontend (`:4200`). Der Browser spricht nur mit `:4200`; `/api` leitet der Dev-Proxy weiter.
+Reihenfolge für die Entwicklung: zuerst Express (`:3000`) und Nest (`:3001`), dann Frontend (`:4200`). Der Browser spricht nur mit `:4200`; `/api` verteilt der Dev-Proxy je Ressource (4.6). Läuft Nest nicht, zeigt der Footer nur den statischen Standorttext; alle Seiten funktionieren weiter über Express. Nest braucht Express nicht, liest aber dessen Dateien: ohne laufenden Scheduler fehlt die Datei für heute (`/api/days/today` → 404).
 
 ---
 
@@ -276,13 +351,15 @@ Reihenfolge für die Entwicklung: zuerst Backend (`:3000`), dann Frontend (`:420
 | Thema | Hinweis |
 |---|---|
 | USB-Platte (FAT32) | Laufwerk D: ist langsam: Installationen, Builds und der erste Testlauf dauern lange; keine rekursiven Suchen über `node_modules`. Git meldet unter Umständen „dubious ownership“; dann das Repo einmalig als `safe.directory` eintragen |
-| Windows: Kindprozesse | Nach dem Stoppen von `npm`/`ng`/`ts-node` bleiben oft Node-Kindprozesse zurück und belegen die Ports 3000/4200. Von Hand beenden, z. B. mit `Get-CimInstance Win32_Process` (nach Name und Befehlszeile filtern) und `Stop-Process -Id <PID>` |
+| Windows: Kindprozesse | Nach dem Stoppen von `npm`/`ng`/`ts-node` bleiben oft Node-Kindprozesse zurück und belegen die Ports 3000/3001/4200. Von Hand beenden, z. B. mit `Get-CimInstance Win32_Process` (nach Name und Befehlszeile filtern) und `Stop-Process -Id <PID>` |
 | Vitest-Worker-Timeout | siehe Abschnitt 6: Lauf wiederholen, `maxWorkers` nicht erhöhen |
-| Express nur auf `127.0.0.1` | Das Backend ist von außen nicht erreichbar. Zugriff im Betrieb nur über den Proxy von `ng serve` |
+| Express und Nest nur auf `127.0.0.1` | Beide Backends sind von außen nicht erreichbar. Zugriff im Betrieb nur über den Proxy von `ng serve` |
+| Nest-Daten beim Start geladen | Nest liest alle Tagesdateien nur beim Start; neu gelesen werden nur die Datei für heute und `forecast.json`. Ändert ein Backfill ältere Tage, Nest neu starten |
 | Zeitstempel ohne Offset | `time` ist Berliner Ortszeit ohne Offset. An Tagen mit Zeitumstellung (26.10.2025, 29.03.2026) hat die Datei 24 Einträge; das Thema ist in `docs/umbau/03-zielbild.md` (Befund Z1) beschrieben |
 | Heutige Tagesdatei | Sie enthält 24 Stunden, auch die Stunden nach der aktuellen Uhrzeit: das sind **Vorhersagewerte**. Das Frontend trennt sie nur übergangsweise über die aktuelle Berliner Stunde (`chartPredictionFrom`). Monats-, Jahres- und Rekordwerte rechnen den laufenden Tag mit Vorhersagestunden mit |
 | `seed-data.ts` | überschreibt echte Dateien im Mai 2026, siehe 3.5 |
 | `backend/data/` | nicht im Git; nie löschen oder überschreiben, nur lesen |
+| Nest-Cache der Altdaten | `LegacyFileSource` liest alle Tagesdateien nur beim Start; neu gelesen werden je Anfrage nur die Datei für heute und `forecast.json`. Ändert ein Backfill ältere Tage, liefert Nest den alten Stand bis zum Neustart (gilt bis Schritt 9) |
 
 ---
 
@@ -315,7 +392,8 @@ Neueste oben.
 
 | Datum | Schritt | Commit | Änderung |
 |---|---|---|---|
-| 2026-11-20 | Doku | (dieser Commit) | `docs/PROJEKTDOKU.md` angelegt; Rollen-Dateien und Ablauf auf laufende Pflege der Doku umgestellt |
+| 2026-11-20 | 2 | (dieser Commit) | NestJS-Projekt `api/` mit Clock/BerlinTime, LegacyFileSource (nur lesend) und GET `/api/locations`, `/api/days/today`, `/api/days/:date`, `/api/forecasts`, `/api/status`; Proxy verteilt `/api/locations` und `/api/status` an :3001; Footer zeigt Ort und Datenzeitraum aus Nest |
+| 2026-11-20 | Doku | `7b3c416` | `docs/PROJEKTDOKU.md` angelegt; Rollen-Dateien und Ablauf auf laufende Pflege der Doku umgestellt |
 | 2026-11-20 | Doku | `33acb33` | Kopfzeilen der Status-Spalten in der Roadmap ergänzt |
 | 2026-11-20 | Doku | `cd51458` | Status der erledigten Roadmap-Schritte und behobenen Fehler in 01 und 04 eingetragen |
 | 2026-11-19 | 1 (Feinschliff) | `2fcccd5` | Feinschliff nach der Endprüfung: Diagramm, Datentabelle, Formularfeld, Heute-Seite |
