@@ -1,4 +1,5 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+import { ApiException } from '../common/api.exception';
 import { assertNotInFuture } from '../common/api-validation.exception';
 import { BERLIN_TIMEZONE, hoursInDay, localDate } from '../common/berlin-time';
 import { Clock } from '../common/clock';
@@ -24,14 +25,18 @@ export class DaysService {
     return this.findOne(this.today());
   }
 
-  /** R02 (US02-4): ein Tag nach dem Berliner Heute → 400 `DATE_IN_FUTURE` am Feld `date`; ohne Daten → 404. */
+  /**
+   * R02 (US02-4): ein Tag nach dem Berliner Heute → 400 `DATE_IN_FUTURE` am Feld `date`.
+   * R03 (US02-5): ein Tag ohne einzige Stunde (vor dem Datenbeginn oder danach, auch heute ohne
+   * Datei) → 404 `NO_DATA` mit `details.dataFrom` = erster Tag mit Daten laut Store.
+   */
   async findOne(date: string): Promise<Day> {
     const today = this.today();
     assertNotInFuture('date', date, today);
     const hours = await this.store.getDay(date);
     if (!hours) {
-      // `code = "NO_DATA"` mit `details.dataFrom` (R03, US02-5) kommt mit dem einheitlichen Fehlerformat (Schritt 5).
-      throw new NotFoundException('Keine Daten für diesen Tag');
+      const { from } = await this.store.getDataRange();
+      throw ApiException.noData(date, from);
     }
     return {
       id: date,

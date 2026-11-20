@@ -51,7 +51,9 @@ export class YearlyPageComponent {
   loading = computed(() => this.state() === 'loading');
   error = signal<string | null>(null);
 
-  private request = computed(() => ({ year: this.selectedYear() }));
+  /** „Erneut versuchen“ erhöht den Zähler und lädt dasselbe Jahr neu (B5.2). */
+  private reloadCount = signal(0);
+  private request = computed(() => ({ year: this.selectedYear(), reload: this.reloadCount() }));
 
   /** Jahre von DATA_START bis zum aktuellen Berliner Jahr, neuestes zuerst (V18, F20). */
   years = Array.from(
@@ -102,10 +104,14 @@ export class YearlyPageComponent {
     // distinctUntilChanged: genau 1 Request je Wechsel, auch wenn Router und Signal gleichzeitig melden.
     // switchMap bricht den Request für eine überholte Auswahl ab (V03, F04).
     toObservable(this.request).pipe(
-      distinctUntilChanged((a, b) => a.year === b.year),
+      distinctUntilChanged((a, b) => a.year === b.year && a.reload === b.reload),
       switchMap(({ year }) => this.loadYear(year)),
       takeUntilDestroyed(),
     ).subscribe(result => this.applyResult(result));
+  }
+
+  retry(): void {
+    this.reloadCount.update(n => n + 1);
   }
 
   /** Auswahlfeld navigiert über den Router (V08). */

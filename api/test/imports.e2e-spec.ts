@@ -11,6 +11,7 @@ import { ImportRunner } from '../src/imports/import-runner';
 import { LEGACY_DATA_DIR } from '../src/legacy/legacy-data-dir';
 import { OpenMeteoClient } from '../src/weather-provider/open-meteo.client';
 import type { HourlyRequest, ProviderHour } from '../src/weather-provider/open-meteo.client';
+import { createTestApp } from './support/app';
 import { forecastDays, legacyDay, providerHours } from './support/fakes';
 
 /** Stunden für die angefragten UTC-Tage, wie Open-Meteo sie mit `timezone=GMT` liefert. */
@@ -65,9 +66,7 @@ describe('Importe (Schritt 3, e2e mit gemocktem Provider, ohne Netz)', () => {
       .overrideProvider(OpenMeteoClient)
       .useValue(provider)
       .compile();
-    app = moduleRef.createNestApplication();
-    app.setGlobalPrefix('api');
-    await app.init();
+    app = await createTestApp(moduleRef);
     runner = app.get(ImportRunner);
   });
 
@@ -113,7 +112,17 @@ describe('Importe (Schritt 3, e2e mit gemocktem Provider, ohne Netz)', () => {
       .post('/api/imports')
       .send({ kind: 'gaps', from: '2026-10-01', to: '2026-10-03' })
       .expect(409);
-    expect(conflict.body).toMatchObject({ statusCode: 409, runningImportId: 1 });
+    expect(conflict.body).toMatchObject({
+      statusCode: 409,
+      error: 'Conflict',
+      code: 'IMPORT_RUNNING',
+      errors: [],
+      path: '/api/imports',
+      timestamp: '2026-11-20T10:00:00Z',
+      requestId: expect.stringMatching(/^[0-9a-f]{8}$/),
+      details: { runningImportId: 1 },
+    });
+    expect(conflict.headers['location']).toBeUndefined();
 
     const running = await request(app.getHttpServer()).get('/api/imports/1').expect(200);
     expect(running.body.status).toBe('running');
@@ -150,7 +159,8 @@ describe('Importe (Schritt 3, e2e mit gemocktem Provider, ohne Netz)', () => {
   });
 
   it('US11-3: GET /api/imports/999 → 404, /api/imports/abc → 400', async () => {
-    await request(app.getHttpServer()).get('/api/imports/999').expect(404);
+    const missing = await request(app.getHttpServer()).get('/api/imports/999').expect(404);
+    expect(missing.body).toMatchObject({ code: 'NOT_FOUND', path: '/api/imports/999', details: null });
     await request(app.getHttpServer()).get('/api/imports/abc').expect(400);
   });
 

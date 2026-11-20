@@ -1,4 +1,4 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { ApiException } from '../common/api.exception';
 import { ApiValidationException } from '../common/api-validation.exception';
 import { FixedClock } from '../common/clock';
 import { toImportResource } from './import';
@@ -44,8 +44,10 @@ describe('ImportsService (US10-3, US11, R19)', () => {
     await service.create({ kind: 'range', from: '2026-10-01', to: '2026-10-03' });
 
     const queued = service.create({ kind: 'gaps', from: '2026-10-01', to: '2026-10-03' });
-    await expect(queued).rejects.toBeInstanceOf(ConflictException);
-    await expect(queued).rejects.toMatchObject({ response: { statusCode: 409, runningImportId: 1 } });
+    await expect(queued).rejects.toBeInstanceOf(ApiException);
+    await expect(queued).rejects.toMatchObject({
+      response: { statusCode: 409, code: 'IMPORT_RUNNING', errors: [], details: { runningImportId: 1 } },
+    });
 
     await store.update(1, { status: 'running' });
     await expect(service.create({ kind: 'range', from: '2026-10-01', to: '2026-10-03' })).rejects.toMatchObject({
@@ -64,7 +66,7 @@ describe('ImportsService (US10-3, US11, R19)', () => {
 
   it('US11-3: unbekannter Import → 404', async () => {
     const { service } = setup();
-    await expect(service.findOne(999)).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.findOne(999)).rejects.toMatchObject({ response: { statusCode: 404, code: 'NOT_FOUND' } });
   });
 });
 

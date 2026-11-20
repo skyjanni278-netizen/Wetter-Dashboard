@@ -35,7 +35,7 @@
     }
 
     @if (state() === 'error') {
-      <app-error [message]="error() ?? 'Fehler beim Laden der Monatsdaten.'" [retryable]="false" />
+      <app-error [message]="error() ?? 'Fehler beim Laden der Monatsdaten.'" (retry)="retry()" />
     }
     @if (state() === 'empty') {
       <app-empty [message]="error() ?? 'Keine gespeicherten Daten für diesen Monat.'" />

@@ -1,4 +1,5 @@
-import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+import { ApiException } from '../common/api.exception';
 import { assertNotInFuture } from '../common/api-validation.exception';
 import { localDate } from '../common/berlin-time';
 import { Clock } from '../common/clock';
@@ -43,13 +44,7 @@ export class ImportsService {
       });
     } catch (error) {
       if (error instanceof ImportAlreadyRunningError) {
-        // Einheitliches Fehlerformat (`code = "IMPORT_RUNNING"`) folgt in Schritt 5.
-        throw new ConflictException({
-          statusCode: 409,
-          error: 'Conflict',
-          message: 'Es läuft bereits ein Import',
-          runningImportId: error.runningImportId,
-        });
+        throw ApiException.importRunning(error.runningImportId);
       }
       throw error;
     }
@@ -60,7 +55,7 @@ export class ImportsService {
   async findOne(id: number): Promise<ImportRecord> {
     const record = await this.store.findById(id);
     if (!record) {
-      throw new NotFoundException(`Import ${id} nicht gefunden`);
+      throw ApiException.notFound(`Den Import ${id} gibt es nicht.`);
     }
     return record;
   }

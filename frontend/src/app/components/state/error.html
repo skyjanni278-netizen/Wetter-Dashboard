@@ -1,5 +1,5 @@
 <app-notice variant="error" [announce]="announce()">
-  <p class="state-message">{{ message() }}</p>
+  <p class="state-message">{{ text() }}</p>
   @if (details().length) {
     <ul class="state-details">
       @for (detail of details(); track $index) {
@@ -8,6 +8,9 @@
     </ul>
   }
   <ng-content />
+  @if (dataFrom(); as from) {
+    <a [routerLink]="['/tag', from]" class="btn btn-text">Zum Datenbeginn ({{ formatDateDe(from) }})</a>
+  }
   @if (retryable()) {
     <button type="button" class="btn btn-primary" (click)="retry.emit()">{{ retryLabel() }}</button>
   }

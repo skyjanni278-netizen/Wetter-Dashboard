@@ -8,6 +8,7 @@ import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { Clock, FixedClock } from '../src/common/clock';
 import { LEGACY_DATA_DIR } from '../src/legacy/legacy-data-dir';
+import { createTestApp } from './support/app';
 
 /** Tagesdatei im Altformat von Express; Stunde 5 ohne Temperatur. */
 function dayFile(date: string): string {
@@ -58,9 +59,7 @@ describe('Erste GET-Endpunkte (Schritt 2, e2e mit Altdateien im Temp-Ordner)', (
       .overrideProvider(LEGACY_DATA_DIR)
       .useValue(dataDir)
       .compile();
-    app = moduleRef.createNestApplication();
-    app.setGlobalPrefix('api');
-    await app.init();
+    app = await createTestApp(moduleRef);
   });
 
   afterAll(async () => {
@@ -81,9 +80,9 @@ describe('Erste GET-Endpunkte (Schritt 2, e2e mit Altdateien im Temp-Ordner)', (
     expect(res.body.slug).toBe('heubach');
   });
 
-  it('US07-4: GET /api/locations/99 → 404', async () => {
+  it('US07-4: GET /api/locations/99 → 404 NOT_FOUND im Fehlerformat', async () => {
     const res = await request(app.getHttpServer()).get('/api/locations/99').expect(404);
-    expect(res.body.statusCode).toBe(404);
+    expect(res.body).toMatchObject({ statusCode: 404, code: 'NOT_FOUND', path: '/api/locations/99', errors: [] });
   });
 
   it('GET /api/locations/abc → 400 mit field "id"', async () => {
@@ -114,8 +113,9 @@ describe('Erste GET-Endpunkte (Schritt 2, e2e mit Altdateien im Temp-Ordner)', (
     expect(res.body.hours[5].temperature).toBeNull();
   });
 
-  it('GET /api/days/2024-12-31 ohne Daten → 404', async () => {
-    await request(app.getHttpServer()).get('/api/days/2024-12-31').expect(404);
+  it('US02-5: GET /api/days/2024-12-31 ohne Daten → 404 NO_DATA', async () => {
+    const res = await request(app.getHttpServer()).get('/api/days/2024-12-31').expect(404);
+    expect(res.body).toMatchObject({ code: 'NO_DATA', details: { dataFrom: '2025-01-01' } });
   });
 
   it('US01-1: GET /api/days/today liefert das Berliner Datum und Content-Location', async () => {
@@ -178,8 +178,12 @@ describe('Erste GET-Endpunkte (Schritt 2, e2e mit Altdateien im Temp-Ordner)', (
         code: 'VALIDATION_FAILED',
         message: 'Die Anfrage enthält ungültige Werte.',
         errors: [{ field: 'date', code: 'invalid_date', message: 'Bitte ein gültiges Datum im Format JJJJ-MM-TT angeben.' }],
+        path: '/api/days/2026-02-30',
+        timestamp: '2026-11-19T13:30:00Z',
+        requestId: expect.stringMatching(/^[0-9a-f]{8}$/),
         details: null,
       });
+      expect(res.headers['x-request-id']).toBe(res.body.requestId);
     });
 
     it('US02-3: GET /api/days/2026-11-1 → 400, field "date"', async () => {

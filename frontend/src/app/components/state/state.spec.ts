@@ -4,6 +4,8 @@ import { LoadingComponent } from './loading';
 import { EmptyComponent } from './empty';
 import { ErrorComponent } from './error';
 import { SkeletonComponent } from '../skeleton/skeleton';
+import { provideRouter } from '@angular/router';
+import type { ApiError } from '../../models/api';
 
 @Component({
   imports: [LoadingComponent, SkeletonComponent],
@@ -31,6 +33,25 @@ class EmptyHost {}
 class ErrorHost {
   details = signal<string[]>([]);
   retryable = signal(true);
+  retries = 0;
+}
+
+const NO_DATA: ApiError = {
+  statusCode: 404,
+  error: 'Not Found',
+  code: 'NO_DATA',
+  message: 'Für den 31.12.2024 liegen keine Daten vor. Daten gibt es ab 01.01.2025.',
+  errors: [],
+  details: { dataFrom: '2025-01-01' },
+};
+
+@Component({
+  imports: [ErrorComponent],
+  template: `<app-error [apiError]="apiError()" [message]="message()" (retry)="retries = retries + 1" />`,
+})
+class ApiErrorHost {
+  apiError = signal<ApiError | null>(NO_DATA);
+  message = signal<string | null>(null);
   retries = 0;
 }
 
@@ -110,5 +131,57 @@ describe('app-error', () => {
     host.details.set(['to: Datum liegt in der Zukunft']);
     fixture.detectChanges();
     expect(Array.from(el.querySelectorAll('li')).map(li => li.textContent?.trim())).toEqual(['to: Datum liegt in der Zukunft']);
+  });
+});
+
+describe('app-error mit apiError (B3.3)', () => {
+  function setup() {
+    TestBed.configureTestingModule({ providers: [provideRouter([])] });
+    const fixture = TestBed.createComponent(ApiErrorHost);
+    fixture.detectChanges();
+    return { fixture, host: fixture.componentInstance, el: fixture.nativeElement as HTMLElement };
+  }
+
+  it('zeigt message des ApiError und bei NO_DATA den Link zum Datenbeginn (details.dataFrom)', () => {
+    const { el } = setup();
+    expect(el.querySelector('.state-message')?.textContent?.trim()).toBe(NO_DATA.message);
+    const link = el.querySelector('a')!;
+    expect(link.getAttribute('href')).toBe('/tag/2025-01-01');
+    expect(link.textContent?.trim()).toBe('Zum Datenbeginn (01.01.2025)');
+  });
+
+  it('„Erneut versuchen“ ist da und löst retry aus', () => {
+    const { fixture, host, el } = setup();
+    (el.querySelector('button') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(host.retries).toBe(1);
+  });
+
+  it('anderer code oder fehlendes/ungültiges dataFrom → kein Link', () => {
+    const { fixture, host, el } = setup();
+    host.apiError.set({ ...NO_DATA, code: 'INTERNAL_ERROR', message: 'Interner Fehler' });
+    fixture.detectChanges();
+    expect(el.querySelector('a')).toBeNull();
+    expect(el.querySelector('.state-message')?.textContent?.trim()).toBe('Interner Fehler');
+
+    host.apiError.set({ ...NO_DATA, details: { dataFrom: '2025-13-01' } });
+    fixture.detectChanges();
+    expect(el.querySelector('a')).toBeNull();
+
+    host.apiError.set({ ...NO_DATA, details: null });
+    fixture.detectChanges();
+    expect(el.querySelector('a')).toBeNull();
+  });
+
+  it('eigene message hat Vorrang; ohne beides die Standardmeldung', () => {
+    const { fixture, host, el } = setup();
+    host.message.set('Server nicht erreichbar.');
+    fixture.detectChanges();
+    expect(el.querySelector('.state-message')?.textContent?.trim()).toBe('Server nicht erreichbar.');
+
+    host.message.set(null);
+    host.apiError.set(null);
+    fixture.detectChanges();
+    expect(el.querySelector('.state-message')?.textContent?.trim()).toBe('Fehler beim Laden.');
   });
 });

@@ -56,7 +56,9 @@ export class MonthlyPageComponent {
   loading = computed(() => this.state() === 'loading');
   error = signal<string | null>(null);
 
-  private request = computed(() => ({ year: this.selectedYear(), month: this.selectedMonth() }));
+  /** „Erneut versuchen“ erhöht den Zähler und lädt dieselbe Auswahl neu (B5.2). */
+  private reloadCount = signal(0);
+  private request = computed(() => ({ year: this.selectedYear(), month: this.selectedMonth(), reload: this.reloadCount() }));
 
   /** Überschrift: „November 2026“; bei ungültiger Auswahl nur „Monat“. */
   headline = computed(() => this.invalid() ? 'Monat' : monthLabel(this.selectedYear(), this.selectedMonth()));
@@ -108,10 +110,14 @@ export class MonthlyPageComponent {
     // distinctUntilChanged: genau 1 Request je Wechsel, auch wenn Router und Signal gleichzeitig melden.
     // switchMap bricht den Request für eine überholte Auswahl ab (V03, F04).
     toObservable(this.request).pipe(
-      distinctUntilChanged((a, b) => a.year === b.year && a.month === b.month),
+      distinctUntilChanged((a, b) => a.year === b.year && a.month === b.month && a.reload === b.reload),
       switchMap(({ year, month }) => this.loadMonth(year, month).pipe(map(result => ({ result, year, month })))),
       takeUntilDestroyed(),
     ).subscribe(({ result, year, month }) => this.applyResult(result, year, month));
+  }
+
+  retry(): void {
+    this.reloadCount.update(n => n + 1);
   }
 
   /** Auswahlfelder navigieren über den Router (V08); ein ungültiger Rest fällt auf den aktuellen Monat zurück. */

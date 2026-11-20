@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { APP_FILTER } from '@nestjs/core';
+import { ApiExceptionFilter } from './common/api-exception.filter';
 import { Clock, SystemClock } from './common/clock';
 import { DaysController } from './days/days.controller';
 import { DaysService } from './days/days.service';
@@ -24,11 +26,13 @@ import { OpenMeteoClient } from './weather-provider/open-meteo.client';
 /**
  * Schritt 3: ein Modul; Controller rufen Services, Services nutzen die Stores über DI-Tokens.
  * Die Stores liegen im Arbeitsspeicher (Schritt 9: TypeORM). Module je Ressource folgen in Schritt 6,
- * `ConfigModule` ersetzt `process.env` in Schritt 11.
+ * `ConfigModule` ersetzt `process.env` in Schritt 11. Schritt 5: der globale `ApiExceptionFilter`
+ * (Fehlerformat B3.3); Middleware und Body-Parser richtet `configureApp` ein (`app.setup.ts`).
  */
 @Module({
   controllers: [LocationsController, DaysController, ForecastsController, StatusController, ImportsController],
   providers: [
+    { provide: APP_FILTER, useClass: ApiExceptionFilter },
     { provide: Clock, useClass: SystemClock },
     { provide: LEGACY_DATA_DIR, useFactory: () => resolveLegacyDataDir() },
     LegacyFileSource,

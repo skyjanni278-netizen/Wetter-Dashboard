@@ -83,15 +83,20 @@ export interface ApiFieldError {
 }
 
 /**
- * Fehlerantwort der neuen API (B3.3). Ab Schritt 4 für Validierungsfehler (400, `code` z. B.
- * `VALIDATION_FAILED`, `DATE_IN_FUTURE`); `path`, `timestamp` und `requestId` kommen mit Schritt 5.
+ * Fehlerantwort der neuen API (B3.3), ab Schritt 5 für jeden Fehler. Der `apiErrorInterceptor`
+ * übersetzt auch Antworten, die nicht B3.3 sind (Express, Proxy, Netzwerk), in diese Form; dann
+ * fehlen `path`, `timestamp` und `requestId`.
  */
 export interface ApiError {
+  /** HTTP-Status; `0` = keine Antwort (Netzwerkfehler). */
   statusCode: number;
   error: string;
+  /** Fester Code aus B3.3, z. B. `VALIDATION_FAILED`, `DATE_IN_FUTURE`, `NO_DATA`, `NOT_FOUND`, `INTERNAL_ERROR`. */
   code: string;
   message: string;
+  /** Immer ein Array; leer bei Fehlern ohne Feldbezug. */
   errors: ApiFieldError[];
+  /** Zusatzangaben, z. B. `{ dataFrom: "2025-01-01" }` bei `NO_DATA`, `{ runningImportId: 42 }` bei `IMPORT_RUNNING`. */
   details: Record<string, unknown> | null;
   path?: string;
   timestamp?: string;

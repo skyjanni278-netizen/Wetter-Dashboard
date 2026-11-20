@@ -1,18 +1,13 @@
 import { BadRequestException } from '@nestjs/common';
 import type { z } from 'zod';
-import type { ApiErrorBody, ApiErrorCode, ApiFieldError } from './api-error';
+import { formatDateDe } from './api-error';
+import type { ApiErrorCode, ApiErrorPayload, ApiFieldError } from './api-error';
 
 export const VALIDATION_FAILED_MESSAGE = 'Die Anfrage enthält ungültige Werte.';
 
 /** Feldpfad als Text (`a.b.0`), leerer Pfad = `null` (Fehler am ganzen Objekt, B3.3). */
 function fieldOf(path: readonly PropertyKey[]): string | null {
   return path.length === 0 ? null : path.map(String).join('.');
-}
-
-/** `DD.MM.YYYY` aus `YYYY-MM-DD` (nur für Meldungen). */
-function formatDateDe(date: string): string {
-  const [y, m, d] = date.split('-');
-  return `${d}.${m}.${y}`;
 }
 
 /**
@@ -32,14 +27,14 @@ function codeOf(issue: z.core.$ZodIssue): string {
 
 /**
  * 400 mit `errors[]` je Feld (03 B3.3). Der Body hat schon die Form aus B3.3; `path`, `timestamp`
- * und `requestId` ergänzt der globale Filter in Schritt 5.
+ * und `requestId` ergänzt der globale `ApiExceptionFilter`.
  */
 export class ApiValidationException extends BadRequestException {
   constructor(
     readonly errors: ApiFieldError[],
     options: { code?: ApiErrorCode; message?: string; details?: Record<string, unknown> | null } = {},
   ) {
-    const body: ApiErrorBody = {
+    const body: ApiErrorPayload = {
       statusCode: 400,
       error: 'Bad Request',
       code: options.code ?? 'VALIDATION_FAILED',

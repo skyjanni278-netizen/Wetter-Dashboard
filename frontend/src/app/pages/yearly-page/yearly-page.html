@@ -26,7 +26,7 @@
     }
 
     @if (state() === 'error') {
-      <app-error [message]="error() ?? 'Fehler beim Laden der Jahresdaten.'" [retryable]="false" />
+      <app-error [message]="error() ?? 'Fehler beim Laden der Jahresdaten.'" (retry)="retry()" />
     }
     @if (state() === 'empty') {
       <app-empty [message]="error() ?? 'Keine gespeicherten Daten für dieses Jahr.'" />

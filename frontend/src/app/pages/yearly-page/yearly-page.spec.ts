@@ -123,6 +123,28 @@ describe('YearlyPageComponent', () => {
     expect((fixture.nativeElement as HTMLElement).querySelector('.kpi-grid')).toBeNull();
   });
 
+  it('„Erneut versuchen“ lädt dasselbe Jahr noch einmal (B5.2, offener Punkt aus Schritt 0.3)', () => {
+    const calls: string[] = [];
+    let fail = true;
+    const fixture = create(y => {
+      calls.push(y);
+      return fail ? throwError(() => ({ status: 500 })) : of(response(y, 5));
+    });
+    const c = fixture.componentInstance;
+    const el = fixture.nativeElement as HTMLElement;
+    expect(c.state()).toBe('error');
+    const button = el.querySelector('app-error button') as HTMLButtonElement;
+    expect(button.textContent?.trim()).toBe('Erneut versuchen');
+
+    fail = false;
+    button.click();
+    fixture.detectChanges();
+    expect(calls).toEqual([c.selectedYear(), c.selectedYear()]);
+    expect(c.state()).toBe('success');
+    expect(c.yearData()?.length).toBe(2);
+    expect(el.querySelector('app-error')).toBeNull();
+  });
+
   it('leere Antwort ergibt empty und Daten null', () => {
     const fixture = create(y => y === '2025' ? of({ year: y, data: [] }) : of(response(y, 5)));
     const c = fixture.componentInstance;

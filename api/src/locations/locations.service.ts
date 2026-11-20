@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { ApiException } from '../common/api.exception';
 import { LOCATIONS } from './location';
 import type { Location } from './location';
 
@@ -12,7 +13,7 @@ export class LocationsService {
   findOne(id: number): Location {
     const location = LOCATIONS.find(l => l.id === id);
     if (!location) {
-      throw new NotFoundException(`Standort ${id} nicht gefunden`);
+      throw ApiException.notFound(`Den Standort ${id} gibt es nicht.`);
     }
     return { ...location };
   }

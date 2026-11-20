@@ -1,6 +1,6 @@
-import { NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import type { Response } from 'express';
+import { ApiException } from '../common/api.exception';
 import { ApiValidationException } from '../common/api-validation.exception';
 import { Clock, FixedClock } from '../common/clock';
 import type { ObservationHour } from '../observations/observation';
@@ -90,8 +90,25 @@ describe('DaysService und DaysController mit Fake-Store (DI, ohne Dateien)', () 
     expect(day.isToday).toBe(true);
   });
 
-  it('unbekannter Tag → NotFoundException', async () => {
-    await expect(service.findOne('2024-12-31')).rejects.toBeInstanceOf(NotFoundException);
+  it('R03 (US02-5): Tag vor dem Datenbeginn → 404 NO_DATA, dataFrom aus dem Store, Meldung nennt ihn', async () => {
+    const result = service.findOne('2024-12-31');
+    await expect(result).rejects.toBeInstanceOf(ApiException);
+    await expect(result).rejects.toMatchObject({
+      response: {
+        statusCode: 404,
+        error: 'Not Found',
+        code: 'NO_DATA',
+        message: 'Für den 31.12.2024 liegen keine Daten vor. Daten gibt es ab 10.11.2026.',
+        errors: [],
+        details: { dataFrom: '2026-11-10' },
+      },
+    });
+  });
+
+  it('R03: Tag nach dem Datenbeginn ohne Stunde → ebenfalls 404 NO_DATA', async () => {
+    await expect(service.findOne('2026-11-15')).rejects.toMatchObject({
+      response: { statusCode: 404, code: 'NO_DATA', details: { dataFrom: '2026-11-10' } },
+    });
   });
 
   describe('R02 (US02-4): Zukunftssperre über die Clock, Mitternacht MEZ', () => {

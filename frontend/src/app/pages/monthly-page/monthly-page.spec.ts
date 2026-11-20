@@ -168,6 +168,29 @@ describe('MonthlyPageComponent', () => {
     expect((fixture.nativeElement as HTMLElement).querySelector('.kpi-grid')).toBeNull();
   });
 
+  it('„Erneut versuchen“ lädt denselben Monat noch einmal (B5.2, offener Punkt aus Schritt 0.3)', () => {
+    const calls: string[] = [];
+    let fail = true;
+    const fixture = create((y, m) => {
+      calls.push(`${y}/${m}`);
+      return fail ? throwError(() => ({ status: 500 })) : of(response(y, m, 5));
+    });
+    const c = fixture.componentInstance;
+    const el = fixture.nativeElement as HTMLElement;
+    expect(c.state()).toBe('error');
+    const button = el.querySelector('app-error button') as HTMLButtonElement;
+    expect(button.textContent?.trim()).toBe('Erneut versuchen');
+
+    fail = false;
+    button.click();
+    fixture.detectChanges();
+    const current = `${c.selectedYear()}/${c.selectedMonth()}`;
+    expect(calls).toEqual([current, current]);
+    expect(c.state()).toBe('success');
+    expect(c.monthData()?.length).toBe(2);
+    expect(el.querySelector('app-error')).toBeNull();
+  });
+
   it('leere Antwort ergibt empty und Daten null', () => {
     const fixture = create((y, m) => y === '2025'
       ? of({ year: y, month: m, data: [] })
