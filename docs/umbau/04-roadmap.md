@@ -28,7 +28,7 @@ Stand: 19.11.2026 · Grundlage: `01-analyse.md` (F01–F34, S1–S12, Abschnitt 
 | 1 | Design-Grundlage und Umstellung aller Seiten (E3.10) | L | 0.4 | ✅ erledigt (`79cc815`…`2fcccd5`) |
 | 2 | NestJS-Projekt `api/`, erste GET-Endpunkte (In-Memory), Frontend liest Status | M | 0.1 | ✅ erledigt (`8cca517`) |
 | 3 | Services, Dependency Injection, `POST /imports` | M | 2 | ✅ erledigt (`0a2c7b9`) |
-| 4 | Zod-DTOs und Validierung, Feldfehler im Frontend | M | 3 | offen |
+| 4 | Zod-DTOs und Validierung, Feldfehler im Frontend | M | 3 | ✅ erledigt (`f2108f9`) |
 | 5 | Einheitliche Fehlerbehandlung und Statuscodes | S | 4 | offen |
 | 6 | Module je Ressource, Regeln zwischen Modulen | M | 5 | offen |
 | 7 | Fachregeln und berechnete Felder; Heute und Rekorde auf die neue API | L | 6, 1 | offen |
@@ -316,6 +316,8 @@ Der Strang über 0.2 bis 1 (Frontend) und der Strang über 2 bis 6 (Backend) kö
 **Frontend/Design:** keine Änderung.
 
 ## Schritt 4 – DTOs und Validierung mit Zod
+
+> **Status:** ✅ Erledigt am 20.11.2026, Commit `f2108f9`. 194 Unit- und 28 e2e-Tests in `api/`, 229 Frontend-Tests. Entscheidungen: Die Zukunftsprüfung (R02) liegt im Service, weil sie die `Clock` braucht. Oben steht `code = "DATE_IN_FUTURE"`, am Feld `too_big`. `IdParamSchema` gilt auch für `/api/imports/:id`, deshalb geben 0 und negative IDs 400. Der e2e-Timeout ist wegen der USB-Platte auf 60 s erhöht. **Offen:** 404, 409 und JSON-Parse-Fehler haben noch das Nest-Standardformat, `/api/days/2024-12-31` liefert noch kein `NO_DATA` (Schritt 5). `overwriteCorrections` wird angenommen, aber bis 12a als `false` gespeichert. **Für Schritt 9:** `IdParamSchema` lässt 10 Ziffern zu; mit der DB auf 2 147 483 647 begrenzen.
 
 **Ziel:** Jede Eingabe wird durch ein Zod-Schema geprüft. Fehler kommen je Feld zurück, und das Frontend kann sie dem Formularfeld zuordnen.
 **Bezug:** US02-2/-3, US03-3, US10-4/-6/-8, US09-5 (Muster) · F22 · V33 (Zod-Teil) · R01, R04, R05, R18, R22
