@@ -289,10 +289,12 @@ Gerechnet nach der WCAG-Formel (**B**). Grundlage für Phase 2:
 
 ## 2. Fehlerliste
 
+> **Stand 20.11.2026:** Die Spalte „behoben in“ nennt den Roadmap-Schritt aus `04-roadmap.md`, in dem der Fehler behoben wurde, bzw. „offen → Schritt“. Die übrigen Spalten zeigen den Ist-Stand vom 19.11.2026 vor dem Umbau.
+
 Sortiert nach Schwere. Die Spalte **Quelle** nennt, wer den Fehler gefunden hat: Browser-Test (A4) oder Code-Analyse (A1–A3). Screenshots liegen in `docs/umbau/screenshots/`.
 
-| Nr. | Seite | Schritte zum Nachstellen | erwartet | tatsächlich | Schwere | Quelle / Beleg |
-|---|---|---|---|---|---|---|
+| Nr. | Seite | Schritte zum Nachstellen | erwartet | tatsächlich | Schwere | Quelle / Beleg | behoben in (Schritt) |
+|---|---|---|---|---|---|---|---|
 | F01 | Backend (Scheduler) | Committeten Stand `9e5583a` starten | Tag und Vorhersage werden stündlich gespeichert | `fetchForecast()` bekommt HTTP 400 (`start_date` ohne `end_date`). Wegen `Promise.all` wird **gar nichts** gespeichert. **Im Arbeitsstand behoben, aber nicht committet** | kritisch | B · `weather-api.ts:62-71`, `scheduler.ts:15`; 400 selbst mit curl nachgestellt | 0.1 (Fix `3b8603d`) |
 | F02 | /monat | `/monat` aufrufen | Monatsauswahl zeigt „Nov“ | Auswahl zeigt **„Jan“**, geladen ist Nov 2026. Wählt man nur ein anderes Jahr, wird der unsichtbare Monat 11 geladen | hoch | A4 · `monthly-page.html:10-14`; monat-1280.png. **A:** `[value]` wird vor den `@for`-Optionen gesetzt; `yearly-page.html:5` ist genauso gebaut | 0.2 |
 | F03 | / | 10.11.2026 wählen, dann 31.12.2024 (oder Feld leeren) | Fehlermeldung ohne alte Werte | Fehlermeldung **und darunter die Werte vom 10.11.** | hoch | A4 · `today-page.ts:140`, `today-page.html:31`; heute-fehler-veraltete-daten-1280.png | 0.2 |

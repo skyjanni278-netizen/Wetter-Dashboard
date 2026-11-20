@@ -19,8 +19,8 @@ Stand: 19.11.2026 · Grundlage: `01-analyse.md` (F01–F34, S1–S12, Abschnitt 
 
 ## Übersicht
 
-| Schritt | Ziel | Aufwand | Abhängigkeit |
-|---|---|---|---|
+| Schritt | Ziel | Aufwand | Abhängigkeit | Status |
+|---|---|---|---|---|
 | 0.1 | Sicherheitsnetz: F01 prüfen, Frontend-Tests, Golden Files der Alt-API | M | – | ✅ erledigt (`a4ec0b6`) |
 | 0.2 | Kritische und hohe Fehler im Frontend (F02–F07) | M | 0.1 | ✅ erledigt (`76986a3`) |
 | 0.3 | Quick Wins aus E1 | M | 0.2 | ✅ erledigt (`9e783e8`) |
