@@ -21,26 +21,26 @@ Stand: 19.11.2026 · Grundlage: `01-analyse.md` (F01–F34, S1–S12, Abschnitt 
 
 | Schritt | Ziel | Aufwand | Abhängigkeit |
 |---|---|---|---|
-| 0.1 | Sicherheitsnetz: F01 prüfen, Frontend-Tests, Golden Files der Alt-API | M | – |
-| 0.2 | Kritische und hohe Fehler im Frontend (F02–F07) | M | 0.1 |
-| 0.3 | Quick Wins aus E1 | M | 0.2 |
-| 0.4 | URL-Zustand und Datumsfeld (F11, F09, F19) | M | 0.3 |
-| 1 | Design-Grundlage und Umstellung aller Seiten (E3.10) | L | 0.4 |
-| 2 | NestJS-Projekt `api/`, erste GET-Endpunkte (In-Memory), Frontend liest Status | M | 0.1 |
-| 3 | Services, Dependency Injection, `POST /imports` | M | 2 |
-| 4 | Zod-DTOs und Validierung, Feldfehler im Frontend | M | 3 |
-| 5 | Einheitliche Fehlerbehandlung und Statuscodes | S | 4 |
-| 6 | Module je Ressource, Regeln zwischen Modulen | M | 5 |
-| 7 | Fachregeln und berechnete Felder; Heute und Rekorde auf die neue API | L | 6, 1 |
-| 8 | Filter, Sortierung, OpenAPI; Monat und Jahr auf die neue API | M | 7 |
-| 9 | Datenbank, Migrationen, Altdatenimport, Übergabe des Schedulers, Express aus | L | 8 |
-| 10 | Login, JWT, AuthGuard, Login-Seite (keine Registrierung) | M | 9, 1 |
-| 11 | Rollen, RolesGuard, `.env`, sichere Grundeinstellungen, Admin-Bereich | L | 10 |
-| 12a | Must: N01, N03, N04 | M | 11 |
-| 12b | Should: N05, N06 | M | 12a |
-| 12c | Could: N07 | S | 12b |
-| 13 | Optional: WebSockets, Templates, Events (Entscheidung) | S | 12c |
-| 14 | Tests, Barrierefreiheit, Deployment auf den Pi, Dokumentation | L | 13 |
+| 0.1 | Sicherheitsnetz: F01 prüfen, Frontend-Tests, Golden Files der Alt-API | M | – | ✅ erledigt (`a4ec0b6`) |
+| 0.2 | Kritische und hohe Fehler im Frontend (F02–F07) | M | 0.1 | ✅ erledigt (`76986a3`) |
+| 0.3 | Quick Wins aus E1 | M | 0.2 | ✅ erledigt (`9e783e8`) |
+| 0.4 | URL-Zustand und Datumsfeld (F11, F09, F19) | M | 0.3 | ✅ erledigt (`f912292`) |
+| 1 | Design-Grundlage und Umstellung aller Seiten (E3.10) | L | 0.4 | ✅ erledigt (`79cc815`…`2fcccd5`) |
+| 2 | NestJS-Projekt `api/`, erste GET-Endpunkte (In-Memory), Frontend liest Status | M | 0.1 | offen |
+| 3 | Services, Dependency Injection, `POST /imports` | M | 2 | offen |
+| 4 | Zod-DTOs und Validierung, Feldfehler im Frontend | M | 3 | offen |
+| 5 | Einheitliche Fehlerbehandlung und Statuscodes | S | 4 | offen |
+| 6 | Module je Ressource, Regeln zwischen Modulen | M | 5 | offen |
+| 7 | Fachregeln und berechnete Felder; Heute und Rekorde auf die neue API | L | 6, 1 | offen |
+| 8 | Filter, Sortierung, OpenAPI; Monat und Jahr auf die neue API | M | 7 | offen |
+| 9 | Datenbank, Migrationen, Altdatenimport, Übergabe des Schedulers, Express aus | L | 8 | offen |
+| 10 | Login, JWT, AuthGuard, Login-Seite (keine Registrierung) | M | 9, 1 | offen |
+| 11 | Rollen, RolesGuard, `.env`, sichere Grundeinstellungen, Admin-Bereich | L | 10 | offen |
+| 12a | Must: N01, N03, N04 | M | 11 | offen |
+| 12b | Should: N05, N06 | M | 12a | offen |
+| 12c | Could: N07 | S | 12b | offen |
+| 13 | Optional: WebSockets, Templates, Events (Entscheidung) | S | 12c | offen |
+| 14 | Tests, Barrierefreiheit, Deployment auf den Pi, Dokumentation | L | 13 | offen |
 
 ```mermaid
 flowchart TD
@@ -57,6 +57,8 @@ Der Strang über 0.2 bis 1 (Frontend) und der Strang über 2 bis 6 (Backend) kö
 ---
 
 ## Schritt 0.1 – Sicherheitsnetz
+
+> **Status:** ✅ Erledigt am 19.11.2026, Commit `a4ec0b6`. Golden Files mit README unter `api/test/characterization/`. Vitest läuft mit `maxWorkers: 2` (`frontend/vitest.config.mjs`), weil auf der USB-Platte sonst die Worker in ein Timeout laufen.
 
 **Ziel:** Bevor sich etwas ändert, wird das heutige Verhalten festgehalten. F01 ist geprüft.
 **Bezug:** F01, F33 · V24 · S2 · C6 (Charakterisierung zuerst) · C2 (Commit-Adresse, 01 1.3)
@@ -89,6 +91,8 @@ Der Strang über 0.2 bis 1 (Frontend) und der Strang über 2 bis 6 (Backend) kö
 **Aufwand:** M · **Risiko:** `npm install` dauert auf der USB-Platte über 20 Minuten (01, 0.2). Abhängigkeiten nur einmal je Schritt installieren.
 
 ## Schritt 0.2 – Kritische und hohe Fehler im Frontend
+
+> **Status:** ✅ Erledigt am 19.11.2026, Commit `76986a3`. Der Übergangs-Fokusring wurde in Schritt 1 durch `--color-focus` ersetzt.
 
 **Ziel:** Die sichtbar falschen Anzeigen verschwinden, noch mit der Express-API. Dieser Teil läuft auf einem eigenen kleinen Branch vor dem Design (E3.10).
 **Bezug:** F02, F03, F04, F05, F06 (Frontend-Teil), F07 (Übergangsring, endgültig in Schritt 1), F12, F31 · V01, V02, V03, V04 (Minimalfassung), V05, V09 · Sicherheit 1.3 (Express: 0.0.0.0, CORS `*`)
@@ -126,6 +130,8 @@ Der Strang über 0.2 bis 1 (Frontend) und der Strang über 2 bis 6 (Backend) kö
 **Aufwand:** M · **Risiko:** Der Express-Fix für die Berliner Zeit ändert, in welche Datei die Stunden zwischen 0 und 2 Uhr geschrieben werden. Im Altbestand bleiben falsche Dateien möglich; sie fallen bei der Migration (Schritt 9) auf.
 
 ## Schritt 0.3 – Quick Wins aus E1
+
+> **Status:** ✅ Erledigt am 19.11.2026, Commit `9e783e8`. Das Chart-Locale ist `de-DE`. **Offen:** Monat und Jahr haben bei Serverfehlern noch keinen Button „Erneut versuchen“, nur die Heute-Seite.
 
 **Ziel:** Kleine Verbesserungen mit hohem Nutzen, alle im Frontend bzw. im Repo.
 **Bezug:** F15, F16 (README), F18, F20, F21, F26, F29, F30, F34 · V10, V11, V13, V15, V17, V18, V19, V20, V22, V25 · Sicherheit 1.3 (Analytics-ID, MCP-Version)
@@ -166,6 +172,8 @@ Der Strang über 0.2 bis 1 (Frontend) und der Strang über 2 bis 6 (Backend) kö
 
 ## Schritt 0.4 – URL-Zustand und Datumsfeld
 
+> **Status:** ✅ Erledigt am 19.11.2026, Commit `f912292`. Tastatureingaben im Datumsfeld werden erst nach Enter, Verlassen des Felds oder 800 ms Pause übernommen. **Offen:** Beim Wechsel `/` ↔ `/tag/…` wird die Vorschau neu geladen (Cache in Schritt 7). Bleibt die Seite über Mitternacht offen, werden „heute“ und `max` nicht neu berechnet.
+
 **Ziel:** Die Auswahl steht in der URL, und das Datumsfeld lässt keine Fehlbedienung zu.
 **Bezug:** F09, F11, F19 · V08, V12 · US02-8 bis -11 (Bedienung, hier noch gegen Express; endgültig in Schritt 7)
 
@@ -194,6 +202,8 @@ Der Strang über 0.2 bis 1 (Frontend) und der Strang über 2 bis 6 (Backend) kö
 ---
 
 ## Schritt 1 – Design-Grundlage und Umstellung der Seiten
+
+> **Status:** ✅ Erledigt am 19.11.2026, Teilcommits 1a `79cc815`, 1b `ee8bb2f`, 1c `4020359`, 1d `f8e9a7b`, Feinschliff `2fcccd5`. Die Endprüfung ist bestanden: axe ohne Verstöße, Breiten 320–1920 px und Zoom 400 % funktionieren. Screenshots liegen unter `docs/umbau/screenshots/nachher/`. **Offen:** Die Footer-Links sind nur 29 px hoch. Die Rekordkarten haben noch keine Stunde und keinen Link „Tag ansehen“. Der Chip „11 von 12 Monaten“ fehlt. Auf der Monatsseite fehlen die Pfeile für Vor- und Folgemonat. Der Footer-Block „Datenstand“ kommt mit Schritt 2. Auf Heute fehlen „bis jetzt“-Werte (Schritt 7). Über die Wortwahl V26 ist noch nicht entschieden.
 
 **Ziel:** Die Designvorgabe aus E3 ist vollständig umgesetzt, auf Branch `umbau/design`. Gemergt wird erst nach der Endprüfung, in **einem** Schritt, damit es nie halb altes und halb neues Design gibt.
 **Bezug:** F05 (endgültig), F07 (endgültiger Fokusring `--color-focus`), F08, F10 (Frontend-Teil), F17, F23, F24, F25, F31 · V04, V06, V07, V14, V16, V21, V22, V23 (Diagramm), V26 (falls entschieden) · S11
