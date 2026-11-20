@@ -26,7 +26,7 @@ Stand: 19.11.2026 · Grundlage: `01-analyse.md` (F01–F34, S1–S12, Abschnitt 
 | 0.3 | Quick Wins aus E1 | M | 0.2 | ✅ erledigt (`9e783e8`) |
 | 0.4 | URL-Zustand und Datumsfeld (F11, F09, F19) | M | 0.3 | ✅ erledigt (`f912292`) |
 | 1 | Design-Grundlage und Umstellung aller Seiten (E3.10) | L | 0.4 | ✅ erledigt (`79cc815`…`2fcccd5`) |
-| 2 | NestJS-Projekt `api/`, erste GET-Endpunkte (In-Memory), Frontend liest Status | M | 0.1 | offen |
+| 2 | NestJS-Projekt `api/`, erste GET-Endpunkte (In-Memory), Frontend liest Status | M | 0.1 | ✅ erledigt (`8cca517`) |
 | 3 | Services, Dependency Injection, `POST /imports` | M | 2 | offen |
 | 4 | Zod-DTOs und Validierung, Feldfehler im Frontend | M | 3 | offen |
 | 5 | Einheitliche Fehlerbehandlung und Statuscodes | S | 4 | offen |
@@ -238,6 +238,8 @@ Der Strang über 0.2 bis 1 (Frontend) und der Strang über 2 bis 6 (Backend) kö
 ---
 
 ## Schritt 2 – NestJS-Projekt und erste GET-Endpunkte (In-Memory)
+
+> **Status:** ✅ Erledigt am 20.11.2026, Commit `8cca517`. Das Gerüst ist von Hand nach der Nest-11-Vorlage gebaut (nicht `nest new`), damit `api/test/characterization/` erhalten bleibt. 43 Unit- und 12 e2e-Tests in `api/`, 218 Frontend-Tests. **Offen:** Felder, die erst spätere Schritte berechnen (u. a. `isPrediction`, `complete`, `nextScheduledUpdateAt`), fehlen noch. `timeLocal` hat kein Offset, weil die Altdaten an Umstellungstagen 24 naive Einträge haben (Z1; `/api/days/2026-03-29` zeigt `hoursExpected: 23` bei 24 Stunden). Ungültige Daten bei `/api/days/:date` liefern 404 statt 400 (Schritt 4). `X-Powered-By` ist noch gesetzt (Schritt 11). Ältere Tagesdateien liest Nest nur beim Start.
 
 **Ziel:** Ein lauffähiges NestJS-Projekt in `api/`. Die ersten lesenden Endpunkte aus B3.1 liefern Daten aus dem Arbeitsspeicher, und das Frontend liest erstmals von der neuen API.
 **Bezug:** US01 (Grundform), US02-1, US03-1/-2, US07-1/-2 (`updateState = "never"`), US07-3/-4 · F32 (ehrlicher Anfangszustand) · S4
