@@ -29,7 +29,7 @@ Stand: 19.11.2026 · Grundlage: `01-analyse.md` (F01–F34, S1–S12, Abschnitt 
 | 2 | NestJS-Projekt `api/`, erste GET-Endpunkte (In-Memory), Frontend liest Status | M | 0.1 | ✅ erledigt (`8cca517`) |
 | 3 | Services, Dependency Injection, `POST /imports` | M | 2 | ✅ erledigt (`0a2c7b9`) |
 | 4 | Zod-DTOs und Validierung, Feldfehler im Frontend | M | 3 | ✅ erledigt (`f2108f9`) |
-| 5 | Einheitliche Fehlerbehandlung und Statuscodes | S | 4 | offen |
+| 5 | Einheitliche Fehlerbehandlung und Statuscodes | S | 4 | ✅ erledigt (`08c3711`) |
 | 6 | Module je Ressource, Regeln zwischen Modulen | M | 5 | offen |
 | 7 | Fachregeln und berechnete Felder; Heute und Rekorde auf die neue API | L | 6, 1 | offen |
 | 8 | Filter, Sortierung, OpenAPI; Monat und Jahr auf die neue API | M | 7 | offen |
@@ -131,7 +131,7 @@ Der Strang über 0.2 bis 1 (Frontend) und der Strang über 2 bis 6 (Backend) kö
 
 ## Schritt 0.3 – Quick Wins aus E1
 
-> **Status:** ✅ Erledigt am 19.11.2026, Commit `9e783e8`. Das Chart-Locale ist `de-DE`. **Offen:** Monat und Jahr haben bei Serverfehlern noch keinen Button „Erneut versuchen“, nur die Heute-Seite.
+> **Status:** ✅ Erledigt am 19.11.2026, Commit `9e783e8`. Das Chart-Locale ist `de-DE`. **Nachtrag:** Monat und Jahr haben seit Schritt 5 (`08c3711`) einen Button „Erneut versuchen“.
 
 **Ziel:** Kleine Verbesserungen mit hohem Nutzen, alle im Frontend bzw. im Repo.
 **Bezug:** F15, F16 (README), F18, F20, F21, F26, F29, F30, F34 · V10, V11, V13, V15, V17, V18, V19, V20, V22, V25 · Sicherheit 1.3 (Analytics-ID, MCP-Version)
@@ -350,6 +350,8 @@ Der Strang über 0.2 bis 1 (Frontend) und der Strang über 2 bis 6 (Backend) kö
 **Design:** Fehlerzustand des Formularfelds nach E3.7.3.
 
 ## Schritt 5 – Fehlerbehandlung und einheitliche Statuscodes
+
+> **Status:** ✅ Erledigt am 20.11.2026, Commit `08c3711`. 236 Unit- und 43 e2e-Tests in `api/`, 246 Frontend-Tests. Entscheidungen: Der Interceptor liefert eine `ApiErrorResponse` (`HttpErrorResponse` plus `apiError`), damit die Seiten Express-Fehler weiter nach V20 unterscheiden. Kaputtes JSON gibt 400 `VALIDATION_FAILED` mit leerem `errors`. Die Content-Negotiation läuft per `app.use` vor dem Body-Parser. PATCH erlaubt nur `application/merge-patch+json`. Tage ohne Daten geben immer 404 `NO_DATA` mit `details.dataFrom` (R03). Monat und Jahr haben jetzt „Erneut versuchen“. **Offen:** Keine Seite reicht `apiError` an `app-error` weiter, deshalb ist der NO_DATA-Link erst mit Schritt 7 sichtbar. Rekorde hat noch kein Retry. `Accept` wertet die Spezifität nicht aus (`application/json;q=0, */*` wird angenommen).
 
 **Ziel:** Jede Fehlerantwort hat das Format aus B3.3, ohne Stacktrace. Die Statuscodes aus B3.2 sind umgesetzt, soweit sie ohne Anmeldung möglich sind.
 **Bezug:** US01-4, US02-4/-5, US10-5/-7 · F22, Stacktraces 1.3 · V33 (Filter), V20 (Servermeldung) · R02, R03, R19 (409)

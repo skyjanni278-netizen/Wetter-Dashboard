@@ -1,6 +1,6 @@
 # Projektdokumentation – Wetter-Dashboard Heubach
 
-> Stand: 20.11.2026 · Roadmap-Schritt 4 (`f2108f9`) · Pflege: siehe Abschnitt „11. Pflege dieser Datei“
+> Stand: 20.11.2026 · Roadmap-Schritt 5 (`08c3711`) · Pflege: siehe Abschnitt „11. Pflege dieser Datei“
 
 Diese Datei ist eine Landkarte des **aktuellen** Systems: was es gibt, wo es liegt, wie es zusammenhängt. Sie enthält keinen Code und keine Planung (die steht in `docs/umbau/`).
 
@@ -140,7 +140,7 @@ Hinweise: Der Monats-Parameter wird nur auf zwei Ziffern geprüft (kein Bereich 
 
 ## 3a. Backend (NestJS, `api/`)
 
-NestJS 11 auf Express 5 (`@nestjs/platform-express`), TypeScript strict, Jest, Zod 4 (`zod` ^4.6.7) für Open-Meteo-Antworten und für jede Eingabe (Pfad, Query, Body; 3a.7). Stand Roadmap-Schritt 4: ein Modul (`AppModule`); Controller rufen nur Services auf, Services greifen über DI-Tokens auf Stores zu (3a.3). Die Stores liegen im Arbeitsspeicher und lesen den Altbestand aus den JSON-Dateien von Express (nur lesend). Lauscht nur auf `127.0.0.1`, globales Präfix `/api`.
+NestJS 11 auf Express 5 (`@nestjs/platform-express`), TypeScript strict, Jest, Zod 4 (`zod` ^4.6.7) für Open-Meteo-Antworten und für jede Eingabe (Pfad, Query, Body; 3a.7). Stand Roadmap-Schritt 5: ein Modul (`AppModule`); Controller rufen nur Services auf, Services greifen über DI-Tokens auf Stores zu (3a.3). Die Stores liegen im Arbeitsspeicher und lesen den Altbestand aus den JSON-Dateien von Express (nur lesend). Lauscht nur auf `127.0.0.1`, globales Präfix `/api`.
 
 ### 3a.1 Dateien und Aufgaben
 
@@ -511,6 +511,7 @@ Neueste oben.
 
 | Datum | Schritt | Commit | Änderung |
 |---|---|---|---|
+| 2026-11-20 | 5 | `08c3711` | Einheitliches Fehlerformat (`ApiExceptionFilter`, `X-Request-Id`), 406/413/415, `NO_DATA`/`IMPORT_RUNNING`/`NOT_FOUND`, JSON-404; Frontend `apiErrorInterceptor`, `app-error` mit NO_DATA-Link, Retry auf Monat und Jahr |
 | 2026-11-20 | 4 | `f2108f9` | Zod-Validierung (Pipe, `ApiValidationException`, Schemas für Datum, Id, Forecasts-Query, Import-Body, Jahr/Monat), 400 mit `errors[]` je Feld, `DATE_IN_FUTURE` über die Clock; Frontend `applyServerErrors` und Serverfehler in `form-field` |
 | 2026-11-20 | 3 | `0a2c7b9` | Services und DI-Stores (In-Memory), OpenMeteoClient mit Zod-Prüfung (Stunden GMT, Tage Europe/Berlin), `POST /api/imports` (202 + Location, partial, 409) und `GET /api/imports/:id`; `updateState` nach R25 |
 | 2026-11-20 | 2 | `8cca517` | NestJS-Projekt `api/` mit Clock/BerlinTime, LegacyFileSource (nur lesend) und GET `/api/locations`, `/api/days/today`, `/api/days/:date`, `/api/forecasts`, `/api/status`; Proxy verteilt `/api/locations` und `/api/status` an :3001; Footer zeigt Ort und Datenzeitraum aus Nest |
