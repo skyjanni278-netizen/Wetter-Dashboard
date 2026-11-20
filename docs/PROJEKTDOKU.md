@@ -55,7 +55,7 @@ flowchart LR
 | `frontend/src/styles.css` | globale Klassen: Buttons, Seitenlayout, Raster, `.kicker`, `.visually-hidden` |
 | `frontend/public/assets/fonts/` | lokale Schriften (woff2) und Lizenz `OFL.txt` |
 | `api/` | NestJS-11-Backend (eigene `package.json`, `nest-cli.json`, `tsconfig.json` strict, `tsconfig.build.json`, `.gitignore` für `node_modules/`, `dist/`, `coverage/`), siehe Abschnitt 3a |
-| `api/src/` | Quellen der Nest-API (Dateien siehe 3a.1); Eingabe-Schemas je Ressource in `dto/` (3a.7) |
+| `api/src/` | Quellen der Nest-API (Dateien siehe 3a.1): je Modul ein Ordner mit `*.module.ts` (`common/`, `legacy/`, `locations/`, `observations/`, `forecasts/`, `weather-provider/`, `imports/`, `scheduler/`, `stats/`, `status/`; Module siehe 3a.0), dazu `days/` und `summaries/` (gehören zum `StatsModule`); Eingabe-Schemas je Ressource in `dto/` (3a.7) |
 | `api/test/` | e2e-Tests (`app.e2e-spec.ts`, `imports.e2e-spec.ts`, `errors.e2e-spec.ts`, `jest-e2e.json`) |
 | `api/test/support/` | `fakes.ts`: Testhilfen für Unit- und e2e-Tests (Open-Meteo-Antworten, `fetch`-Ersatz, `FakeLegacySource`); `app.ts`: `createTestApp` (App wie `main.ts`); nicht im Build |
 | `api/test/characterization/` | Golden Files der Express-API (`golden/*.json`, `capture.sh`, `README.md`) |
@@ -140,7 +140,39 @@ Hinweise: Der Monats-Parameter wird nur auf zwei Ziffern geprüft (kein Bereich 
 
 ## 3a. Backend (NestJS, `api/`)
 
-NestJS 11 auf Express 5 (`@nestjs/platform-express`), TypeScript strict, Jest, Zod 4 (`zod` ^4.6.7) für Open-Meteo-Antworten und für jede Eingabe (Pfad, Query, Body; 3a.7). Stand Roadmap-Schritt 5: ein Modul (`AppModule`); Controller rufen nur Services auf, Services greifen über DI-Tokens auf Stores zu (3a.3). Die Stores liegen im Arbeitsspeicher und lesen den Altbestand aus den JSON-Dateien von Express (nur lesend). Lauscht nur auf `127.0.0.1`, globales Präfix `/api`.
+NestJS 11 auf Express 5 (`@nestjs/platform-express`), TypeScript strict, Jest, Zod 4 (`zod` ^4.6.7) für Open-Meteo-Antworten und für jede Eingabe (Pfad, Query, Body; 3a.7), `@nestjs/schedule` ^6.1.3 (nutzt `cron` 4.4.0) für den stündlichen Abruf. Stand Roadmap-Schritt 6: Module je Ressource nach 03 B4.1 (3a.0); Controller rufen nur Services auf, Services greifen über DI-Tokens auf Stores zu (3a.3). Die Stores liegen im Arbeitsspeicher und lesen den Altbestand aus den JSON-Dateien von Express (nur lesend). Lauscht nur auf `127.0.0.1`, globales Präfix `/api`.
+
+### 3a.0 Module und Abhängigkeiten
+
+`AppModule` importiert nur die Module und registriert `APP_FILTER` = `ApiExceptionFilter`. Ein Modul nutzt von einem anderen nur, was dieses unter `exports` freigibt (Nest bricht sonst beim Start ab); keine Zyklen, kein `forwardRef`, kein `@Global()`.
+
+| Modul (Datei) | Controller | Provider | `exports` | importiert |
+|---|---|---|---|---|
+| `CommonModule` (`common/common.module.ts`) | – | `Clock` (= `SystemClock`) | `Clock` | – |
+| `LegacyModule` (`legacy/legacy.module.ts`) | – | `LEGACY_DATA_DIR`, `LegacyFileSource` | `LegacyFileSource` | Common |
+| `LocationsModule` (`locations/locations.module.ts`) | `LocationsController` | `LocationsService` | `LocationsService` | – |
+| `ObservationsModule` (`observations/observations.module.ts`) | – | `OBSERVATION_STORE` (`InMemoryObservationStore`) | `OBSERVATION_STORE` | Common, Legacy |
+| `ForecastsModule` (`forecasts/forecasts.module.ts`) | `ForecastsController` | `ForecastsService`, `FORECAST_STORE` (`InMemoryForecastStore`) | `FORECAST_STORE` | Legacy |
+| `WeatherProviderModule` (`weather-provider/weather-provider.module.ts`) | – | `OpenMeteoClient` | `OpenMeteoClient` | – |
+| `ImportsModule` (`imports/imports.module.ts`) | `ImportsController` | `ImportsService`, `ImportRunner`, `IMPORT_STORE` (`InMemoryImportStore`) | `ImportsService`, `IMPORT_STORE` | Common, Observations, Forecasts, WeatherProvider |
+| `SchedulerModule` (`scheduler/scheduler.module.ts`, `SchedulerModule.forRoot(enabled)`) | – | `SCHEDULER_ENABLED` (Wert), `SchedulerService` | – | Common, Imports, `ScheduleModule.forRoot()` **nur** bei `SCHEDULER_ENABLED=true` |
+| `StatsModule` (`stats/stats.module.ts`) | `DaysController` (`days/`) | `DaysService` | – | Common, Observations |
+| `StatusModule` (`status/status.module.ts`) | `StatusController` | `StatusService` | – | Common, Observations, Imports |
+
+```
+AppModule ─┬─ Common · Locations · WeatherProvider · Forecasts · Observations   (unten, kennen niemanden über sich)
+           ├─ Imports ──► Observations, Forecasts, WeatherProvider
+           ├─ Scheduler ──► Imports
+           ├─ Stats ──► Observations           (Lesemodelle)
+           └─ Status ──► Observations, Imports
+Observations, Forecasts ──► Legacy ──► Common  (Übergang bis Schritt 9)
+```
+
+- **Imports ↔ Observations:** `ObservationsModule` importiert das `ImportsModule` nicht. Der Runner gibt die `importId` nur als Wert an `upsertHours` (Schritt 9: Spalte `import_id`, 03 B4.1).
+- **Locations:** Bis Schritt 9 nutzen die anderen Module Heubach nur als TypeScript-Konstante `HEUBACH` (`locations/location.ts`), nicht per DI. Deshalb fehlen die Pfeile Observations/Forecasts/Imports/Stats → Locations aus B4.1 noch; sie kommen mit dem Repository. Ebenso Status → Stats (erst mit `daysComplete`, US17-1).
+- **Legacy:** eigenes Modul, weil nur die beiden In-Memory-Stores den Altbestand lesen; so hängen Observations und Forecasts nicht voneinander ab, und das Modul fällt in Schritt 9 als Ganzes weg.
+- **Stats:** B4.1 ordnet `days` (sowie ab Schritt 7/8 `summaries`, `records`) dem `StatsModule` zu. Die Dateien bleiben bis Schritt 7 in `days/` bzw. `summaries/dto/`; `stats/` enthält nur das Modul.
+- **Scheduler** (`scheduler/scheduler.service.ts`): `@Cron('0 5 * * * *', { name: 'scheduled-import', timeZone: 'Europe/Berlin' })` an `tick()`. Ein Lauf legt über `ImportsService.createScheduled(gestern, heute)` einen Import `kind = "scheduled"` an (Berliner Tage, US08; der Runner holt dazu die 7-Tage-Vorhersage). Läuft schon ein Import (`queued`/`running`, R19), wird der Lauf übersprungen: Warnung `Scheduler-Lauf übersprungen: Import <id> läuft noch (R19)`, kein zweiter Import, keine Exception. Andere Fehler werden geloggt, `tick()` wirft nie. `scheduled` bleibt über HTTP verboten (`ImportCreateSchema`). Beim Start loggt `SchedulerService` `Scheduler deaktiviert (SCHEDULER_ENABLED ist nicht "true")` bzw. `Scheduler aktiv: 0 5 * * * * (Europe/Berlin) …`. Bei `false` wird `ScheduleModule` nicht geladen, also kein Cron-Job registriert, und `tick()` tut nichts.
 
 ### 3a.1 Dateien und Aufgaben
 
@@ -148,7 +180,10 @@ NestJS 11 auf Express 5 (`@nestjs/platform-express`), TypeScript strict, Jest, Z
 |---|---|
 | `main.ts` | Start: `NestFactory.create(AppModule, APP_OPTIONS)`, `configureApp`, `listen(PORT, '127.0.0.1')`, loggt Adresse und Datenordner |
 | `app.setup.ts` | `APP_OPTIONS` (`bodyParser: false`) und `configureApp(app)` für `main.ts` **und** die e2e-Tests: Präfix `/api`, dann in dieser Reihenfolge `requestIdMiddleware`, `ContentNegotiationMiddleware` (406/415), JSON-Parser (`useBodyParser('json', { limit: '64kb', type: [application/json, application/merge-patch+json] })`), `bodyParserErrorMiddleware` (3a.8) |
-| `app.module.ts` | einziges Modul: fünf Controller, die Services, die drei Stores (Tokens siehe 3a.3), `OpenMeteoClient`, `ImportRunner`, `Clock` (= `SystemClock`), `LEGACY_DATA_DIR`, `LegacyFileSource`, `APP_FILTER` = `ApiExceptionFilter` |
+| `app.module.ts` | Wurzelmodul: importiert die Module aus 3a.0 (`SchedulerModule.forRoot()` liest `SCHEDULER_ENABLED` beim Laden der Datei) und registriert `APP_FILTER` = `ApiExceptionFilter`; sonst keine Provider |
+| `*/*.module.ts` | je ein Modul nach 03 B4.1 (Inhalt, `exports`, Importe: 3a.0) |
+| `scheduler/scheduler-enabled.ts` | Token `SCHEDULER_ENABLED`, `isSchedulerEnabled(env)` (nur exakt `"true"` → `true`) |
+| `scheduler/scheduler.service.ts` | `SchedulerService`: `@Cron` an `tick()` (3a.0), `SCHEDULER_CRON` = `0 5 * * * *`, Jobname `SCHEDULED_IMPORT_JOB` = `scheduled-import`, Startmeldung in `onApplicationBootstrap` |
 | `common/clock.ts` | `Clock` (abstrakt, zugleich DI-Token), `SystemClock`, `FixedClock` (Tests: `set`, `advance`) |
 | `common/berlin-time.ts` | `BERLIN_TIMEZONE`, `localDate`, `localHour`, `localDateTime` (Ortszeit ohne Offset), `addDays`, `hoursInDay` (23/24/25), `isIsoDate` |
 | `common/utc.ts` | `formatUtc`: Zeitpunkt als `YYYY-MM-DDTHH:MM:SSZ` (Zeitfelder der Import-Ressource, `lastSuccessfulUpdateAt`) |
@@ -177,14 +212,14 @@ NestJS 11 auf Express 5 (`@nestjs/platform-express`), TypeScript strict, Jest, Z
 | `status/status.ts`, `status.service.ts`, `status.controller.ts` | Typ `Status`/`UpdateState`, `StatusService` mit R25 (`updateStateOf`, Schwelle `UPDATE_DELAYED_AFTER_MS` = 2 h), Controller |
 | `imports/import.ts` | Typen `ImportRecord`, `ImportResource` (B2.2, mit `links.self`), `ImportKind`, `ImportStatus`, `ImportCounts`; `toImportResource`, `importPath` |
 | `imports/import.store.ts`, `in-memory-import.store.ts` | Schnittstelle `ImportStore` (`create`, `findById`, `update`, `findLastFinished`) mit Token `IMPORT_STORE` und `ImportAlreadyRunningError` (R19); `InMemoryImportStore` (IDs ab 1 nach jedem Start) |
-| `imports/imports.service.ts` | `ImportsService`: `to` nach heute → 400 `DATE_IN_FUTURE` (R02), Auftrag `queued` anlegen, danach `ImportRunner.schedule`; 409 `IMPORT_RUNNING` mit `details.runningImportId` bei laufendem Import (R19); `findOne` mit 404 `NOT_FOUND` |
+| `imports/imports.service.ts` | `ImportsService`: `create` (HTTP): `to` nach heute → 400 `DATE_IN_FUTURE` (R02), Auftrag `queued` anlegen, danach `ImportRunner.schedule`; 409 `IMPORT_RUNNING` mit `details.runningImportId` bei laufendem Import (R19); `createScheduled(from, to)` für den Scheduler (`kind = "scheduled"`, wirft bei laufendem Import `ImportAlreadyRunningError` statt 409); `findOne` mit 404 `NOT_FOUND` |
 | `imports/import-plan.ts` | `planHourlyRequests`: Berliner Tage `from`–`to` → höchstens zwei Abfragen (Archiv für ältere Tage, Forecast-API für die letzten `RECENT_DAYS` = 10 Tage), jeweils einen UTC-Tag früher beginnend |
 | `imports/import-runner.ts` | `ImportRunner`: Ablauf eines Imports (3a.4); `schedule` (per `setImmediate`), `run`, `whenIdle` (für Tests) |
 | `imports/imports.controller.ts` | `POST /api/imports` (202, `Location`), `GET /api/imports/:id` |
 | `weather-provider/open-meteo.schema.ts` | das **eine** Variablen-Mapping (`HOURLY_VARIABLES`, `DAILY_VARIABLES`, S7) und die Zod-Schemas `OpenMeteoResponseSchema` (Stundenwerte, `utc_offset_seconds = 0`) und `OpenMeteoDailyResponseSchema` (Tagesvorhersage, `utc_offset_seconds` ∈ {3600, 7200}) (R32) |
 | `weather-provider/open-meteo.client.ts` | `OpenMeteoClient`: natives `fetch`, 15 s Zeitlimit je Versuch (`AbortSignal.timeout`), 2 Wiederholungen mit Backoff (1 s, 3 s) bei Netzfehler, Zeitüberschreitung, HTTP 5xx/429; `fetchHourly` (Archiv oder Forecast-API, `timezone=GMT`), `fetchDailyForecast` (7 Berliner Tage, `timezone=Europe/Berlin`). Fehler als `OpenMeteoError` mit `code` (`UPSTREAM_INVALID`, `UPSTREAM_TIMEOUT`, `UPSTREAM_ERROR`). Optionale Tokens `OPEN_METEO_FETCH`, `OPEN_METEO_RETRY_DELAYS_MS` für Tests |
 
-Tests: je `*.spec.ts` neben der Quelle (`berlin-time`, `clock`, `legacy-data-dir`, `open-meteo.client`, `import-runner`, `import-plan`, `imports.service`, `in-memory-observation.store`, `in-memory-forecast.store`, `days.service` mit Fake-Store ohne Dateien, `status.service` mit den R25-Grenzen, `zod-validation.pipe`, `api-exception.filter` (Abbildung Status/Code, Body, Log bei 500), `content-negotiation.middleware`, je Schema unter `dto/` mit den Grenzfällen aus B1.3), dazu `api/test/app.e2e-spec.ts` (GET-Endpunkte mit Fixture-Dateien im Temp-Ordner und `FixedClock`, 400-Fälle), `api/test/imports.e2e-spec.ts` (Importe mit gemocktem `OpenMeteoClient`, kein Netzaufruf, 400-Fälle des Bodys, 409 `IMPORT_RUNNING`) und `api/test/errors.e2e-spec.ts` (Fehlerformat: `NO_DATA`, `DATE_IN_FUTURE`, 406, 415, 413, kaputtes JSON, JSON-404 für unbekannte Routen, 500 über einen per `overrideProvider` ersetzten Service). e2e-Apps entstehen über `test/support/app.ts` (`createTestApp`: `APP_OPTIONS` + `configureApp` wie `main.ts`).
+Tests: je `*.spec.ts` neben der Quelle (`app.module` als Boot-Test: `AppModule` kompiliert ohne Zyklus, alle Services erreichbar, ohne `SCHEDULER_ENABLED` keine `SchedulerRegistry`; `scheduler.service` (R19/US08-4 mit Logger-Spy, `isSchedulerEnabled`), `scheduler.module` (`forRoot(false)` ohne Cron-Job, `forRoot(true)` mit Job `0 5 * * * *` in Europe/Berlin), `berlin-time`, `clock`, `legacy-data-dir`, `open-meteo.client`, `import-runner`, `import-plan`, `imports.service`, `in-memory-observation.store`, `in-memory-forecast.store`, `days.service` mit Fake-Store ohne Dateien, `status.service` mit den R25-Grenzen, `zod-validation.pipe`, `api-exception.filter` (Abbildung Status/Code, Body, Log bei 500), `content-negotiation.middleware`, je Schema unter `dto/` mit den Grenzfällen aus B1.3), dazu `api/test/app.e2e-spec.ts` (GET-Endpunkte mit Fixture-Dateien im Temp-Ordner und `FixedClock`, 400-Fälle), `api/test/imports.e2e-spec.ts` (Importe mit gemocktem `OpenMeteoClient`, kein Netzaufruf, 400-Fälle des Bodys, 409 `IMPORT_RUNNING`) und `api/test/errors.e2e-spec.ts` (Fehlerformat: `NO_DATA`, `DATE_IN_FUTURE`, 406, 415, 413, kaputtes JSON, JSON-404 für unbekannte Routen, 500 über einen per `overrideProvider` ersetzten Service). e2e-Apps entstehen über `test/support/app.ts` (`createTestApp`: `APP_OPTIONS` + `configureApp` wie `main.ts`).
 
 ### 3a.2 Endpunkte
 
@@ -212,7 +247,7 @@ Die Liste `GET /api/imports` gibt es noch nicht; ein `DELETE` entfällt (begrün
 | `IMPORT_STORE` | `ImportStore` | `InMemoryImportStore` | TypeORM, Tabelle `import` |
 | `Clock` (Klasse) | `Clock` | `SystemClock` | unverändert |
 
-Services injizieren die Stores mit `@Inject(<TOKEN>)`; Tests ersetzen sie per `overrideProvider` oder übergeben Fakes direkt.
+Services injizieren die Stores mit `@Inject(<TOKEN>)`; Tests ersetzen sie per `overrideProvider` oder übergeben Fakes direkt. Jedes Token stellt genau ein Modul bereit und exportiert es (`OBSERVATION_STORE`: `ObservationsModule`, `FORECAST_STORE`: `ForecastsModule`, `IMPORT_STORE`: `ImportsModule`, `Clock`: `CommonModule`; 3a.0). `overrideProvider(Clock)`, `overrideProvider(LEGACY_DATA_DIR)` usw. wirken in e2e-Tests über alle Module.
 
 ### 3a.4 Importe und Datenstand
 
@@ -242,6 +277,7 @@ Services injizieren die Stores mit `@Inject(<TOKEN>)`; Tests ersetzen sie per `o
 |---|---|---|
 | `PORT` | `3001` | Port; Host ist immer `127.0.0.1` |
 | `LEGACY_DATA_DIR` | `../backend/data` | Ordner mit den Express-Dateien; relativ zum Arbeitsverzeichnis (bei npm-Skripten `api/`) |
+| `SCHEDULER_ENABLED` | `false` | stündlicher Import über Nest (3a.0); nur exakt `true` schaltet ein (`TRUE`, `1` usw. bleiben aus). Im Parallelbetrieb aus lassen, weil Express schreibt; Übergabe in Schritt 9. Wird beim Laden von `app.module.ts` gelesen (Schritt 11: ConfigModule, Zielstandard dann `true`, 03 B4.8) |
 
 ### 3a.6 Skripte
 
@@ -476,6 +512,8 @@ Reihenfolge für die Entwicklung: zuerst Express (`:3000`) und Nest (`:3001`), d
 | `backend/data/` | nicht im Git; nie löschen oder überschreiben, nur lesen |
 | Nest-Cache der Altdaten | `LegacyFileSource` liest alle Tagesdateien nur beim Start; neu gelesen werden je Anfrage nur die Datei für heute und `forecast.json`. Ändert ein Backfill ältere Tage, liefert Nest den alten Stand bis zum Neustart (gilt bis Schritt 9) |
 | Nest-Importe nur im Arbeitsspeicher | `POST /api/imports` ruft Open-Meteo wirklich auf, schreibt aber nur in den Arbeitsspeicher. Nach einem Neustart sind Importe, IDs (wieder ab 1) und importierte Werte weg, `updateState` ist wieder `never`. Für ältere Tage haben importierte Stunden Vorrang vor den Dateien; für heute gilt die neuere Quelle, sodass die stündlich neu geschriebene Datei von Express einen Import überholt (3a.4) |
+| Nest-Module und `exports` | Ein neuer Provider, den ein anderes Modul braucht, muss in dessen Quellmodul unter `exports` stehen und das nutzende Modul muss das Quellmodul importieren; sonst bricht der Start mit „Nest can't resolve dependencies“ ab (der Boot-Test `src/app.module.spec.ts` fängt das). Keine Pfeile nach oben (z. B. Observations → Imports), kein `forwardRef`; Zyklen prüfen mit `npx madge@8.0.0 --circular --extensions ts src` in `api/` |
+| `SCHEDULER_ENABLED=true` im Parallelbetrieb | Dann importieren Express **und** Nest stündlich bei Open-Meteo (doppelte Abrufe); Nest schreibt zwar nur in den Arbeitsspeicher, aber ein laufender Scheduler-Import blockiert für seine Dauer `POST /api/imports` (409 `IMPORT_RUNNING`). Bis Schritt 9 aus lassen. Der Wert wird beim Laden von `app.module.ts` gelesen; Umgebungsvariable vor dem Start setzen |
 | Stunden UTC, Tage Berlin | Stundenwerte fragt Nest mit `timezone=GMT` ab, die Tagesvorhersage mit `timezone=Europe/Berlin`. Wer eine weitere Open-Meteo-Abfrage ergänzt, muss entscheiden, welche Regel gilt, und das passende Schema (Offset 0 bzw. 3600/7200) verwenden |
 | Offener schreibender Endpunkt | `POST /api/imports` hat noch keine Anmeldung (Schritt 10/11) und nur eine minimale Eingabeprüfung (Schritt 4: Reihenfolge, Zukunft, Höchstdauer). Deshalb nur auf `127.0.0.1` und nicht auf den Pi |
 | Altbestand um eine Stunde versetzt (Z1) | Ein Import vom 01.–03.10.2026 meldet alle 72 Stunden als `updated`: Die Werte der Altdatei stehen eine Stunde zu früh (Wert von 01:00 MESZ unter `00:00`), passend zur Annahme „fester Offset +01:00“ aus Z1. Nach einem Import zeigen diese Tage in Nest die richtig zugeordneten Werte, alle anderen den Altbestand |

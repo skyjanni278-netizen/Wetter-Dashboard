@@ -3,6 +3,7 @@ import { ApiValidationException } from '../common/api-validation.exception';
 import { FixedClock } from '../common/clock';
 import { toImportResource } from './import';
 import type { ImportRunner } from './import-runner';
+import { ImportAlreadyRunningError } from './import.store';
 import { ImportsService } from './imports.service';
 import { InMemoryImportStore } from './in-memory-import.store';
 
@@ -98,5 +99,23 @@ describe('ImportsService: R02 / US10-5 (to nicht nach heute, Clock über Mittern
     const { service } = setup();
     const record = await service.create({ kind: 'range', from: '2026-10-01', to: '2026-10-01', overwriteCorrections: true });
     expect(record.overwriteCorrections).toBe(false);
+  });
+});
+
+describe('ImportsService.createScheduled (Scheduler, US08)', () => {
+  it('legt einen Import kind = "scheduled" an und startet ihn', async () => {
+    const { service, runner } = setup();
+    const record = await service.createScheduled('2026-11-18', '2026-11-19');
+    expect(record).toMatchObject({ id: 1, kind: 'scheduled', status: 'queued', from: '2026-11-18', to: '2026-11-19' });
+    expect(runner.schedule).toHaveBeenCalledWith(1);
+  });
+
+  it('R19: läuft ein Import, kommt ImportAlreadyRunningError statt 409 (der Scheduler überspringt)', async () => {
+    const { service, store, runner } = setup();
+    await service.create({ kind: 'range', from: '2026-10-01', to: '2026-10-03' });
+
+    await expect(service.createScheduled('2026-11-18', '2026-11-19')).rejects.toBeInstanceOf(ImportAlreadyRunningError);
+    expect(await store.findById(2)).toBeNull();
+    expect(runner.schedule).toHaveBeenCalledTimes(1);
   });
 });

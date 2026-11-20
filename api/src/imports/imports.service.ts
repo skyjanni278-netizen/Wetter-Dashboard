@@ -7,7 +7,7 @@ import { formatUtc } from '../common/utc';
 import { HEUBACH } from '../locations/location';
 import type { ImportCreateDto } from './dto/import-create.schema';
 import { emptyCounts } from './import';
-import type { ImportRecord } from './import';
+import type { ImportKind, ImportRecord } from './import';
 import { ImportRunner } from './import-runner';
 import { IMPORT_STORE, ImportAlreadyRunningError } from './import.store';
 import type { ImportStore } from './import.store';
@@ -29,25 +29,38 @@ export class ImportsService {
    */
   async create(input: ImportCreateDto): Promise<ImportRecord> {
     assertNotInFuture('to', input.to, localDate(this.clock.now()));
-    let record: ImportRecord;
     try {
-      record = await this.store.create({
-        locationId: HEUBACH.id,
-        kind: input.kind,
-        from: input.from,
-        to: input.to,
-        overwriteCorrections: false,
-        requestedBy: null,
-        requestedAt: formatUtc(this.clock.now()),
-        counts: emptyCounts(),
-        warnings: [],
-      });
+      return await this.start(input.kind, input.from, input.to);
     } catch (error) {
       if (error instanceof ImportAlreadyRunningError) {
         throw ApiException.importRunning(error.runningImportId);
       }
       throw error;
     }
+  }
+
+  /**
+   * Für den `SchedulerService` (US08): legt einen Import `kind = "scheduled"` an und startet ihn wie
+   * `create`. Über HTTP ist `scheduled` nicht erlaubt (`ImportCreateSchema`). Läuft schon ein Import,
+   * wirft der Store `ImportAlreadyRunningError` (R19); der Aufrufer entscheidet, was dann geschieht.
+   */
+  async createScheduled(from: string, to: string): Promise<ImportRecord> {
+    return this.start('scheduled', from, to);
+  }
+
+  /** Auftrag `queued` anlegen (R19 prüft der Store beim Anlegen), danach den Lauf anstoßen. */
+  private async start(kind: ImportKind, from: string, to: string): Promise<ImportRecord> {
+    const record = await this.store.create({
+      locationId: HEUBACH.id,
+      kind,
+      from,
+      to,
+      overwriteCorrections: false,
+      requestedBy: null,
+      requestedAt: formatUtc(this.clock.now()),
+      counts: emptyCounts(),
+      warnings: [],
+    });
     this.runner.schedule(record.id);
     return record;
   }
