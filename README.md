@@ -1,5 +1,7 @@
 # Wetter-Dashboard Heubach
 
+> **Aktuelle Projektdokumentation** (Aufbau, Routen, Komponenten, Endpunkte, Befehle, Änderungsprotokoll): [`docs/PROJEKTDOKU.md`](docs/PROJEKTDOKU.md). Die Planung des Umbaus steht unter [`docs/umbau/`](docs/umbau/).
+
 Lokales Wetter-Dashboard für die Stadt **Heubach im Ostalbkreis (Baden-Württemberg)**.  
 Stündlicher Datenabruf von der kostenlosen [Open-Meteo API](https://open-meteo.com), Speicherung als JSON-Dateien und Darstellung im Browser mit interaktiven Klimadiagrammen.
 
