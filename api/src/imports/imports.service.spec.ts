@@ -1,6 +1,6 @@
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
+import { ApiValidationException } from '../common/api-validation.exception';
 import { FixedClock } from '../common/clock';
-import { parseCreateImportBody } from './create-import.input';
 import { toImportResource } from './import';
 import type { ImportRunner } from './import-runner';
 import { ImportsService } from './imports.service';
@@ -68,22 +68,33 @@ describe('ImportsService (US10-3, US11, R19)', () => {
   });
 });
 
-describe('parseCreateImportBody (minimale Prüfung, Zod-DTO folgt in Schritt 4)', () => {
-  it('nimmt range und gaps an', () => {
-    expect(parseCreateImportBody({ kind: 'gaps', from: '2026-10-01', to: '2026-10-03' })).toEqual({
-      kind: 'gaps',
-      from: '2026-10-01',
-      to: '2026-10-03',
+describe('ImportsService: R02 / US10-5 (to nicht nach heute, Clock über Mitternacht MEZ)', () => {
+  it('to = heute ist erlaubt, to = morgen → 400 DATE_IN_FUTURE am Feld to, nichts angelegt', async () => {
+    const store = new InMemoryImportStore();
+    const runner = { schedule: jest.fn() };
+    const clock = new FixedClock('2026-11-19T22:59:59Z'); // 23:59:59 MEZ am 19.11.
+    const service = new ImportsService(store, runner as unknown as ImportRunner, clock);
+
+    const future = service.create({ kind: 'range', from: '2026-11-18', to: '2026-11-20' });
+    await expect(future).rejects.toBeInstanceOf(ApiValidationException);
+    await expect(future).rejects.toMatchObject({
+      response: { statusCode: 400, code: 'DATE_IN_FUTURE', errors: [{ field: 'to', code: 'too_big' }] },
     });
+    expect(await store.findById(1)).toBeNull();
+    expect(runner.schedule).not.toHaveBeenCalled();
+
+    const today = await service.create({ kind: 'range', from: '2026-11-18', to: '2026-11-19' });
+    expect(today.to).toBe('2026-11-19');
+
+    await store.update(today.id, { status: 'succeeded', finishedAt: '2026-11-19T23:00:00Z' });
+    clock.set('2026-11-19T23:00:00Z'); // 00:00 MEZ am 20.11.
+    const midnight = await service.create({ kind: 'gaps', from: '2026-11-20', to: '2026-11-20' });
+    expect(midnight.to).toBe('2026-11-20');
   });
 
-  it.each([
-    ['kein Objekt', 'range'],
-    ['Liste', []],
-    ['kind scheduled', { kind: 'scheduled', from: '2026-10-01', to: '2026-10-03' }],
-    ['from fehlt', { kind: 'range', to: '2026-10-03' }],
-    ['to ungültig', { kind: 'range', from: '2026-10-01', to: '2026-02-30' }],
-  ])('%s → 400', (_name, body) => {
-    expect(() => parseCreateImportBody(body)).toThrow(BadRequestException);
+  it('overwriteCorrections wird angenommen, bleibt bis Schritt 12a aber false', async () => {
+    const { service } = setup();
+    const record = await service.create({ kind: 'range', from: '2026-10-01', to: '2026-10-01', overwriteCorrections: true });
+    expect(record.overwriteCorrections).toBe(false);
   });
 });

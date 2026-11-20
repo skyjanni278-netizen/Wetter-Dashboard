@@ -48,13 +48,13 @@ flowchart LR
 | `frontend/src/app/services/` | `weather.service.ts` (HTTP zum Backend) |
 | `frontend/src/app/models/` | Typen: `weather.ts` (Express), `api.ts` (neue API), `load-state.ts` |
 | `frontend/src/app/pipes/` | `unit.pipe.ts` |
-| `frontend/src/app/utils/` | Datum, Titel, Parameterprüfung, Wettersymbole |
+| `frontend/src/app/utils/` | Datum, Titel, Parameterprüfung, Wettersymbole, Server-Fehler an Formulare (`apply-server-errors.ts`) |
 | `frontend/src/app/config/` | `data-range.ts` (Datenbeginn) |
 | `frontend/src/styles/` | `tokens.css` (Design-Tokens, Schriften, `.surface-dark`) |
 | `frontend/src/styles.css` | globale Klassen: Buttons, Seitenlayout, Raster, `.kicker`, `.visually-hidden` |
 | `frontend/public/assets/fonts/` | lokale Schriften (woff2) und Lizenz `OFL.txt` |
 | `api/` | NestJS-11-Backend (eigene `package.json`, `nest-cli.json`, `tsconfig.json` strict, `tsconfig.build.json`, `.gitignore` für `node_modules/`, `dist/`, `coverage/`), siehe Abschnitt 3a |
-| `api/src/` | Quellen der Nest-API (Dateien siehe 3a.1) |
+| `api/src/` | Quellen der Nest-API (Dateien siehe 3a.1); Eingabe-Schemas je Ressource in `dto/` (3a.7) |
 | `api/test/` | e2e-Tests (`app.e2e-spec.ts`, `imports.e2e-spec.ts`, `jest-e2e.json`) |
 | `api/test/support/` | `fakes.ts`: Testhilfen für Unit- und e2e-Tests (Open-Meteo-Antworten, `fetch`-Ersatz, `FakeLegacySource`); nicht im Build |
 | `api/test/characterization/` | Golden Files der Express-API (`golden/*.json`, `capture.sh`, `README.md`) |
@@ -139,7 +139,7 @@ Hinweise: Der Monats-Parameter wird nur auf zwei Ziffern geprüft (kein Bereich 
 
 ## 3a. Backend (NestJS, `api/`)
 
-NestJS 11 auf Express 5 (`@nestjs/platform-express`), TypeScript strict, Jest, Zod 4 (`zod` ^4.6.7, bisher nur für Open-Meteo-Antworten). Stand Roadmap-Schritt 3: ein Modul (`AppModule`); Controller rufen nur Services auf, Services greifen über DI-Tokens auf Stores zu (3a.3). Die Stores liegen im Arbeitsspeicher und lesen den Altbestand aus den JSON-Dateien von Express (nur lesend). Lauscht nur auf `127.0.0.1`, globales Präfix `/api`.
+NestJS 11 auf Express 5 (`@nestjs/platform-express`), TypeScript strict, Jest, Zod 4 (`zod` ^4.6.7) für Open-Meteo-Antworten und für jede Eingabe (Pfad, Query, Body; 3a.7). Stand Roadmap-Schritt 4: ein Modul (`AppModule`); Controller rufen nur Services auf, Services greifen über DI-Tokens auf Stores zu (3a.3). Die Stores liegen im Arbeitsspeicher und lesen den Altbestand aus den JSON-Dateien von Express (nur lesend). Lauscht nur auf `127.0.0.1`, globales Präfix `/api`.
 
 ### 3a.1 Dateien und Aufgaben
 
@@ -150,6 +150,14 @@ NestJS 11 auf Express 5 (`@nestjs/platform-express`), TypeScript strict, Jest, Z
 | `common/clock.ts` | `Clock` (abstrakt, zugleich DI-Token), `SystemClock`, `FixedClock` (Tests: `set`, `advance`) |
 | `common/berlin-time.ts` | `BERLIN_TIMEZONE`, `localDate`, `localHour`, `localDateTime` (Ortszeit ohne Offset), `addDays`, `hoursInDay` (23/24/25), `isIsoDate` |
 | `common/utc.ts` | `formatUtc`: Zeitpunkt als `YYYY-MM-DDTHH:MM:SSZ` (Zeitfelder der Import-Ressource, `lastSuccessfulUpdateAt`) |
+| `common/api-error.ts` | Typen des Fehlerformats (B3.3): `ApiFieldError` (`field, code, message`), `ApiErrorBody`, `ApiErrorCode` |
+| `common/api-validation.exception.ts` | `ApiValidationException` (400, Body nach B3.3), `fromZod` (ein Eintrag je Feld, je unbekanntem Schlüssel ein eigener), `dateInFuture`; `assertNotInFuture` (R02, für Services) |
+| `common/zod-validation.pipe.ts` | `ZodValidationPipe(schema)`: prüft Pfad, Query oder Body, gibt die geprüften Daten zurück, sonst `ApiValidationException.fromZod` (deutsche Zod-Meldungen als Rückfall) |
+| `common/dto/iso-date.schema.ts`, `common/dto/id-param.schema.ts` | `IsoDateSchema` (R01), `IdParamSchema` (`:id` positive ganze Zahl → `number`) |
+| `days/dto/date-param.schema.ts` | `DateParamSchema` (`{ date }`, R01) |
+| `forecasts/dto/forecasts-query.schema.ts` | `ForecastsQuerySchema` (leer, `.strict()`, R22) |
+| `imports/dto/import-create.schema.ts` | `ImportCreateSchema` (R18), `MAX_IMPORT_DAYS` = 1096 |
+| `summaries/dto/year-month-param.schema.ts`, `year-param.schema.ts` | `YearMonthSchema`/`YearMonthParamSchema` (R04), `YearSchema`/`YearParamSchema` (R05, `FIRST_YEAR` = 1940); schon angelegt, die Endpunkte folgen in Schritt 8 |
 | `legacy/legacy-data-dir.ts` | Token `LEGACY_DATA_DIR`, `resolveLegacyDataDir` (Umgebungsvariable oder Standard, relativ zum Arbeitsverzeichnis) |
 | `legacy/legacy-types.ts` | Altformat der Dateien (`LegacyDayFileRaw`, `LegacyForecastRaw`) und normalisierte Typen (`LegacyHour`, `LegacyForecast`) |
 | `legacy/legacy-file-source.ts` | `LegacyFileSource`: lädt beim Start alle Tagesdateien asynchron in eine `Map<date, hours[]>`; die Datei für heute (Berliner Datum über `Clock`) und `forecast.json` liest es bei jeder Anfrage neu. `getDayFile` liefert zusätzlich die Änderungszeit (`modifiedAt`, nur bei der heutigen Datei). Zeiten über `formatUtc`. Werte `number \| null`, nicht gerundet. Nur die In-Memory-Stores nutzen es |
@@ -157,35 +165,34 @@ NestJS 11 auf Express 5 (`@nestjs/platform-express`), TypeScript strict, Jest, Z
 | `observations/observation.store.ts`, `in-memory-observation.store.ts` | Schnittstelle `ObservationStore` (`getDay`, `getDataRange`, `upsertHours`) mit Token `OBSERVATION_STORE`; `InMemoryObservationStore` (Altbestand plus importierte Stunden, siehe 3a.4) |
 | `forecasts/forecast.store.ts`, `in-memory-forecast.store.ts` | Schnittstelle `ForecastStore` (`getLatest`, `save`) mit Token `FORECAST_STORE`; `InMemoryForecastStore` (liefert die jüngere von `forecast.json` und importierter Vorhersage) |
 | `forecasts/forecast.ts`, `forecasts.service.ts`, `forecasts.controller.ts` | Typ `Forecast`/`ForecastList`, `ForecastsService`, Controller |
-| `days/day.ts`, `days.service.ts`, `days.controller.ts` | Typ `Day`/`DayHour`, `DaysService` (`today`, `findToday`, `findOne`), Controller für `today` und `:date` |
+| `days/day.ts`, `days.service.ts`, `days.controller.ts` | Typ `Day`/`DayHour`, `DaysService` (`today`, `findToday`, `findOne` mit Zukunftssperre R02), Controller für `today` und `:date` |
 | `locations/location.ts`, `locations.service.ts`, `locations.controller.ts` | Standort Heubach als Konstante (`id = 1`, `slug = "heubach"`), `LocationsService`, Controller |
 | `status/status.ts`, `status.service.ts`, `status.controller.ts` | Typ `Status`/`UpdateState`, `StatusService` mit R25 (`updateStateOf`, Schwelle `UPDATE_DELAYED_AFTER_MS` = 2 h), Controller |
 | `imports/import.ts` | Typen `ImportRecord`, `ImportResource` (B2.2, mit `links.self`), `ImportKind`, `ImportStatus`, `ImportCounts`; `toImportResource`, `importPath` |
 | `imports/import.store.ts`, `in-memory-import.store.ts` | Schnittstelle `ImportStore` (`create`, `findById`, `update`, `findLastFinished`) mit Token `IMPORT_STORE` und `ImportAlreadyRunningError` (R19); `InMemoryImportStore` (IDs ab 1 nach jedem Start) |
-| `imports/create-import.input.ts` | `parseCreateImportBody`: minimale Prüfung des POST-Bodys (`kind` ∈ `range`/`gaps`, `from`/`to` gültige Daten), sonst 400. Das Zod-DTO folgt in Schritt 4 |
-| `imports/imports.service.ts` | `ImportsService`: Auftrag `queued` anlegen, danach `ImportRunner.schedule`; 409 bei laufendem Import (R19); `findOne` mit 404 |
+| `imports/imports.service.ts` | `ImportsService`: `to` nach heute → 400 `DATE_IN_FUTURE` (R02), Auftrag `queued` anlegen, danach `ImportRunner.schedule`; 409 bei laufendem Import (R19); `findOne` mit 404 |
 | `imports/import-plan.ts` | `planHourlyRequests`: Berliner Tage `from`–`to` → höchstens zwei Abfragen (Archiv für ältere Tage, Forecast-API für die letzten `RECENT_DAYS` = 10 Tage), jeweils einen UTC-Tag früher beginnend |
 | `imports/import-runner.ts` | `ImportRunner`: Ablauf eines Imports (3a.4); `schedule` (per `setImmediate`), `run`, `whenIdle` (für Tests) |
 | `imports/imports.controller.ts` | `POST /api/imports` (202, `Location`), `GET /api/imports/:id` |
 | `weather-provider/open-meteo.schema.ts` | das **eine** Variablen-Mapping (`HOURLY_VARIABLES`, `DAILY_VARIABLES`, S7) und die Zod-Schemas `OpenMeteoResponseSchema` (Stundenwerte, `utc_offset_seconds = 0`) und `OpenMeteoDailyResponseSchema` (Tagesvorhersage, `utc_offset_seconds` ∈ {3600, 7200}) (R32) |
 | `weather-provider/open-meteo.client.ts` | `OpenMeteoClient`: natives `fetch`, 15 s Zeitlimit je Versuch (`AbortSignal.timeout`), 2 Wiederholungen mit Backoff (1 s, 3 s) bei Netzfehler, Zeitüberschreitung, HTTP 5xx/429; `fetchHourly` (Archiv oder Forecast-API, `timezone=GMT`), `fetchDailyForecast` (7 Berliner Tage, `timezone=Europe/Berlin`). Fehler als `OpenMeteoError` mit `code` (`UPSTREAM_INVALID`, `UPSTREAM_TIMEOUT`, `UPSTREAM_ERROR`). Optionale Tokens `OPEN_METEO_FETCH`, `OPEN_METEO_RETRY_DELAYS_MS` für Tests |
 
-Tests: je `*.spec.ts` neben der Quelle (`berlin-time`, `clock`, `legacy-data-dir`, `open-meteo.client`, `import-runner`, `import-plan`, `imports.service`, `in-memory-observation.store`, `in-memory-forecast.store`, `days.service` mit Fake-Store ohne Dateien, `status.service` mit den R25-Grenzen), dazu `api/test/app.e2e-spec.ts` (GET-Endpunkte mit Fixture-Dateien im Temp-Ordner und `FixedClock`) und `api/test/imports.e2e-spec.ts` (Importe mit gemocktem `OpenMeteoClient`, kein Netzaufruf).
+Tests: je `*.spec.ts` neben der Quelle (`berlin-time`, `clock`, `legacy-data-dir`, `open-meteo.client`, `import-runner`, `import-plan`, `imports.service`, `in-memory-observation.store`, `in-memory-forecast.store`, `days.service` mit Fake-Store ohne Dateien, `status.service` mit den R25-Grenzen, `zod-validation.pipe`, je Schema unter `dto/` mit den Grenzfällen aus B1.3), dazu `api/test/app.e2e-spec.ts` (GET-Endpunkte mit Fixture-Dateien im Temp-Ordner und `FixedClock`, 400-Fälle) und `api/test/imports.e2e-spec.ts` (Importe mit gemocktem `OpenMeteoClient`, kein Netzaufruf, 400-Fälle des Bodys).
 
 ### 3a.2 Endpunkte
 
-Antwort JSON. Fehler im Standardformat von Nest (`{ statusCode, message, error }`), das einheitliche Fehlerformat folgt in Roadmap-Schritt 5. **Noch ohne Anmeldung** (Schritt 10/11): deshalb nur auf `127.0.0.1` und kein Deployment vor Schritt 11.
+Antwort JSON. Validierungsfehler (400) haben schon die Form aus B3.3 (3a.7); alle übrigen Fehler (404, 409) noch das Standardformat von Nest (`{ statusCode, message, error }`). Das einheitliche Format für alle Fehler (globaler Filter, `path`, `timestamp`, `requestId`) folgt in Roadmap-Schritt 5. **Noch ohne Anmeldung** (Schritt 10/11): deshalb nur auf `127.0.0.1` und kein Deployment vor Schritt 11.
 
 | Methode und Pfad | Antwort bei Erfolg | Fehlercodes |
 |---|---|---|
 | `GET /api/locations` | `{ items: [Location] }` mit genau Heubach | – |
-| `GET /api/locations/:id` | `Location` (`id, slug, name, postalCode, region, latitude, longitude, timezone, isDefault`) | 400 `id` keine Zahl, 404 unbekannt |
+| `GET /api/locations/:id` | `Location` (`id, slug, name, postalCode, region, latitude, longitude, timezone, isDefault`) | 400 `id` keine positive ganze Zahl (`field: "id"`), 404 unbekannt |
 | `GET /api/days/today` | `Day` für den Berliner Tag, Header `Content-Location: /api/days/<datum>` | 404 noch keine Daten für heute |
-| `GET /api/days/:date` | `Day`: `id, date, locationId, timezone, isToday, hoursExpected, hours[]`; Stunde: `timeLocal` (Ortszeit **ohne** Offset), `temperature, apparentTemperature, precipitation, weatherCode, windSpeed, windDirection` | 404 keine Daten (vorerst auch bei ungültigem Datum) |
-| `GET /api/forecasts` | `{ items: [Forecast], fetchedAt }`; Eintrag: `locationId, date, maxTemp, minTemp, precipitationSum, weatherCode, fetchedAt`. `fetchedAt` (`YYYY-MM-DDTHH:MM:SSZ`) = Änderungszeit von `forecast.json` bzw. Abrufzeit des Imports; `date` ist ein Berliner Kalendertag | – (ohne Vorhersage: `items = []`, `fetchedAt = null`) |
+| `GET /api/days/:date` | `Day`: `id, date, locationId, timezone, isToday, hoursExpected, hours[]`; Stunde: `timeLocal` (Ortszeit **ohne** Offset), `temperature, apparentTemperature, precipitation, weatherCode, windSpeed, windDirection` | 400 `invalid_date` an `date` (Format oder kein Kalendertag, R01), 400 `DATE_IN_FUTURE` an `date` (nach dem Berliner Heute, R02), 404 keine Daten (noch ohne `NO_DATA`-Format, Schritt 5) |
+| `GET /api/forecasts` | `{ items: [Forecast], fetchedAt }`; Eintrag: `locationId, date, maxTemp, minTemp, precipitationSum, weatherCode, fetchedAt`. `fetchedAt` (`YYYY-MM-DDTHH:MM:SSZ`) = Änderungszeit von `forecast.json` bzw. Abrufzeit des Imports; `date` ist ein Berliner Kalendertag | 400 `unrecognized_keys` je Query-Parameter, es gibt noch keinen (R22). Ohne Vorhersage: `items = []`, `fetchedAt = null` |
 | `GET /api/status` | `{ locationId, today, timezone, dataFrom, dataTo, lastSuccessfulUpdateAt, updateState }`, ohne Fehlertext; `updateState` siehe 3a.4 | – |
-| `POST /api/imports` | Body `{ kind: "range" \| "gaps", from, to }` (Berliner Daten `YYYY-MM-DD`). **202**, Header `Location: /api/imports/<id>`, Body = Import-Ressource mit `status = "queued"` | 400 Body ungültig (nur minimal geprüft), 409 es läuft schon ein Import (`queued`/`running`), Body mit `runningImportId` |
-| `GET /api/imports/:id` | Import-Ressource (B2.2): `id, locationId, kind, status, from, to, overwriteCorrections (false), requestedBy (null), requestedAt, startedAt, finishedAt, counts { inserted, updated, unchanged, skippedCorrected (0) }, warnings[], error, links.self` | 400 `id` keine Zahl, 404 unbekannt |
+| `POST /api/imports` | Body `{ kind: "range" \| "gaps", from, to, overwriteCorrections? }` (Berliner Daten `YYYY-MM-DD`; `overwriteCorrections` boolean, bis Schritt 12a ohne Wirkung, gespeichert wird `false`). **202**, Header `Location: /api/imports/<id>`, Body = Import-Ressource mit `status = "queued"` | 400 `VALIDATION_FAILED` (`ImportCreateSchema`, 3a.7), 400 `DATE_IN_FUTURE` an `to` (`to` nach heute), 409 es läuft schon ein Import (`queued`/`running`), Body mit `runningImportId` |
+| `GET /api/imports/:id` | Import-Ressource (B2.2): `id, locationId, kind, status, from, to, overwriteCorrections (false), requestedBy (null), requestedAt, startedAt, finishedAt, counts { inserted, updated, unchanged, skippedCorrected (0) }, warnings[], error, links.self` | 400 `id` keine positive ganze Zahl (`field: "id"`), 404 unbekannt |
 
 Die Liste `GET /api/imports` gibt es noch nicht; ein `DELETE` entfällt (begründet in der Roadmap, Schritt 3).
 
@@ -240,6 +247,32 @@ Services injizieren die Stores mit `@Inject(<TOKEN>)`; Tests ersetzen sie per `o
 | `npm test` | Unit-Tests (Jest, `src/**/*.spec.ts`) |
 | `npm run test:e2e` | e2e-Tests (`test/jest-e2e.json`, supertest) |
 
+### 3a.7 Validierung (Zod)
+
+- **Weg:** Jede Eingabe geht durch `new ZodValidationPipe(<Schema>)` am Parameter (`@Param()`, `@Query()`, `@Body()`). Das Schema prüft die Form; Regeln mit „heute“ (R02) prüft der Service über `Clock` und BerlinTime (`assertNotInFuture`), weil Zod keine festsetzbare Uhr kennt. Typen der DTOs nur über `z.infer` (keine eigenen Interfaces).
+- **Schemas** (`*/dto/*.schema.ts`), alle Objekte `.strict()`:
+
+  | Schema | Eingang | Regeln |
+  |---|---|---|
+  | `DateParamSchema` | `GET /api/days/:date` | `z.iso.date()` plus Rückrechnung (R01), Feldcode immer `invalid_date` |
+  | `IdParamSchema` | `GET /api/locations/:id`, `GET /api/imports/:id` | `^[1-9]\d{0,9}$` → `number`; sonst `invalid_format` an `id` (ersetzt `ParseIntPipe`) |
+  | `ForecastsQuerySchema` | Query von `GET /api/forecasts` | kein Parameter erlaubt (R22) |
+  | `ImportCreateSchema` | Body von `POST /api/imports` | `kind` ∈ `range`/`gaps` (`invalid_value`), `from`/`to` wie R01, `to < from` → `to_before_from` an `to`, mehr als 1096 Tage (beide mitgezählt) → `range_too_long` an `to`, `overwriteCorrections` optional boolean (R18) |
+  | `YearMonthParamSchema`, `YearParamSchema` | ab Schritt 8 (`/api/summaries/…`) | `YYYY-MM` mit Monat 01–12 (R04); `YYYY` ≥ 1940 → `number` (R05) |
+
+- **400-Body** (Form aus B3.3, ohne `path`/`timestamp`/`requestId` bis Schritt 5):
+
+  | Feld | Wert |
+  |---|---|
+  | `statusCode`, `error` | `400`, `"Bad Request"` |
+  | `code` | `VALIDATION_FAILED` (Schema) oder `DATE_IN_FUTURE` (Service: `date` bei Tagen, `to` bei Importen) |
+  | `message` | „Die Anfrage enthält ungültige Werte.“ bzw. bei `DATE_IN_FUTURE` die Meldung mit dem heutigen Datum |
+  | `errors[]` | `{ field, code, message }`, ein Eintrag je Feld (erstes Problem gewinnt); bei `unrecognized_keys` je Schlüssel ein Eintrag mit `field` = Schlüssel; `field = null` für den ganzen Body (z. B. kein JSON-Objekt). `code`: Zod-Code oder `invalid_date`, `to_before_from`, `range_too_long`; bei `DATE_IN_FUTURE` `too_big` |
+  | `details` | `null` |
+
+- **Geänderte Fehlerfälle gegenüber Schritt 3:** ungültiges Datum bei `/api/days/:date` 404 → 400; Tag nach heute (bisher 404 mangels Daten) → 400 `DATE_IN_FUTURE`; `?…`-Parameter bei `/api/forecasts` bisher ignoriert → 400; `id` `0` oder negativ bei `/api/locations/:id` und `/api/imports/:id` 404 → 400; Import-Body jetzt vollständig geprüft (Zusatzfelder, Reihenfolge, Spanne, Zukunft).
+- **Meldungen** sind deutsch: eigene Texte in den Schemas, sonst die deutsche Zod-Locale als Rückfall.
+
 ---
 
 ## 4. Frontend (Angular 21)
@@ -282,7 +315,7 @@ Ordner `frontend/src/app/components/`. Alle Selektoren beginnen mit `app-`.
 | `app-kpi-card` | `kicker` (Pflicht), `value`, `unit`, `digits`, `meta`, `loading`, `busy`, `reveal`, `revealIndex` | Zusatzzeile per Projection | Kennzahl-Karte; Zahl wird hier deutsch formatiert, ohne Wert „–“ und „keine Daten“ |
 | `app-chip` | `variant` (`status`/`forecast`) | Text per Projection | nicht klickbare Markierung, z. B. „Vorhersage“ |
 | `app-notice` | `variant` (`info`/`error`/`forecast`), `kicker`, `announce` | Text per Projection | Hinweisbox mit Linie links; `announce` setzt `role="alert"` bzw. `status` |
-| `app-form-field` | `label` und `fieldId` (Pflicht), `hint`, `error` | Feld per Projection | Label, Hilfetext, Fehlermeldung, setzt `aria-describedby` und `aria-invalid` am Feld |
+| `app-form-field` | `label` und `fieldId` (Pflicht), `hint`, `error`, `control` (`AbstractControl`) | Feld per Projection | Label, Hilfetext, Fehlermeldung, setzt `aria-describedby` und `aria-invalid` am Feld. Mit `control` zeigt es auch dessen Server-Fehler (`errors.server`, gesetzt von `applyServerErrors`) im Fehlerstil E3.7.3; `error` hat Vorrang. Ändert sich der Wert, entfällt der Server-Fehler. `control` ist noch an keiner Seite gesetzt (Schritt 7/11) |
 | `app-data-table` | `caption`, `columns`, `rows` (Pflicht), `captionHidden`, `columnsNarrow`, `emptyText` | – (Zellen: Text, Zahl, Chip, Icon) | barrierefreie Tabelle; unter 48em optional anderer Spaltensatz |
 | `app-climate-chart` | `data` (`ClimateChartDataset`), `title`, `caption`, `labelHeading`, `predictionFromIndex` | – | Chart.js-Diagramm (Temperatur Linie, Niederschlag Balken) mit Kernaussage, HTML-Legende und Wertetabelle in `<details>`; Vorhersageteil gestrichelt/schraffiert |
 | `app-skeleton` | `width`, `height` | – | Platzhalter in Endgröße, `aria-hidden` |
@@ -298,9 +331,10 @@ Ordner `frontend/src/app/components/`. Alle Selektoren beginnen mit `app-`.
 |---|---|---|
 | `services/weather.service.ts` | `WeatherService`: `getStatus`, `getLocation(id)` (neue API, 3a.2); `getToday`, `getDay`, `getMonth`, `getYear`, `getForecast`, `getStats` (Express, 3.2) | ein HTTP-Aufruf je Endpunkt, Basis `/api` |
 | `models/weather.ts` | `HourlyEntry`, `DayData`, `MonthSummary`, `MonthResponse`, `YearSummary`, `YearResponse`, `DayForecast`, `StatsRecord`, `Stats` | Typen der Express-Antworten |
-| `models/api.ts` | `Location`, `LocationList`, `UpdateState`, `Status`, `DayHour`, `Day`, `Forecast`, `ForecastList` | Typen der neuen API (3a.2), Messwerte `number \| null` |
+| `models/api.ts` | `Location`, `LocationList`, `UpdateState`, `Status`, `DayHour`, `Day`, `Forecast`, `ForecastList`, `ApiFieldError`, `ApiError` | Typen der neuen API (3a.2), Messwerte `number \| null`; Fehlerformat B3.3 (3a.7) |
 | `models/load-state.ts` | `LoadState`, `LoadResult<T>` | Ladezustand `idle/loading/success/empty/error` |
 | `pipes/unit.pipe.ts` | `UnitPipe` (`unit`), `UNIT_SEPARATOR` | Zahl in deutscher Schreibweise plus Einheit, fehlend = „–“ |
+| `utils/apply-server-errors.ts` | `applyServerErrors(response, form)`, `isApiError`, `SERVER_ERROR_KEY` (`server`) | B5.2: setzt bei 400 mit `errors[]` je `field` (auch Punktpfad) `{ server: message }` am Control und markiert es als berührt; gibt die Fehler ohne passendes Control zurück (für eine Meldung oben im Formular). Andere Antworten: leere Liste, Formular unverändert |
 | `utils/berlin-date.ts` | `berlinToday`, `berlinHour`, `addDays`, `isValidIsoDate`, `formatDateLongDe`, `formatDateDe` | Datumsrechnung in Europe/Berlin |
 | `utils/page-title.ts` | `SITE_TITLE`, `MONTH_LONG`, `viewTitle`, `fullTitle`, `longDateLabel`, `monthLabel`, `dayViewTitle`, `monthViewTitle`, `yearViewTitle`, `setPageTitle`, `AppTitleStrategy` | Seitentitel und Beschriftungen |
 | `utils/route-params.ts` | `dayParamStatus`, `isValidYearParam`, `isValidMonthParam` | Prüfung der Route-Parameter |

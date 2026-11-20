@@ -154,11 +154,28 @@ describe('Importe (Schritt 3, e2e mit gemocktem Provider, ohne Netz)', () => {
     await request(app.getHttpServer()).get('/api/imports/abc').expect(400);
   });
 
-  it('minimale Prüfung: kind "scheduled" oder fehlendes Datum → 400', async () => {
-    await request(app.getHttpServer())
-      .post('/api/imports')
-      .send({ kind: 'scheduled', from: '2026-10-01', to: '2026-10-03' })
-      .expect(400);
-    await request(app.getHttpServer()).post('/api/imports').send({ kind: 'range', from: '2026-10-01' }).expect(400);
+  describe('Validierung des Bodys (Schritt 4: ImportCreateSchema, R18; R02 im Service)', () => {
+    it.each([
+      ['US10-4: from nach to', { kind: 'range', from: '2026-10-31', to: '2026-10-01' }, 'VALIDATION_FAILED', 'to', 'to_before_from'],
+      ['US10-8: kind "scheduled"', { kind: 'scheduled', from: '2026-10-01', to: '2026-10-03' }, 'VALIDATION_FAILED', 'kind', 'invalid_value'],
+      ['US10-6: 1097 Tage', { kind: 'range', from: '2023-01-01', to: '2026-01-01' }, 'VALIDATION_FAILED', 'to', 'range_too_long'],
+      ['Zusatzfeld "x": 1', { kind: 'range', from: '2026-10-01', to: '2026-10-03', x: 1 }, 'VALIDATION_FAILED', 'x', 'unrecognized_keys'],
+      ['US10-5: to = morgen', { kind: 'range', from: '2026-11-19', to: '2026-11-21' }, 'DATE_IN_FUTURE', 'to', 'too_big'],
+      ['from fehlt', { kind: 'range', to: '2026-10-03' }, 'VALIDATION_FAILED', 'from', 'invalid_type'],
+    ])('%s → 400', async (_name, body, code, field, fieldCode) => {
+      const res = await request(app.getHttpServer()).post('/api/imports').send(body).expect(400);
+      expect(res.body).toMatchObject({ statusCode: 400, error: 'Bad Request', code, details: null });
+      expect(res.body.errors).toEqual([{ field, code: fieldCode, message: expect.any(String) }]);
+      expect(res.headers['location']).toBeUndefined();
+    });
+
+    it('ungültige Aufträge legen keinen Import an', async () => {
+      await request(app.getHttpServer()).get('/api/imports/2').expect(404);
+    });
+
+    it('GET /api/imports/abc → 400 mit field "id"', async () => {
+      const res = await request(app.getHttpServer()).get('/api/imports/abc').expect(400);
+      expect(res.body.errors).toEqual([expect.objectContaining({ field: 'id' })]);
+    });
   });
 });

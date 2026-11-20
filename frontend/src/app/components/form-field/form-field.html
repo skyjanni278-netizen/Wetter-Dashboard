@@ -5,9 +5,9 @@
 @if (hint()) {
   <p class="form-field-hint" [id]="hintId()">{{ hint() }}</p>
 }
-@if (error()) {
+@if (shownError(); as message) {
   <p class="form-field-error" [id]="errorId()" role="alert">
     <span class="form-field-error-symbol" aria-hidden="true">!</span>
-    <span>{{ error() }}</span>
+    <span>{{ message }}</span>
   </p>
 }

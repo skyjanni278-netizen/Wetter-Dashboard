@@ -1,4 +1,7 @@
-import { Controller, Get, Param, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Param } from '@nestjs/common';
+import { IdParamSchema } from '../common/dto/id-param.schema';
+import type { IdParam } from '../common/dto/id-param.schema';
+import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import type { Location } from './location';
 import { LocationsService } from './locations.service';
 
@@ -13,7 +16,7 @@ export class LocationsController {
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number): Location {
+  findOne(@Param(new ZodValidationPipe(IdParamSchema)) { id }: IdParam): Location {
     return this.service.findOne(id);
   }
 }

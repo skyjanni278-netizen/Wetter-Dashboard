@@ -73,3 +73,27 @@ export interface ForecastList {
   items: Forecast[];
   fetchedAt: string | null;
 }
+
+/** Fehler an einem Feld (B3.3). `field` ist der Pfad im Body, Query oder Pfad (`date`, `to`); `null` = ganzes Objekt. */
+export interface ApiFieldError {
+  field: string | null;
+  /** Zod-Code (`unrecognized_keys`, `too_small` …) oder eigener Code (`invalid_date`, `to_before_from`, `range_too_long`). */
+  code: string;
+  message: string;
+}
+
+/**
+ * Fehlerantwort der neuen API (B3.3). Ab Schritt 4 für Validierungsfehler (400, `code` z. B.
+ * `VALIDATION_FAILED`, `DATE_IN_FUTURE`); `path`, `timestamp` und `requestId` kommen mit Schritt 5.
+ */
+export interface ApiError {
+  statusCode: number;
+  error: string;
+  code: string;
+  message: string;
+  errors: ApiFieldError[];
+  details: Record<string, unknown> | null;
+  path?: string;
+  timestamp?: string;
+  requestId?: string;
+}

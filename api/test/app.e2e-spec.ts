@@ -86,8 +86,9 @@ describe('Erste GET-Endpunkte (Schritt 2, e2e mit Altdateien im Temp-Ordner)', (
     expect(res.body.statusCode).toBe(404);
   });
 
-  it('GET /api/locations/abc → 400', async () => {
-    await request(app.getHttpServer()).get('/api/locations/abc').expect(400);
+  it('GET /api/locations/abc → 400 mit field "id"', async () => {
+    const res = await request(app.getHttpServer()).get('/api/locations/abc').expect(400);
+    expect(res.body).toMatchObject({ code: 'VALIDATION_FAILED', errors: [{ field: 'id', code: 'invalid_format' }] });
   });
 
   it('US02-1: GET /api/days/2026-11-10 liefert 24 Stunden, Werte ungerundet, null bleibt null', async () => {
@@ -165,6 +166,42 @@ describe('Erste GET-Endpunkte (Schritt 2, e2e mit Altdateien im Temp-Ordner)', (
       dataTo: expect.stringMatching(/^2026-11-(19|20)$/),
       lastSuccessfulUpdateAt: null,
       updateState: 'never',
+    });
+  });
+
+  describe('Validierung mit Zod (Schritt 4, B3.3)', () => {
+    it('US02-2: GET /api/days/2026-02-30 → 400, errors[0] = { field: "date", code: "invalid_date" }', async () => {
+      const res = await request(app.getHttpServer()).get('/api/days/2026-02-30').expect(400);
+      expect(res.body).toEqual({
+        statusCode: 400,
+        error: 'Bad Request',
+        code: 'VALIDATION_FAILED',
+        message: 'Die Anfrage enthält ungültige Werte.',
+        errors: [{ field: 'date', code: 'invalid_date', message: 'Bitte ein gültiges Datum im Format JJJJ-MM-TT angeben.' }],
+        details: null,
+      });
+    });
+
+    it('US02-3: GET /api/days/2026-11-1 → 400, field "date"', async () => {
+      const res = await request(app.getHttpServer()).get('/api/days/2026-11-1').expect(400);
+      expect(res.body.errors).toEqual([expect.objectContaining({ field: 'date', code: 'invalid_date' })]);
+    });
+
+    it('US02-4: GET /api/days/<morgen> → 400 DATE_IN_FUTURE, field "date"; um 00:00 MEZ ist es heute', async () => {
+      const res = await request(app.getHttpServer()).get('/api/days/2026-11-20').expect(400);
+      expect(res.body).toMatchObject({ statusCode: 400, code: 'DATE_IN_FUTURE', errors: [{ field: 'date' }] });
+
+      clock.set('2026-11-19T23:00:00Z');
+      await writeDay(dataDir, '2026-11-20');
+      await request(app.getHttpServer()).get('/api/days/2026-11-20').expect(200);
+    });
+
+    it('US03-3: GET /api/forecasts?days=14 → 400, errors[0] = { field: "days", code: "unrecognized_keys" }', async () => {
+      const res = await request(app.getHttpServer()).get('/api/forecasts?days=14').expect(400);
+      expect(res.body).toMatchObject({
+        code: 'VALIDATION_FAILED',
+        errors: [{ field: 'days', code: 'unrecognized_keys', message: 'Das Feld „days“ ist nicht erlaubt.' }],
+      });
     });
   });
 

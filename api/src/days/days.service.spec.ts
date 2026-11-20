@@ -1,6 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import type { Response } from 'express';
+import { ApiValidationException } from '../common/api-validation.exception';
 import { Clock, FixedClock } from '../common/clock';
 import type { ObservationHour } from '../observations/observation';
 import { OBSERVATION_STORE } from '../observations/observation.store';
@@ -91,6 +92,34 @@ describe('DaysService und DaysController mit Fake-Store (DI, ohne Dateien)', () 
 
   it('unbekannter Tag → NotFoundException', async () => {
     await expect(service.findOne('2024-12-31')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  describe('R02 (US02-4): Zukunftssperre über die Clock, Mitternacht MEZ', () => {
+    afterEach(() => clock.set('2026-11-19T23:30:00Z'));
+
+    it('23:59:59 MEZ am 19.11.: der 20.11. ist morgen → 400 DATE_IN_FUTURE am Feld date', async () => {
+      clock.set('2026-11-19T22:59:59Z');
+      const result = service.findOne('2026-11-20');
+      await expect(result).rejects.toBeInstanceOf(ApiValidationException);
+      await expect(result).rejects.toMatchObject({
+        response: {
+          statusCode: 400,
+          code: 'DATE_IN_FUTURE',
+          errors: [{ field: 'date', code: 'too_big', message: expect.stringContaining('19.11.2026') }],
+          details: null,
+        },
+      });
+    });
+
+    it('00:00 MEZ am 20.11.: der 20.11. ist heute → 200', async () => {
+      clock.set('2026-11-19T23:00:00Z');
+      const day = await service.findOne('2026-11-20');
+      expect(day.isToday).toBe(true);
+    });
+
+    it('Zukunft wird vor „keine Daten“ geprüft (morgen ohne Daten → 400, nicht 404)', async () => {
+      await expect(service.findOne('2026-11-21')).rejects.toMatchObject({ response: { code: 'DATE_IN_FUTURE' } });
+    });
   });
 
   it('Controller setzt Content-Location für today', async () => {

@@ -1,8 +1,10 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { assertNotInFuture } from '../common/api-validation.exception';
+import { localDate } from '../common/berlin-time';
 import { Clock } from '../common/clock';
 import { formatUtc } from '../common/utc';
 import { HEUBACH } from '../locations/location';
-import type { CreateImportInput } from './create-import.input';
+import type { ImportCreateDto } from './dto/import-create.schema';
 import { emptyCounts } from './import';
 import type { ImportRecord } from './import';
 import { ImportRunner } from './import-runner';
@@ -18,8 +20,14 @@ export class ImportsService {
     private readonly clock: Clock,
   ) {}
 
-  /** Legt den Auftrag mit `queued` an und startet ihn danach (`setImmediate`), ohne darauf zu warten. */
-  async create(input: CreateImportInput): Promise<ImportRecord> {
+  /**
+   * Legt den Auftrag mit `queued` an und startet ihn danach (`setImmediate`), ohne darauf zu warten.
+   * Form, Reihenfolge und Spanne (R18) prüft vorher `ImportCreateSchema`; hier R02: `to` nach dem
+   * Berliner Heute → 400 `DATE_IN_FUTURE` am Feld `to` (US10-5). `overwriteCorrections` wird bis zu
+   * den Korrekturen (Schritt 12a) angenommen, aber als `false` gespeichert.
+   */
+  async create(input: ImportCreateDto): Promise<ImportRecord> {
+    assertNotInFuture('to', input.to, localDate(this.clock.now()));
     let record: ImportRecord;
     try {
       record = await this.store.create({
