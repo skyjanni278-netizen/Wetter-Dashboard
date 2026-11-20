@@ -30,7 +30,7 @@ Stand: 19.11.2026 · Grundlage: `01-analyse.md` (F01–F34, S1–S12, Abschnitt 
 | 3 | Services, Dependency Injection, `POST /imports` | M | 2 | ✅ erledigt (`0a2c7b9`) |
 | 4 | Zod-DTOs und Validierung, Feldfehler im Frontend | M | 3 | ✅ erledigt (`f2108f9`) |
 | 5 | Einheitliche Fehlerbehandlung und Statuscodes | S | 4 | ✅ erledigt (`08c3711`) |
-| 6 | Module je Ressource, Regeln zwischen Modulen | M | 5 | offen |
+| 6 | Module je Ressource, Regeln zwischen Modulen | M | 5 | ✅ erledigt (`4b1955d`) |
 | 7 | Fachregeln und berechnete Felder; Heute und Rekorde auf die neue API | L | 6, 1 | offen |
 | 8 | Filter, Sortierung, OpenAPI; Monat und Jahr auf die neue API | M | 7 | offen |
 | 9 | Datenbank, Migrationen, Altdatenimport, Übergabe des Schedulers, Express aus | L | 8 | offen |
@@ -381,6 +381,8 @@ Der Strang über 0.2 bis 1 (Frontend) und der Strang über 2 bis 6 (Backend) kö
 **Aufwand:** S · **Größtes Risiko:** Nest-eigene Exceptions (z. B. `NotFoundException` des Routers) laufen am Filter vorbei. Der Filter fängt deshalb **alles** ab (`@Catch()`).
 
 ## Schritt 6 – Module je Ressource und Regeln zwischen Modulen
+
+> **Status:** ✅ Erledigt am 20.11.2026, Commit `4b1955d`. 259 Unit- und 43 e2e-Tests, `madge@8.0.0` findet keine Zyklen. `@nestjs/schedule` 6.1.3. Entscheidungen: Der Scheduler importiert gestern und heute (US08, damit die 23-Uhr-Stunde keine Vorhersage bleibt). `days` liegt im `StatsModule`, die Dateien bleiben in `src/days/`. Ein eigenes `LegacyModule` fällt in Schritt 9 weg. Pfeile aus B4.1 ohne DI-Bedarf (→ Locations, Status → Stats) entstehen erst, wenn sie gebraucht werden. **Offen:** `SCHEDULER_ENABLED` wird beim Laden von `app.module.ts` gelesen, nicht beim Start (`ConfigModule` in Schritt 11).
 
 **Ziel:** Die Modulstruktur aus B4.1 steht, ohne Zyklen. Regeln, die mehrere Module betreffen, sind an einer Stelle umgesetzt.
 **Bezug:** US08-4 · R19 · S4 · B4.1, B4.2
