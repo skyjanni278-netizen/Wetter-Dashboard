@@ -27,7 +27,7 @@ Stand: 19.11.2026 · Grundlage: `01-analyse.md` (F01–F34, S1–S12, Abschnitt 
 | 0.4 | URL-Zustand und Datumsfeld (F11, F09, F19) | M | 0.3 | ✅ erledigt (`f912292`) |
 | 1 | Design-Grundlage und Umstellung aller Seiten (E3.10) | L | 0.4 | ✅ erledigt (`79cc815`…`2fcccd5`) |
 | 2 | NestJS-Projekt `api/`, erste GET-Endpunkte (In-Memory), Frontend liest Status | M | 0.1 | ✅ erledigt (`8cca517`) |
-| 3 | Services, Dependency Injection, `POST /imports` | M | 2 | offen |
+| 3 | Services, Dependency Injection, `POST /imports` | M | 2 | ✅ erledigt (`0a2c7b9`) |
 | 4 | Zod-DTOs und Validierung, Feldfehler im Frontend | M | 3 | offen |
 | 5 | Einheitliche Fehlerbehandlung und Statuscodes | S | 4 | offen |
 | 6 | Module je Ressource, Regeln zwischen Modulen | M | 5 | offen |
@@ -282,6 +282,8 @@ Der Strang über 0.2 bis 1 (Frontend) und der Strang über 2 bis 6 (Backend) kö
 **Design:** keine Änderung. Die Footer-Anzeige nutzt die Komponenten aus Schritt 1 und entsteht deshalb erst, wenn beide Schritte gemergt sind (siehe Übersicht).
 
 ## Schritt 3 – Services, Dependency Injection, POST
+
+> **Status:** ✅ Erledigt am 20.11.2026, Commit `0a2c7b9`. 118 Unit- und 17 e2e-Tests. Entscheidungen: Die Tagesvorhersage wird mit `timezone=Europe/Berlin` abgerufen (Offset 3600/7200 geprüft), weil „Tag“ der Berliner Kalendertag ist; R32 `utc_offset_seconds = 0` gilt für die Stunden. Für „heute“ gewinnt die neuere Quelle (Express-Datei oder Import). Zusätzliche Codes `UPSTREAM_ERROR`, `INTERNAL_ERROR`, Warnung `FORECAST_FAILED`. R25 (`updateState`) ist schon im `StatusService`. **Befund für Schritt 9:** Der Live-Import bestätigt Z1: Die Altdateien sind im Sommer um 1 h versetzt (fester Offset +01:00). **Offen:** Validierung (US10-4…-8) in Schritt 4, Fehlerformat in Schritt 5. Scheitert im Runner auch das Setzen von `failed`, bliebe ein Import `running`; die Startbereinigung `INTERRUPTED` kommt mit Schritt 9.
 
 **Ziel:** Controller rufen Services auf. Der Datenzugriff liegt hinter einer austauschbaren Schnittstelle. Der erste schreibende Endpunkt nimmt Importaufträge an.
 **Bezug:** US08-2 (Unit), US10-3, US11-1 (In-Memory) · F01 (Muster gegen `Promise.all`) · V27 (Grundlage) · N02 (Anfang) · S3, S7 · R32 (01 1.2/1.3: Open-Meteo-Antworten prüfen)
