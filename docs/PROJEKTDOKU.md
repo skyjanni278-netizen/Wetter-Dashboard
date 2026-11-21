@@ -55,10 +55,11 @@ flowchart LR
 | `frontend/src/styles.css` | globale Klassen: Buttons, Seitenlayout, Raster, `.kicker`, `.visually-hidden` |
 | `frontend/public/assets/fonts/` | lokale Schriften (woff2) und Lizenz `OFL.txt` |
 | `api/` | NestJS-11-Backend (eigene `package.json`, `nest-cli.json`, `tsconfig.json` strict, `tsconfig.build.json`, `.gitignore` für `node_modules/`, `dist/`, `coverage/`), siehe Abschnitt 3a |
-| `api/src/` | Quellen der Nest-API (Dateien siehe 3a.1): je Modul ein Ordner mit `*.module.ts` (`common/`, `legacy/`, `locations/`, `observations/`, `forecasts/`, `weather-provider/`, `imports/`, `scheduler/`, `stats/`, `status/`; Module siehe 3a.0), dazu `days/` und `summaries/` (gehören zum `StatsModule`); Eingabe-Schemas je Ressource in `dto/` (3a.7) |
-| `api/test/` | e2e-Tests (`app.e2e-spec.ts`, `imports.e2e-spec.ts`, `errors.e2e-spec.ts`, `jest-e2e.json`) |
+| `api/src/` | Quellen der Nest-API (Dateien siehe 3a.1): je Modul ein Ordner mit `*.module.ts` (`common/`, `legacy/`, `fixtures/`, `locations/`, `observations/`, `forecasts/`, `weather-provider/`, `imports/`, `scheduler/`, `stats/`, `status/`; Module siehe 3a.0), dazu `days/`, `summaries/` und `records/` (gehören zum `StatsModule`); Eingabe-Schemas je Ressource in `dto/` (3a.7) |
+| `api/test/` | e2e-Tests (`app.e2e-spec.ts`, `imports.e2e-spec.ts`, `errors.e2e-spec.ts`, `stats.e2e-spec.ts`, `jest-e2e.json`) |
 | `api/test/support/` | `fakes.ts`: Testhilfen für Unit- und e2e-Tests (Open-Meteo-Antworten, `fetch`-Ersatz, `FakeLegacySource`); `app.ts`: `createTestApp` (App wie `main.ts`); nicht im Build |
-| `api/test/characterization/` | Golden Files der Express-API (`golden/*.json`, `capture.sh`, `README.md`) |
+| `api/test/fixtures/` | Fixtures für `FIXTURE=<name>` und die e2e-Tests (`us16-ok`, `us16-delayed`, `us20-frost`, `us06-records`, `us02-dst`; Inhalt in `README.md`), siehe 3a.10 |
+| `api/test/characterization/` | Golden Files der Express-API (`golden/*.json`, `capture.sh`), Charakterisierungstest `characterization.e2e-spec.ts` mit der Liste `expected-differences.json`, `README.md` (Abbildung der Felder), siehe 3a.10 |
 | `docs/` | Dokumentation; diese Datei |
 | `docs/umbau/` | Planung des Umbaus: `01`–`05` (siehe Abschnitt 9) |
 | `docs/umbau/screenshots/` | Screenshots der Seiten (Ist-Stand, `nachher/` mit dem neuen Design) |
@@ -140,7 +141,7 @@ Hinweise: Der Monats-Parameter wird nur auf zwei Ziffern geprüft (kein Bereich 
 
 ## 3a. Backend (NestJS, `api/`)
 
-NestJS 11 auf Express 5 (`@nestjs/platform-express`), TypeScript strict, Jest, Zod 4 (`zod` ^4.6.7) für Open-Meteo-Antworten und für jede Eingabe (Pfad, Query, Body; 3a.7), `@nestjs/schedule` ^6.1.3 (nutzt `cron` 4.4.0) für den stündlichen Abruf. Stand Roadmap-Schritt 6: Module je Ressource nach 03 B4.1 (3a.0); Controller rufen nur Services auf, Services greifen über DI-Tokens auf Stores zu (3a.3). Die Stores liegen im Arbeitsspeicher und lesen den Altbestand aus den JSON-Dateien von Express (nur lesend). Lauscht nur auf `127.0.0.1`, globales Präfix `/api`.
+NestJS 11 auf Express 5 (`@nestjs/platform-express`), TypeScript strict, Jest, Zod 4 (`zod` ^4.6.7) für Open-Meteo-Antworten und für jede Eingabe (Pfad, Query, Body; 3a.7), `@nestjs/schedule` ^6.1.3 (nutzt `cron` 4.4.0) für den stündlichen Abruf. Module je Ressource nach 03 B4.1 (3a.0); Controller rufen nur Services auf, Services greifen über DI-Tokens auf Stores zu (3a.3). Seit Roadmap-Schritt 7 liegen die Fachregeln R06–R14 im `AggregationService` (3a.9), Tage, Zusammenfassungen und Rekorde haben berechnete Felder. Die Stores liegen im Arbeitsspeicher und lesen den Altbestand aus den JSON-Dateien von Express (nur lesend). Lauscht nur auf `127.0.0.1`, globales Präfix `/api`.
 
 ### 3a.0 Module und Abhängigkeiten
 
@@ -148,47 +149,52 @@ NestJS 11 auf Express 5 (`@nestjs/platform-express`), TypeScript strict, Jest, Z
 
 | Modul (Datei) | Controller | Provider | `exports` | importiert |
 |---|---|---|---|---|
-| `CommonModule` (`common/common.module.ts`) | – | `Clock` (= `SystemClock`) | `Clock` | – |
+| `CommonModule` (`common/common.module.ts`) | – | `Clock` (`SystemClock`, oder `FixedClock(FAKE_NOW)` über `clockFromEnv`, 3a.5) | `Clock` | – |
 | `LegacyModule` (`legacy/legacy.module.ts`) | – | `LEGACY_DATA_DIR`, `LegacyFileSource` | `LegacyFileSource` | Common |
+| `FixturesModule` (`fixtures/fixtures.module.ts`) | – | `ACTIVE_FIXTURE` (Fixture aus `FIXTURE` oder `null`, 3a.10) | `ACTIVE_FIXTURE` | – |
 | `LocationsModule` (`locations/locations.module.ts`) | `LocationsController` | `LocationsService` | `LocationsService` | – |
-| `ObservationsModule` (`observations/observations.module.ts`) | – | `OBSERVATION_STORE` (`InMemoryObservationStore`) | `OBSERVATION_STORE` | Common, Legacy |
-| `ForecastsModule` (`forecasts/forecasts.module.ts`) | `ForecastsController` | `ForecastsService`, `FORECAST_STORE` (`InMemoryForecastStore`) | `FORECAST_STORE` | Legacy |
+| `ObservationsModule` (`observations/observations.module.ts`) | – | `OBSERVATION_STORE` (`InMemoryObservationStore`) | `OBSERVATION_STORE` | Common, Legacy, Fixtures |
+| `ForecastsModule` (`forecasts/forecasts.module.ts`) | `ForecastsController` | `ForecastsService`, `FORECAST_STORE` (`InMemoryForecastStore`) | `FORECAST_STORE` | Legacy, Fixtures |
 | `WeatherProviderModule` (`weather-provider/weather-provider.module.ts`) | – | `OpenMeteoClient` | `OpenMeteoClient` | – |
-| `ImportsModule` (`imports/imports.module.ts`) | `ImportsController` | `ImportsService`, `ImportRunner`, `IMPORT_STORE` (`InMemoryImportStore`) | `ImportsService`, `IMPORT_STORE` | Common, Observations, Forecasts, WeatherProvider |
+| `ImportsModule` (`imports/imports.module.ts`) | `ImportsController` | `ImportsService`, `ImportRunner`, `IMPORT_STORE` (`InMemoryImportStore`) | `ImportsService`, `IMPORT_STORE` | Common, Observations, Forecasts, WeatherProvider, Fixtures |
 | `SchedulerModule` (`scheduler/scheduler.module.ts`, `SchedulerModule.forRoot(enabled)`) | – | `SCHEDULER_ENABLED` (Wert), `SchedulerService` | – | Common, Imports, `ScheduleModule.forRoot()` **nur** bei `SCHEDULER_ENABLED=true` |
-| `StatsModule` (`stats/stats.module.ts`) | `DaysController` (`days/`) | `DaysService` | – | Common, Observations |
+| `StatsModule` (`stats/stats.module.ts`) | `DaysController` (`days/`), `SummariesController` (`summaries/`), `RecordsController` (`records/`) | `AggregationService`, `DaysService`, `SummariesService`, `RecordsService` | – | Common, Observations |
 | `StatusModule` (`status/status.module.ts`) | `StatusController` | `StatusService` | – | Common, Observations, Imports |
 
 ```
 AppModule ─┬─ Common · Locations · WeatherProvider · Forecasts · Observations   (unten, kennen niemanden über sich)
            ├─ Imports ──► Observations, Forecasts, WeatherProvider
            ├─ Scheduler ──► Imports
-           ├─ Stats ──► Observations           (Lesemodelle)
+           ├─ Stats ──► Observations           (Lesemodelle: days, summaries, records)
            └─ Status ──► Observations, Imports
 Observations, Forecasts ──► Legacy ──► Common  (Übergang bis Schritt 9)
+Observations, Forecasts, Imports ──► Fixtures  (Übergang bis Schritt 9, FIXTURE)
 ```
 
 - **Imports ↔ Observations:** `ObservationsModule` importiert das `ImportsModule` nicht. Der Runner gibt die `importId` nur als Wert an `upsertHours` (Schritt 9: Spalte `import_id`, 03 B4.1).
 - **Locations:** Bis Schritt 9 nutzen die anderen Module Heubach nur als TypeScript-Konstante `HEUBACH` (`locations/location.ts`), nicht per DI. Deshalb fehlen die Pfeile Observations/Forecasts/Imports/Stats → Locations aus B4.1 noch; sie kommen mit dem Repository. Ebenso Status → Stats (erst mit `daysComplete`, US17-1).
 - **Legacy:** eigenes Modul, weil nur die beiden In-Memory-Stores den Altbestand lesen; so hängen Observations und Forecasts nicht voneinander ab, und das Modul fällt in Schritt 9 als Ganzes weg.
-- **Stats:** B4.1 ordnet `days` (sowie ab Schritt 7/8 `summaries`, `records`) dem `StatsModule` zu. Die Dateien bleiben bis Schritt 7 in `days/` bzw. `summaries/dto/`; `stats/` enthält nur das Modul.
+- **Stats:** B4.1 ordnet `days`, `summaries` und `records` dem `StatsModule` zu. Controller, Services und Mapper liegen in `days/`, `summaries/` und `records/`; `stats/` enthält das Modul und den `AggregationService` (Fachregeln, 3a.9).
+- **Fixtures:** eigenes Modul, weil drei Stores (Observations, Forecasts, Imports) dieselbe Fixture brauchen und keiner davon die anderen importieren darf. Es kennt keine Fachmodule und fällt in Schritt 9 weg (`db:seed --fixture`).
 - **Scheduler** (`scheduler/scheduler.service.ts`): `@Cron('0 5 * * * *', { name: 'scheduled-import', timeZone: 'Europe/Berlin' })` an `tick()`. Ein Lauf legt über `ImportsService.createScheduled(gestern, heute)` einen Import `kind = "scheduled"` an (Berliner Tage, US08; der Runner holt dazu die 7-Tage-Vorhersage). Läuft schon ein Import (`queued`/`running`, R19), wird der Lauf übersprungen: Warnung `Scheduler-Lauf übersprungen: Import <id> läuft noch (R19)`, kein zweiter Import, keine Exception. Andere Fehler werden geloggt, `tick()` wirft nie. `scheduled` bleibt über HTTP verboten (`ImportCreateSchema`). Beim Start loggt `SchedulerService` `Scheduler deaktiviert (SCHEDULER_ENABLED ist nicht "true")` bzw. `Scheduler aktiv: 0 5 * * * * (Europe/Berlin) …`. Bei `false` wird `ScheduleModule` nicht geladen, also kein Cron-Job registriert, und `tick()` tut nichts.
 
 ### 3a.1 Dateien und Aufgaben
 
 | Datei (`api/src/`) | Aufgabe |
 |---|---|
-| `main.ts` | Start: `NestFactory.create(AppModule, APP_OPTIONS)`, `configureApp`, `listen(PORT, '127.0.0.1')`, loggt Adresse und Datenordner |
+| `main.ts` | Start: prüft zuerst `FAKE_NOW` und `FIXTURE` (bei Fehler `Start abgebrochen: …` im Log, Exit-Code 1, kein Aufbau der App), dann `NestFactory.create(AppModule, APP_OPTIONS)`, `configureApp`, `listen(PORT, '127.0.0.1')`, loggt Adresse und Datenquelle (`Altdaten: <ordner>` oder `Fixture: <name>`) |
 | `app.setup.ts` | `APP_OPTIONS` (`bodyParser: false`) und `configureApp(app)` für `main.ts` **und** die e2e-Tests: Präfix `/api`, dann in dieser Reihenfolge `requestIdMiddleware`, `ContentNegotiationMiddleware` (406/415), JSON-Parser (`useBodyParser('json', { limit: '64kb', type: [application/json, application/merge-patch+json] })`), `bodyParserErrorMiddleware` (3a.8) |
 | `app.module.ts` | Wurzelmodul: importiert die Module aus 3a.0 (`SchedulerModule.forRoot()` liest `SCHEDULER_ENABLED` beim Laden der Datei) und registriert `APP_FILTER` = `ApiExceptionFilter`; sonst keine Provider |
 | `*/*.module.ts` | je ein Modul nach 03 B4.1 (Inhalt, `exports`, Importe: 3a.0) |
 | `scheduler/scheduler-enabled.ts` | Token `SCHEDULER_ENABLED`, `isSchedulerEnabled(env)` (nur exakt `"true"` → `true`) |
 | `scheduler/scheduler.service.ts` | `SchedulerService`: `@Cron` an `tick()` (3a.0), `SCHEDULER_CRON` = `0 5 * * * *`, Jobname `SCHEDULED_IMPORT_JOB` = `scheduled-import`, Startmeldung in `onApplicationBootstrap` |
 | `common/clock.ts` | `Clock` (abstrakt, zugleich DI-Token), `SystemClock`, `FixedClock` (Tests: `set`, `advance`) |
+| `common/fake-now.ts` | `fakeNowFromEnv(env)` (prüft `FAKE_NOW`, wirft `FakeNowConfigError`), `clockFromEnv(env)` (Provider-Fabrik für `Clock`, Warn-Log `Uhr steht fest auf FAKE_NOW=…`), siehe 3a.5 |
+| `common/round.ts` | `round1` (R11): eine Nachkommastelle, kaufmännisch vom Nullpunkt weg, Gleitkomma-Reste geglättet, nie `-0`, `null` bleibt `null`. **Nur** in den Response-Mappern (`days/day.mapper.ts`, `summaries/summaries.service.ts`, `records/records.service.ts`) |
 | `common/berlin-time.ts` | `BERLIN_TIMEZONE`, `localDate`, `localHour`, `localDateTime` (Ortszeit ohne Offset), `addDays`, `hoursInDay` (23/24/25), `isIsoDate` |
 | `common/utc.ts` | `formatUtc`: Zeitpunkt als `YYYY-MM-DDTHH:MM:SSZ` (Zeitfelder der Import-Ressource, `lastSuccessfulUpdateAt`) |
 | `common/api-error.ts` | Typen des Fehlerformats (B3.3): `ApiFieldError` (`field, code, message`), `ApiErrorPayload` (Inhalt einer Exception), `ApiErrorBody` (plus `path`, `timestamp`, `requestId`), `ApiErrorCode` (alle festen Codes aus B3.3, `API_ERROR_CODES`); `statusText`, `codeForStatus`, `defaultMessage` (deutsche Standardmeldung je Code), `isApiErrorPayload`, `formatDateDe`, `INTERNAL_ERROR_MESSAGE` |
-| `common/api.exception.ts` | `ApiException(status, code, message, { errors?, details?, cause? })` für Fachfehler; Fabriken `notFound(message)`, `noData(date, dataFrom)` (R03), `importRunning(id)` (R19) |
+| `common/api.exception.ts` | `ApiException(status, code, message, { errors?, details?, cause? })` für Fachfehler; Fabriken `notFound(message)`, `noData(date, dataFrom)` (R03, Tag), `noDataFor(period, dataFrom)` (R03, Monat „Dezember 2024“ bzw. Jahr „das Jahr 2024“), `importRunning(id)` (R19) |
 | `common/api-exception.filter.ts` | `ApiExceptionFilter` (`@Catch()` für alles, `APP_FILTER`), `toErrorPayload` (Abbildung, 3a.8), `isUniqueViolation` |
 | `common/content-negotiation.middleware.ts` | `ContentNegotiationMiddleware` (406/415), `acceptsJson`, `hasBody`, `contentNegotiationError` |
 | `common/body-parser.ts` | `JSON_BODY_LIMIT` (`64kb`), `JSON_MEDIA_TYPES`, `bodyParserException` (Parser-Fehler → `ApiException`), `bodyParserErrorMiddleware` |
@@ -199,27 +205,34 @@ Observations, Forecasts ──► Legacy ──► Common  (Übergang bis Schrit
 | `days/dto/date-param.schema.ts` | `DateParamSchema` (`{ date }`, R01) |
 | `forecasts/dto/forecasts-query.schema.ts` | `ForecastsQuerySchema` (leer, `.strict()`, R22) |
 | `imports/dto/import-create.schema.ts` | `ImportCreateSchema` (R18), `MAX_IMPORT_DAYS` = 1096 |
-| `summaries/dto/year-month-param.schema.ts`, `year-param.schema.ts` | `YearMonthSchema`/`YearMonthParamSchema` (R04), `YearSchema`/`YearParamSchema` (R05, `FIRST_YEAR` = 1940); schon angelegt, die Endpunkte folgen in Schritt 8 |
+| `summaries/dto/year-month-param.schema.ts`, `year-param.schema.ts` | `YearMonthSchema`/`YearMonthParamSchema` (R04), `YearSchema`/`YearParamSchema` (R05, `FIRST_YEAR` = 1940), genutzt von `SummariesController` |
+| `records/dto/records-query.schema.ts` | `RecordsQuerySchema` (leer, `.strict()`, R22, US06-6) |
+| `fixtures/fixture.ts` | Token `ACTIVE_FIXTURE`, `FIXTURE_DIR` (`api/test/fixtures`, über `__dirname`, gleich für `src/` und `dist/`), `FixtureSchema` (Zod, `.strict()`), `loadFixture(name, dir?)`, `fixtureFromEnv(env)`, `FixtureConfigError` (3a.10) |
+| `fixtures/fixtures.module.ts` | `FixturesModule`: `ACTIVE_FIXTURE` per Fabrik aus `FIXTURE`, Warn-Log `Fixture "<name>" aktiv: …` |
+| `stats/aggregation.service.ts` | `AggregationService` (3a.9): `aggregateDay(date, hours, now)`, `aggregateDays(days, now)`, `summarize(days, daysExpected)`, `records(days)`; dazu `isPredictionHour`, `daysInMonth`, `daysInYear`, Konstanten `DRY_DAY_THRESHOLD_MM` = 0,1, `MEAN_METHOD` = `mean_of_daily_means`. Reine Logik über Zeilenlisten, ungerundet, „jetzt“ als Parameter |
+| `days/day.mapper.ts` | Response-Mapper `toDay(aggregat)` und `toDayTemperature` (rundet mit `round1`) |
+| `summaries/summary.ts`, `summaries.service.ts`, `summaries.controller.ts` | Typen `MonthSummary`/`YearSummary`, `SummariesService` (`findMonth`, `findYear`: R02 → `DATE_IN_FUTURE` an `yearMonth`/`year`, R03 → `NO_DATA`; Mapper mit `round1`), Controller |
+| `records/record.ts`, `records.service.ts`, `records.controller.ts` | Typen `Records`/`HourRecordResource`, `RecordsService` (`find`: Tage vom Datenbeginn bis heute; Mapper mit `round1`), Controller mit `RecordsQuerySchema` |
 | `legacy/legacy-data-dir.ts` | Token `LEGACY_DATA_DIR`, `resolveLegacyDataDir` (Umgebungsvariable oder Standard, relativ zum Arbeitsverzeichnis) |
 | `legacy/legacy-types.ts` | Altformat der Dateien (`LegacyDayFileRaw`, `LegacyForecastRaw`) und normalisierte Typen (`LegacyHour`, `LegacyForecast`) |
-| `legacy/legacy-file-source.ts` | `LegacyFileSource`: lädt beim Start alle Tagesdateien asynchron in eine `Map<date, hours[]>`; die Datei für heute (Berliner Datum über `Clock`) und `forecast.json` liest es bei jeder Anfrage neu. `getDayFile` liefert zusätzlich die Änderungszeit (`modifiedAt`, nur bei der heutigen Datei). Zeiten über `formatUtc`. Werte `number \| null`, nicht gerundet. Nur die In-Memory-Stores nutzen es |
-| `observations/observation.ts` | Typen `ObservationValues`, `ObservationHour` (`timeLocal`, `timeUtc`; `null` im Altbestand), `ObservationInput` (UTC), `UpsertCounts`, `UpsertMode` |
-| `observations/observation.store.ts`, `in-memory-observation.store.ts` | Schnittstelle `ObservationStore` (`getDay`, `getDataRange`, `upsertHours`) mit Token `OBSERVATION_STORE`; `InMemoryObservationStore` (Altbestand plus importierte Stunden, siehe 3a.4) |
-| `forecasts/forecast.store.ts`, `in-memory-forecast.store.ts` | Schnittstelle `ForecastStore` (`getLatest`, `save`) mit Token `FORECAST_STORE`; `InMemoryForecastStore` (liefert die jüngere von `forecast.json` und importierter Vorhersage) |
+| `legacy/legacy-file-source.ts` | `LegacyFileSource`: lädt beim Start alle Tagesdateien asynchron mit ihrer Änderungszeit in eine `Map<date, Datei>`; die Datei für heute (Berliner Datum über `Clock`) und `forecast.json` liest es bei jeder Anfrage neu. `getDayFile` liefert die Stunden und `modifiedAt` (Änderungszeit, für jede Datei; R08 und Vorrang für heute). Zeiten über `formatUtc`. Werte `number \| null`, nicht gerundet. Nur die In-Memory-Stores nutzen es |
+| `observations/observation.ts` | Typen `ObservationValues`, `ObservationSource` (`archive`, `forecast_api`, `prediction`), `ObservationHour` (`timeLocal`, `timeUtc` (`null` im Altbestand), `source` (`null` = unbekannt)), `ObservationInput` (UTC, optional `source` der abgefragten API), `StoredDay` (`{ date, hours }`), `UpsertCounts`, `UpsertMode` |
+| `observations/observation.store.ts`, `in-memory-observation.store.ts` | Schnittstelle `ObservationStore` (`getDay`, `getRange(from, to)`, `getDataRange`, `upsertHours`) mit Token `OBSERVATION_STORE`; `InMemoryObservationStore` (Altbestand bzw. Fixture plus importierte Stunden, siehe 3a.4) |
+| `forecasts/forecast.store.ts`, `in-memory-forecast.store.ts` | Schnittstelle `ForecastStore` (`getLatest`, `save`) mit Token `FORECAST_STORE`; `InMemoryForecastStore` (liefert die jüngere von `forecast.json` bzw. Fixture-Vorhersage und importierter Vorhersage) |
 | `forecasts/forecast.ts`, `forecasts.service.ts`, `forecasts.controller.ts` | Typ `Forecast`/`ForecastList`, `ForecastsService`, Controller |
-| `days/day.ts`, `days.service.ts`, `days.controller.ts` | Typ `Day`/`DayHour`, `DaysService` (`today`, `findToday`, `findOne` mit Zukunftssperre R02 und `NO_DATA` mit `dataFrom` aus `getDataRange()`, R03), Controller für `today` und `:date` |
+| `days/day.ts`, `days.service.ts`, `days.controller.ts` | Typ `Day`/`DayHour`/`DayTemperature`/`DayCurrent`, `DaysService` (`today`, `findToday`, `findOne` mit Zukunftssperre R02, `NO_DATA` mit `dataFrom` aus `getDataRange()` (R03), dann `AggregationService.aggregateDay` und `toDay`), Controller für `today` und `:date` |
 | `locations/location.ts`, `locations.service.ts`, `locations.controller.ts` | Standort Heubach als Konstante (`id = 1`, `slug = "heubach"`), `LocationsService` (unbekannte `id` → 404 `NOT_FOUND`), Controller |
 | `status/status.ts`, `status.service.ts`, `status.controller.ts` | Typ `Status`/`UpdateState`, `StatusService` mit R25 (`updateStateOf`, Schwelle `UPDATE_DELAYED_AFTER_MS` = 2 h), Controller |
 | `imports/import.ts` | Typen `ImportRecord`, `ImportResource` (B2.2, mit `links.self`), `ImportKind`, `ImportStatus`, `ImportCounts`; `toImportResource`, `importPath` |
-| `imports/import.store.ts`, `in-memory-import.store.ts` | Schnittstelle `ImportStore` (`create`, `findById`, `update`, `findLastFinished`) mit Token `IMPORT_STORE` und `ImportAlreadyRunningError` (R19); `InMemoryImportStore` (IDs ab 1 nach jedem Start) |
+| `imports/import.store.ts`, `in-memory-import.store.ts` | Schnittstelle `ImportStore` (`create`, `findById`, `update`, `findLastFinished`) mit Token `IMPORT_STORE` und `ImportAlreadyRunningError` (R19); `InMemoryImportStore` (IDs ab 1 nach jedem Start; mit Fixture stehen deren Importe schon darin) |
 | `imports/imports.service.ts` | `ImportsService`: `create` (HTTP): `to` nach heute → 400 `DATE_IN_FUTURE` (R02), Auftrag `queued` anlegen, danach `ImportRunner.schedule`; 409 `IMPORT_RUNNING` mit `details.runningImportId` bei laufendem Import (R19); `createScheduled(from, to)` für den Scheduler (`kind = "scheduled"`, wirft bei laufendem Import `ImportAlreadyRunningError` statt 409); `findOne` mit 404 `NOT_FOUND` |
 | `imports/import-plan.ts` | `planHourlyRequests`: Berliner Tage `from`–`to` → höchstens zwei Abfragen (Archiv für ältere Tage, Forecast-API für die letzten `RECENT_DAYS` = 10 Tage), jeweils einen UTC-Tag früher beginnend |
-| `imports/import-runner.ts` | `ImportRunner`: Ablauf eines Imports (3a.4); `schedule` (per `setImmediate`), `run`, `whenIdle` (für Tests) |
+| `imports/import-runner.ts` | `ImportRunner`: Ablauf eines Imports (3a.4); `schedule` (per `setImmediate`), `run`, `whenIdle` (für Tests); gibt je Stunde die abgefragte API als `source` mit (`archive` bzw. `forecast_api`) |
 | `imports/imports.controller.ts` | `POST /api/imports` (202, `Location`), `GET /api/imports/:id` |
 | `weather-provider/open-meteo.schema.ts` | das **eine** Variablen-Mapping (`HOURLY_VARIABLES`, `DAILY_VARIABLES`, S7) und die Zod-Schemas `OpenMeteoResponseSchema` (Stundenwerte, `utc_offset_seconds = 0`) und `OpenMeteoDailyResponseSchema` (Tagesvorhersage, `utc_offset_seconds` ∈ {3600, 7200}) (R32) |
 | `weather-provider/open-meteo.client.ts` | `OpenMeteoClient`: natives `fetch`, 15 s Zeitlimit je Versuch (`AbortSignal.timeout`), 2 Wiederholungen mit Backoff (1 s, 3 s) bei Netzfehler, Zeitüberschreitung, HTTP 5xx/429; `fetchHourly` (Archiv oder Forecast-API, `timezone=GMT`), `fetchDailyForecast` (7 Berliner Tage, `timezone=Europe/Berlin`). Fehler als `OpenMeteoError` mit `code` (`UPSTREAM_INVALID`, `UPSTREAM_TIMEOUT`, `UPSTREAM_ERROR`). Optionale Tokens `OPEN_METEO_FETCH`, `OPEN_METEO_RETRY_DELAYS_MS` für Tests |
 
-Tests: je `*.spec.ts` neben der Quelle (`app.module` als Boot-Test: `AppModule` kompiliert ohne Zyklus, alle Services erreichbar, ohne `SCHEDULER_ENABLED` keine `SchedulerRegistry`; `scheduler.service` (R19/US08-4 mit Logger-Spy, `isSchedulerEnabled`), `scheduler.module` (`forRoot(false)` ohne Cron-Job, `forRoot(true)` mit Job `0 5 * * * *` in Europe/Berlin), `berlin-time`, `clock`, `legacy-data-dir`, `open-meteo.client`, `import-runner`, `import-plan`, `imports.service`, `in-memory-observation.store`, `in-memory-forecast.store`, `days.service` mit Fake-Store ohne Dateien, `status.service` mit den R25-Grenzen, `zod-validation.pipe`, `api-exception.filter` (Abbildung Status/Code, Body, Log bei 500), `content-negotiation.middleware`, je Schema unter `dto/` mit den Grenzfällen aus B1.3), dazu `api/test/app.e2e-spec.ts` (GET-Endpunkte mit Fixture-Dateien im Temp-Ordner und `FixedClock`, 400-Fälle), `api/test/imports.e2e-spec.ts` (Importe mit gemocktem `OpenMeteoClient`, kein Netzaufruf, 400-Fälle des Bodys, 409 `IMPORT_RUNNING`) und `api/test/errors.e2e-spec.ts` (Fehlerformat: `NO_DATA`, `DATE_IN_FUTURE`, 406, 415, 413, kaputtes JSON, JSON-404 für unbekannte Routen, 500 über einen per `overrideProvider` ersetzten Service). e2e-Apps entstehen über `test/support/app.ts` (`createTestApp`: `APP_OPTIONS` + `configureApp` wie `main.ts`).
+Tests: je `*.spec.ts` neben der Quelle (`app.module` als Boot-Test: `AppModule` kompiliert ohne Zyklus, alle Services erreichbar, ohne `SCHEDULER_ENABLED` keine `SchedulerRegistry`; `scheduler.service` (R19/US08-4 mit Logger-Spy, `isSchedulerEnabled`), `scheduler.module` (`forRoot(false)` ohne Cron-Job, `forRoot(true)` mit Job `0 5 * * * *` in Europe/Berlin), `berlin-time`, `clock`, `legacy-data-dir`, `open-meteo.client`, `import-runner`, `import-plan`, `imports.service`, `in-memory-observation.store`, `in-memory-forecast.store`, `days.service` mit Fake-Store ohne Dateien, `status.service` mit den R25-Grenzen, `zod-validation.pipe`, `api-exception.filter` (Abbildung Status/Code, Body, Log bei 500), `content-negotiation.middleware`, je Schema unter `dto/` mit den Grenzfällen aus B1.3, `aggregation.service` mit je einem Fall pro Grenze aus R07–R14 und R08 (14:30 → ab 15:00 Vorhersage, Grenze 15:00:00, veraltete Vorhersage, Trockentag 0,09/0,1, Periode mit Lücke, Rekord 30,04/30,03, Gleichstand, Mittel bei 23/25 Stunden, `null`, Vollständigkeit), `round` (`−0,04` → `0`, x,x5), `fake-now`, `fixture` (alle mitgelieferten Fixtures gültig)), dazu `api/test/app.e2e-spec.ts` (GET-Endpunkte mit Fixture-Dateien im Temp-Ordner und `FixedClock`, 400-Fälle), `api/test/imports.e2e-spec.ts` (Importe mit gemocktem `OpenMeteoClient`, kein Netzaufruf, 400-Fälle des Bodys, 409 `IMPORT_RUNNING`), `api/test/errors.e2e-spec.ts` (Fehlerformat: `NO_DATA`, `DATE_IN_FUTURE`, 406, 415, 413, kaputtes JSON, JSON-404 für unbekannte Routen, 500 über einen per `overrideProvider` ersetzten Service), `api/test/stats.e2e-spec.ts` (Fachregeln mit Fixtures per `overrideProvider(ACTIVE_FIXTURE)` und `FixedClock`: US01-2/-3/-6, US02-6/-7, US06-2…-6, US16-1/-2, Zusammenfassungen mit 400/404) und `api/test/characterization/characterization.e2e-spec.ts` (3a.10). e2e-Apps entstehen über `test/support/app.ts` (`createTestApp`: `APP_OPTIONS` + `configureApp` wie `main.ts`).
 
 ### 3a.2 Endpunkte
 
@@ -230,13 +243,16 @@ Antwort nur JSON. **Jede** Fehlerantwort hat das Format aus B3.3 mit `path`, `ti
 | `GET /api/locations` | `{ items: [Location] }` mit genau Heubach | – |
 | `GET /api/locations/:id` | `Location` (`id, slug, name, postalCode, region, latitude, longitude, timezone, isDefault`) | 400 `id` keine positive ganze Zahl (`field: "id"`), 404 `NOT_FOUND` unbekannt |
 | `GET /api/days/today` | `Day` für den Berliner Tag, Header `Content-Location: /api/days/<datum>` | 404 `NO_DATA` (noch keine Stunde für heute, `details.dataFrom`), 406 bei `Accept: text/html` (US01-4) |
-| `GET /api/days/:date` | `Day`: `id, date, locationId, timezone, isToday, hoursExpected, hours[]`; Stunde: `timeLocal` (Ortszeit **ohne** Offset), `temperature, apparentTemperature, precipitation, weatherCode, windSpeed, windDirection` | 400 `invalid_date` an `date` (Format oder kein Kalendertag, R01), 400 `DATE_IN_FUTURE` an `date` (nach dem Berliner Heute, R02), 404 `NO_DATA` für jeden Tag ohne Stunde, vor oder nach dem Datenbeginn (R03): `message` „Für den 31.12.2024 liegen keine Daten vor. Daten gibt es ab 01.01.2025.“, `details.dataFrom` = erster Tag laut Store (`null`, wenn es gar keine Daten gibt) |
+| `GET /api/days/:date` | `Day`: `id, date, locationId, timezone, isToday, hoursExpected, hoursObserved, hoursPredicted, complete, current, observed, predicted, hours[]` (Felder und Regeln in 3a.9). Stunde: `timeLocal` (Ortszeit **ohne** Offset), `temperature, apparentTemperature, precipitation, weatherCode, windSpeed, windDirection` (ungerundet), `source, isPrediction, correctedAt` | 400 `invalid_date` an `date` (Format oder kein Kalendertag, R01), 400 `DATE_IN_FUTURE` an `date` (nach dem Berliner Heute, R02), 404 `NO_DATA` für jeden Tag ohne Stunde, vor oder nach dem Datenbeginn (R03): `message` „Für den 31.12.2024 liegen keine Daten vor. Daten gibt es ab 01.01.2025.“, `details.dataFrom` = erster Tag laut Store (`null`, wenn es gar keine Daten gibt) |
 | `GET /api/forecasts` | `{ items: [Forecast], fetchedAt }`; Eintrag: `locationId, date, maxTemp, minTemp, precipitationSum, weatherCode, fetchedAt`. `fetchedAt` (`YYYY-MM-DDTHH:MM:SSZ`) = Änderungszeit von `forecast.json` bzw. Abrufzeit des Imports; `date` ist ein Berliner Kalendertag | 400 `unrecognized_keys` je Query-Parameter, es gibt noch keinen (R22). Ohne Vorhersage: `items = []`, `fetchedAt = null` |
+| `GET /api/summaries/months/:yearMonth` | `MonthSummary`: `id, year, month, locationId, daysExpected, daysComplete, complete, temperature { mean, min, max, minAt, maxAt }, precipitationSum, dryDays, meanMethod` (3a.9) | 400 `VALIDATION_FAILED` an `yearMonth` (R04, z. B. `2025-13`), 400 `DATE_IN_FUTURE` an `yearMonth` (Monat nach dem laufenden; der laufende ist gültig), 404 `NO_DATA` (keine Stunde im Monat, Meldung „Für Dezember 2024 liegen keine Daten vor. …“, `details.dataFrom`) |
+| `GET /api/summaries/years/:year` | `YearSummary`: `id, year, locationId, daysExpected, daysComplete, monthsWithData, complete, temperature {…}, precipitationSum, dryDays, meanMethod` | 400 an `year` (R05: `1939`, `26`, `abc`), 400 `DATE_IN_FUTURE` an `year` (Jahr nach dem laufenden), 404 `NO_DATA` („Für das Jahr 2024 …“) |
+| `GET /api/records` | `Records`: `locationId, hottest, coldest, wettestDay, longestDryPeriod, daysCounted, excludesPredictions (true)`; ohne Daten alle Rekorde `null`, `daysCounted = 0` (3a.9) | 400 `unrecognized_keys` je Query-Parameter (R22, US06-6) |
 | `GET /api/status` | `{ locationId, today, timezone, dataFrom, dataTo, lastSuccessfulUpdateAt, updateState }`, ohne Fehlertext; `updateState` siehe 3a.4 | – |
 | `POST /api/imports` | Body `{ kind: "range" \| "gaps", from, to, overwriteCorrections? }` (Berliner Daten `YYYY-MM-DD`; `overwriteCorrections` boolean, bis Schritt 12a ohne Wirkung, gespeichert wird `false`). **202**, Header `Location: /api/imports/<id>`, Body = Import-Ressource mit `status = "queued"` | 400 `VALIDATION_FAILED` (`ImportCreateSchema`, 3a.7), 400 `DATE_IN_FUTURE` an `to` (`to` nach heute), 400 `VALIDATION_FAILED` kaputtes JSON, 409 `IMPORT_RUNNING` (es läuft schon ein Import, `queued`/`running`) mit `details.runningImportId`, 413 `PAYLOAD_TOO_LARGE` (Body über 64 KB), 415 `UNSUPPORTED_MEDIA_TYPE` (Body nicht `application/json`) |
 | `GET /api/imports/:id` | Import-Ressource (B2.2): `id, locationId, kind, status, from, to, overwriteCorrections (false), requestedBy (null), requestedAt, startedAt, finishedAt, counts { inserted, updated, unchanged, skippedCorrected (0) }, warnings[], error, links.self` | 400 `id` keine positive ganze Zahl (`field: "id"`), 404 `NOT_FOUND` unbekannt |
 
-Die Liste `GET /api/imports` gibt es noch nicht; ein `DELETE` entfällt (begründet in der Roadmap, Schritt 3).
+Die Liste `GET /api/imports` gibt es noch nicht; ein `DELETE` entfällt (begründet in der Roadmap, Schritt 3). `GET /api/days?from&to`, `GET /api/summaries/months?year` und `GET /api/summaries/years` folgen in Schritt 8.
 
 ### 3a.3 Stores und DI-Tokens
 
@@ -245,14 +261,19 @@ Die Liste `GET /api/imports` gibt es noch nicht; ein `DELETE` entfällt (begrün
 | `OBSERVATION_STORE` | `ObservationStore` | `InMemoryObservationStore` (liest über `LegacyFileSource`) | TypeORM, Tabelle `observation` |
 | `FORECAST_STORE` | `ForecastStore` | `InMemoryForecastStore` (liest über `LegacyFileSource`) | TypeORM, Tabelle `daily_forecast` |
 | `IMPORT_STORE` | `ImportStore` | `InMemoryImportStore` | TypeORM, Tabelle `import` |
-| `Clock` (Klasse) | `Clock` | `SystemClock` | unverändert |
+| `Clock` (Klasse) | `Clock` | `SystemClock` bzw. `FixedClock(FAKE_NOW)` | unverändert (Schritt 11: aus `EnvSchema`) |
+| `ACTIVE_FIXTURE` | `Fixture \| null` | aus `FIXTURE` (`FixturesModule`) | entfällt (`db:seed --fixture`) |
+
+Für Auswertungen liefert `ObservationStore.getRange(from, to)` die Tage mit Stunden als Liste `{ date, hours }` (aufsteigend); die In-Memory-Fassung ruft dafür je Kalendertag `getDay` auf. Schritt 9 ersetzt nur diese Abfrage, die Regeln bleiben im `AggregationService`.
 
 Services injizieren die Stores mit `@Inject(<TOKEN>)`; Tests ersetzen sie per `overrideProvider` oder übergeben Fakes direkt. Jedes Token stellt genau ein Modul bereit und exportiert es (`OBSERVATION_STORE`: `ObservationsModule`, `FORECAST_STORE`: `ForecastsModule`, `IMPORT_STORE`: `ImportsModule`, `Clock`: `CommonModule`; 3a.0). `overrideProvider(Clock)`, `overrideProvider(LEGACY_DATA_DIR)` usw. wirken in e2e-Tests über alle Module.
 
 ### 3a.4 Importe und Datenstand
 
 - **Ablauf** (`ImportRunner`): `queued` → `running` → `succeeded` / `partial` / `failed`. Zuerst werden **alle** Stundenwerte abgefragt (`timezone=GMT`, Zuordnung der UTC-Zeitpunkte zu Berliner Tagen über BerlinTime), erst danach geschrieben. Ein Fehler dabei (z. B. R32-Verstoß → `error.code = "UPSTREAM_INVALID"`, Zeitüberschreitung → `UPSTREAM_TIMEOUT`) ergibt `failed`, und nichts wird geschrieben. Danach wird **getrennt** die Tagesvorhersage geholt: Scheitert nur sie, bleiben die Stunden gespeichert, der Import wird `partial` mit Warnung `FORECAST_FAILED` (US08-2, F01). Unerwartete Fehler → `failed` mit `INTERNAL_ERROR`, ohne Stacktrace.
-- **Arten:** `range` legt neue Stunden an und überschreibt geänderte; `gaps` legt nur fehlende Stunden an (vorhandene zählen als `unchanged`).
+- **Arten:** `range` legt neue Stunden an und überschreibt geänderte; `gaps` legt nur fehlende Stunden an (vorhandene zählen als `unchanged`). Eine gespeicherte Vorhersage (`source = "prediction"`), die jetzt als Messwert kommt, ersetzen beide Arten (`updated`, auch bei gleichen Werten), weil eine veraltete Vorhersage eine Lücke ist (R08).
+- **Herkunft (`source`, R08):** Der Runner gibt je Stunde die abgefragte API mit (`archive` bzw. `forecast_api`). Der Store speichert eine Stunde, deren UTC-Zeitpunkt nach dem Schreibzeitpunkt liegt, als `prediction`. Im Altbestand gilt eine Stunde als `prediction`, wenn ihre Ortszeit nach der Änderungszeit der Datei liegt (Express schreibt die Vorhersage des laufenden Tages mit, Befund Z3); sonst ist `source = null` (Archiv oder Forecast-API, unterscheidbar erst mit den Regeln aus B2.7 in Schritt 9).
+- **Fixture:** Mit `FIXTURE=<name>` ist die Fixture die Grundlage statt des Altbestands; ihre Stunden verhalten sich wie importierte (3a.10). `LegacyFileSource` lädt die Dateien trotzdem beim Start, sie werden aber nicht ausgewertet.
 - **Speicher:** Geschrieben wird nur in `InMemoryObservationStore` und `InMemoryForecastStore`, **nie** in Dateien. Nach einem Neustart sind Importe und importierte Werte weg.
 - **Zusammenführung mit dem Altbestand:** Eine importierte Stunde ersetzt die Stunde des Altbestands mit derselben Ortszeit (`timeLocal`). Die zweite 02:00 am Ende der Sommerzeit kommt als zusätzliche Stunde hinzu. Vorrang:
   - ältere Tage: der Import;
@@ -269,7 +290,7 @@ Services injizieren die Stores mit `@Inject(<TOKEN>)`; Tests ersetzen sie per `o
   | `INTERNAL_ERROR` | `error` | unerwarteter Fehler in Nest (z. B. im Store), Meldung ohne Stacktrace | `failed` |
   | `FORECAST_FAILED` | `warnings[]` | Tagesvorhersage nicht gespeichert; die Meldung nennt den Code der Ursache in Klammern | `partial`, Stunden gespeichert |
   | `INTERRUPTED` | `error` | Neustart während eines Laufs (R19) | noch nicht verwendet: Importe liegen nur im Arbeitsspeicher und sind nach einem Neustart weg (ab Schritt 9) |
-- **`updateState`** (R25, `StatusService`): maßgeblich ist der zuletzt abgeschlossene Import mit `kind` ∈ `scheduled`/`range`/`gaps` und `status` ∈ `succeeded`/`partial`. Gibt es keinen → `never`, `lastSuccessfulUpdateAt = null`. Sonst `lastSuccessfulUpdateAt` = dessen `finishedAt`, `ok` bis einschließlich 2 h danach, darüber `delayed`. Da Express-Läufe keine Nest-Importe sind, zeigt Nest nach jedem Start `never`, bis ein Import über Nest gelaufen ist.
+- **`updateState`** (R25, `StatusService`): maßgeblich ist der zuletzt abgeschlossene Import mit `kind` ∈ `scheduled`/`range`/`gaps` und `status` ∈ `succeeded`/`partial`. Gibt es keinen → `never`, `lastSuccessfulUpdateAt = null`. Sonst `lastSuccessfulUpdateAt` = dessen `finishedAt`, `ok` bis einschließlich 2 h danach, darüber `delayed`. Da Express-Läufe keine Nest-Importe sind, zeigt Nest nach jedem Start `never`, bis ein Import über Nest gelaufen ist (mit `FIXTURE` gelten die Importe der Fixture, z. B. `us16-ok` → `ok`, `us16-delayed` → `delayed` bei `FAKE_NOW=2026-11-19T13:30:00Z`).
 
 ### 3a.5 Umgebungsvariablen (Übergang)
 
@@ -278,6 +299,8 @@ Services injizieren die Stores mit `@Inject(<TOKEN>)`; Tests ersetzen sie per `o
 | `PORT` | `3001` | Port; Host ist immer `127.0.0.1` |
 | `LEGACY_DATA_DIR` | `../backend/data` | Ordner mit den Express-Dateien; relativ zum Arbeitsverzeichnis (bei npm-Skripten `api/`) |
 | `SCHEDULER_ENABLED` | `false` | stündlicher Import über Nest (3a.0); nur exakt `true` schaltet ein (`TRUE`, `1` usw. bleiben aus). Im Parallelbetrieb aus lassen, weil Express schreibt; Übergabe in Schritt 9. Wird beim Laden von `app.module.ts` gelesen (Schritt 11: ConfigModule, Zielstandard dann `true`, 03 B4.8) |
+| `FAKE_NOW` | – (echte Uhr) | feste Uhr für Prüfungen (03 B4.8): UTC-Zeitpunkt mit `Z`, z. B. `2026-11-19T13:30:00Z` → `Clock` = `FixedClock` (steht still), Warn-Log beim Start. Nur erlaubt, wenn `SCHEDULER_ENABLED` nicht `true` ist; sonst oder bei ungültigem Wert bricht der Start ab (`Start abgebrochen: …`, Exit-Code 1). Übergangsweise direkt aus `process.env` (Schritt 11: `EnvSchema`, dann auch „nicht in Produktion“) |
+| `FIXTURE` | – (Altbestand) | Name einer Fixture aus `api/test/fixtures/` (3a.10): Stunden, Importe und Vorhersage kommen dann aus der Datei statt aus `backend/data`. Unbekannter Name oder ungültige Datei → Start abgebrochen mit Liste der vorhandenen Fixtures. Übergang bis Schritt 9 (`db:seed --fixture`) |
 
 ### 3a.6 Skripte
 
@@ -288,7 +311,8 @@ Services injizieren die Stores mit `@Inject(<TOKEN>)`; Tests ersetzen sie per `o
 | `npm run start:prod` | `node dist/main` (nach `build`) |
 | `npm run build` | `nest build` nach `api/dist/` |
 | `npm test` | Unit-Tests (Jest, `src/**/*.spec.ts`) |
-| `npm run test:e2e` | e2e-Tests (`test/jest-e2e.json`, supertest) |
+| `npm run test:e2e` | e2e-Tests (`test/jest-e2e.json`, supertest), einschließlich Charakterisierungstest (liest `backend/data`, etwa 35 s) |
+| `FAKE_NOW=2026-11-19T13:30:00Z FIXTURE=us16-ok node dist/main.js` | Prüfstart mit fester Uhr und Fixture (nach `build`, im Ordner `api/`) |
 
 ### 3a.7 Validierung (Zod)
 
@@ -301,7 +325,8 @@ Services injizieren die Stores mit `@Inject(<TOKEN>)`; Tests ersetzen sie per `o
   | `IdParamSchema` | `GET /api/locations/:id`, `GET /api/imports/:id` | `^[1-9]\d{0,9}$` → `number`; sonst `invalid_format` an `id` (ersetzt `ParseIntPipe`) |
   | `ForecastsQuerySchema` | Query von `GET /api/forecasts` | kein Parameter erlaubt (R22) |
   | `ImportCreateSchema` | Body von `POST /api/imports` | `kind` ∈ `range`/`gaps` (`invalid_value`), `from`/`to` wie R01, `to < from` → `to_before_from` an `to`, mehr als 1096 Tage (beide mitgezählt) → `range_too_long` an `to`, `overwriteCorrections` optional boolean (R18) |
-  | `YearMonthParamSchema`, `YearParamSchema` | ab Schritt 8 (`/api/summaries/…`) | `YYYY-MM` mit Monat 01–12 (R04); `YYYY` ≥ 1940 → `number` (R05) |
+  | `YearMonthParamSchema`, `YearParamSchema` | `GET /api/summaries/months/:yearMonth`, `GET /api/summaries/years/:year` | `YYYY-MM` mit Monat 01–12 (R04, sonst `invalid_format` an `yearMonth`); `YYYY` ≥ 1940 → `number` (R05, `invalid_format` bzw. `too_small` an `year`). Zukunft prüft der `SummariesService` (`DATE_IN_FUTURE` an `yearMonth`/`year`) |
+  | `RecordsQuerySchema` | Query von `GET /api/records` | kein Parameter erlaubt (R22, US06-6) |
 
 - **400-Body** (Form aus B3.3; `path`, `timestamp`, `requestId` ergänzt der Filter, 3a.8):
 
@@ -333,8 +358,49 @@ Services injizieren die Stores mit `@Inject(<TOKEN>)`; Tests ersetzen sie per `o
 
   Bei Status 500 stehen immer nur „Interner Fehler“, `errors = []` und `details = null` im Body; Fehlertext und Stacktrace gehen mit `[requestId]`, Methode und Pfad ins Log (`Logger` `ApiExceptionFilter`).
 - **406/415** (`ContentNegotiationMiddleware`): `Accept` fehlt oder leer → erlaubt; sonst muss ein Eintrag mit q > 0 `application/json`, `application/*` oder `*/*` sein, sonst 406. `POST` mit Body (`Content-Length` > 0 oder `Transfer-Encoding`) muss `application/json` sein, `PATCH` `application/merge-patch+json` (Parameter wie `charset` erlaubt), sonst 415. `POST` ohne Body läuft weiter zur Pipe (400).
-- **Fachfehler:** `NO_DATA` (R03, `DaysService`), `NOT_FOUND` (`LocationsService`, `ImportsService`), `IMPORT_RUNNING` (R19), `DATE_IN_FUTURE` (R02). Neue Fachfehler werfen `ApiException`, nie Nest-Standardexceptions mit losen Feldern.
+- **Fachfehler:** `NO_DATA` (R03, `DaysService`, `SummariesService`), `NOT_FOUND` (`LocationsService`, `ImportsService`), `IMPORT_RUNNING` (R19), `DATE_IN_FUTURE` (R02, Tage, Monate, Jahre, Import-Ende). Neue Fachfehler werfen `ApiException`, nie Nest-Standardexceptions mit losen Feldern.
 - **Geänderte Fehlerfälle gegenüber Schritt 4:** 404 haben `code` `NO_DATA` bzw. `NOT_FOUND`; 409 hat `code = "IMPORT_RUNNING"` und `details.runningImportId` statt `runningImportId` oben; kaputtes JSON 400 ohne Parser-Text; neu 406, 413 (bisher Nest-Standard 100 KB) und 415; unbekannte Routen JSON nach B3.3.
+
+### 3a.9 Fachregeln und berechnete Felder (`AggregationService`)
+
+`stats/aggregation.service.ts` rechnet über die Zeilenlisten aus `ObservationStore.getDay`/`getRange` (03 B1.3). Die Services holen „jetzt“ aus der `Clock` und geben es als Parameter weiter (wie `:now` in SQL ab Schritt 9). Gerechnet und verglichen wird **ungerundet**; `round1` (R11) steht nur in den Response-Mappern. Stundenwerte in `hours[]` werden gar nicht gerundet (wie gespeichert).
+
+| Regel | Umsetzung |
+|---|---|
+| R06 Tag | Berliner Kalendertag (BerlinTime); `isToday` = Datum gleich `localDate(now)` |
+| R07 Stunden je Tag | `hoursExpected` = `hoursInDay(date)` (23/24/25) |
+| R08 Vorhersage | `isPrediction` = `source = "prediction"` **oder** Beginn der Stunde nach „jetzt“ (mit `timeUtc` per Zeitpunkt, im Altbestand per Ortszeit). Die aktuelle volle Stunde (14:00 bei 14:30) ist vergangen, ab 15:00 Vorhersage; um 15:00:00 ist 15:00 vergangen. Eine veraltete Vorhersage (`prediction`, Zeit vorbei) bleibt `isPrediction = true` und zählt nirgends |
+| Tagesaggregat | `observed` nur aus Stunden mit `isPrediction = false`: `temperature { mean, min, max, minAt, maxAt }` (`minAt`/`maxAt` = `timeLocal`, Gleichstand → früheste Stunde), `precipitationSum`, `isDryDay`. `predicted` nur aus Vorhersagestunden: `temperature { min, max }`, `precipitationSum`. `hoursObserved`/`hoursPredicted` = Anzahl der Stunden je Art |
+| `current` (US01-6) | nur heute: jüngste vergangene Stunde `{ observationId: null, timeLocal }` (normal die aktuelle volle Stunde); an anderen Tagen `null`. `observationId` bleibt bis Schritt 9 `null`, die Stunde findet man über `timeLocal` in `hours[]` |
+| R13 vollständiger Tag (`complete`) | Tag vor heute (heute nie), keine Vorhersagestunde, alle erwarteten Stunden vergangen, `temperature` und `precipitation` jeder Stunde nicht `null`. **Übergang Z1:** Enthält der Tag Stunden aus dem Altbestand (ohne `timeUtc`), reichen 24 Stunden (am 25.10. hat die Datei nur 24 Ortszeiten, am 29.03. steht die nicht existierende 02:00 darin; dort ist `hoursObserved = 24` bei `hoursExpected = 23`). Die genaue Umrechnung kommt mit Schritt 9 |
+| R09 Trockentag | `isDryDay` nur bei vollständigen Tagen: Summe < 0,1 mm (`DRY_DAY_THRESHOLD_MM`; 0,09 trocken, 0,1 nicht, Gleitkomma-Rest wie 0,0999… zählt als 0,1); sonst `null` |
+| R14 `null` | `null` wird ignoriert und ist nie 0; ohne einen Wert sind Mittel, Min, Max, Summe `null`. Ein `null` bei Temperatur oder Niederschlag macht den Tag unvollständig, bei anderen Feldern nicht |
+| R12 Mittel, R13 Zeiträume | Monat/Jahr: nur vollständige Tage. `temperature.mean` = Mittel der Tagesmittel (`meanMethod = "mean_of_daily_means"`), das Jahresmittel direkt aus den Tagesmitteln; Min/Max = Extremwerte der Stunden vollständiger Tage; `precipitationSum` = Summe der Tagessummen; `dryDays`; `daysExpected` = Tage des Monats/Jahres (auch im laufenden Zeitraum), `complete` = `daysComplete = daysExpected`; `monthsWithData` (Jahr) = Monate mit mindestens einer Stunde. Kein vollständiger Tag → Werte `null` |
+| R10, R11 Rekorde | `hottest`/`coldest` = höchster/niedrigster vergangener Stundenwert aller Tage bis heute (auch heutige vergangene Stunden, nie Vorhersagen), Gleichstand → früheste Stunde; `wettestDay` = höchste Tagessumme vollständiger Tage (Gleichstand → frühester Tag); `longestDryPeriod` über aufeinanderfolgende Kalendertage, ein fehlender oder unvollständiger Tag beendet die Serie, Gleichstand → früheste Periode, endet spätestens gestern; `daysCounted` = Zahl der vollständigen Tage |
+| R02, R03 | Tage wie bisher; Monat/Jahr nach dem laufenden → 400 `DATE_IN_FUTURE`, ohne einzige Stunde → 404 `NO_DATA` |
+
+**Antwortformen** (gekürzt; `hours[]` je Stunde: `timeLocal, temperature, apparentTemperature, precipitation, weatherCode, windSpeed, windDirection, source, isPrediction, correctedAt`):
+
+```json
+{ "id": "2026-11-19", "date": "2026-11-19", "locationId": 1, "timezone": "Europe/Berlin", "isToday": true,
+  "hoursExpected": 24, "hoursObserved": 15, "hoursPredicted": 9, "complete": false,
+  "current": { "observationId": null, "timeLocal": "2026-11-19T14:00" },
+  "observed": { "temperature": { "mean": 9, "min": 8.4, "max": 9.8, "minAt": "2026-11-19T06:00", "maxAt": "2026-11-19T13:00" },
+                "precipitationSum": 0.4, "isDryDay": null },
+  "predicted": { "temperature": { "min": 8.1, "max": 9.4 }, "precipitationSum": 5.4 },
+  "hours": [ { "timeLocal": "2026-11-19T14:00", "temperature": 9.6, "apparentTemperature": 5.1, "precipitation": 0.4,
+               "weatherCode": 61, "windSpeed": 21.3, "windDirection": 232, "source": "forecast_api",
+               "isPrediction": false, "correctedAt": null } ] }
+```
+
+`/api/records`: `{ "locationId": 1, "hottest": { "value": 30, "timeLocal": "2026-07-02T15:00", "date": "2026-07-02", "observationId": null, "corrected": false }, "coldest": {…}, "wettestDay": { "value": 12.3, "date": "2026-07-09" }, "longestDryPeriod": { "days": 4, "from": "2026-07-05", "to": "2026-07-08" }, "daysCounted": 11, "excludesPredictions": true }`.
+
+**Abweichungen von 03 B2.2 (Übergang bis Schritt 9):** `timeLocal`, `minAt`, `maxAt` ohne Offset (Altformat, Befund Z1); kein `hours[].id`, `current.observationId` und `hottest/coldest.observationId` sind `null`; `source` ist im Altbestand `null`, wenn die Stunde keine Vorhersage war; `corrected` immer `false`, `correctedAt` immer `null` (Schritt 12a); `indicators` (US18) fehlt noch.
+
+### 3a.10 Fixtures und Charakterisierungstest
+
+- **Fixtures** (`api/test/fixtures/<name>.json`, Inhalt und Zweck in der dortigen `README.md`): `us16-ok`, `us16-delayed`, `us20-frost`, `us06-records`, `us02-dst`, alle für `FAKE_NOW=2026-11-19T13:30:00Z`. Format: `name`, `description`, `fakeNow` (Hinweis), `observations[]` (volle UTC-Stunde, sechs Werte, `source`), `imports[]` (abgeschlossene Importe für `updateState`), `forecast` (`{ fetchedAt, days[] }` oder `null`); geprüft mit `FixtureSchema`. Mit `FIXTURE=<name>` füllen sie `InMemoryObservationStore` (statt Altbestand), `InMemoryImportStore` und `InMemoryForecastStore` (statt `forecast.json`). e2e-Tests setzen sie mit `overrideProvider(ACTIVE_FIXTURE).useValue(loadFixture('<name>'))` ein.
+- **Charakterisierungstest** `api/test/characterization/characterization.e2e-spec.ts`: Nest im Test (ohne Express) mit `FixedClock` 2026-11-20T12:00:00Z und `backend/data` (nur lesend) gegen die Golden Files, Toleranz 0,05; Abbildung der Felder in `api/test/characterization/README.md`. Jede Abweichung muss in `expected-differences.json` stehen (Muster, F-/R-Nummer, Begründung); ein Eintrag, der nicht mehr auftritt, lässt den Test ebenfalls scheitern, außer er ist `mayBeAbsent`. Stand: R11 (zehn Tagesmittel genau auf x,x5, Express rundet mit `Math.round` zur falschen Seite), F13/Z3 (Teiltag 19.11.2026), F13/R13 (November 2026, Jahressumme 2026, `totalDays` 688 → `daysCounted` 687), F28/R12 (Jahresmittel 2026: 11,4 → 11,7 °C); F14 und F27 kommen im Altbestand nicht vor (`mayBeAbsent`). Fehlt `backend/data`, wird der Test übersprungen.
 
 ---
 
@@ -361,12 +427,14 @@ Quelle: `frontend/src/app/app.routes.ts`. Parameter gehen per `withComponentInpu
 
 | Seite (`pages/…`) | Beschreibung |
 |---|---|
-| `today-page` (Heute und Tagesansicht) | Tagesverlauf mit Kennzahlen, Klimadiagramm und 7-Tage-Vorschau. Tag nur aus der URL (`date`-Input, `selectedDate`), Datumsfeld und Pfeile ‹ › navigieren per Router. Zustand `state: LoadState`, Signale `dayData`, `forecast`, `fieldError`, `dateStatus` (`valid`/`invalid`/`future`/`before-start`). Zukunft und ungültige Daten lösen keinen Request aus; die Vorhersage kommt aus `getForecast()`. Tipp-Eingaben im Datumsfeld werden verzögert übernommen (`KEYBOARD_COMMIT_DELAY_MS`) |
+| `today-page` (Heute und Tagesansicht) | Tagesverlauf mit Kennzahlen, Klimadiagramm und 7-Tage-Vorschau, Daten aus Nest: `getToday()` (`/api/days/today`) bzw. `getDay(date)` (`/api/days/:date`), Vorschau aus `getForecasts()` (`/api/forecasts`, `items`). Tag nur aus der URL (`date`-Input, `selectedDate`), Datumsfeld und Pfeile ‹ › navigieren per Router. Zustand `state: LoadState`, Signale `dayData` (`Day`), `forecast`, `apiError`, `fieldError` (Prüfung im Browser), `serverFieldError` (400 mit `errors[].field = "date"`), `dateStatus` (`valid`/`invalid`/`future`/`before-start`). Zukunft und ungültige Daten lösen keinen Request aus. **Laufender Tag** (`liveDay` = Server-`isToday`): Hero „Jetzt · HH:00 Uhr“ mit Temperatur, Wettertext, „Gefühlt …“ und `<dl>` (Wind, „Rest des Tages“ aus `predicted.temperature`) der Stunde `hours[]` mit `timeLocal = current.timeLocal` (ohne `current` kein Hero); Kennzahlen „Höchstwert/Tiefstwert bis jetzt“ (mit Uhrzeit aus `maxAt`/`minAt`) und „Niederschlag bis jetzt“ aus `observed`, Zusatz „+… mm erwartet“ mit Chip „Vorhersage“ aus `predicted.precipitationSum`; 7-Tage-Vorschau. **Anderer Tag:** Hero „Höchstwert“ (`observed.temperature.max`, Tiefstwert darunter), Kennzahlen „Niederschlag gesamt“ und „Temperaturschwankung“. Das Frontend rechnet Min/Max/Summe nicht mehr selbst. Vorhersageband im Diagramm ab der ersten Stunde mit `isPrediction` (`chartPredictionFrom`). Fehler (V20, über `apiErrorOf`): 404 `NO_DATA` → Fehlerbox „Für den … liegen keine Daten vor. Daten gibt es ab dem …“ (`details.dataFrom`) mit Link zum Datenbeginn aus `app-error`, ohne „Erneut versuchen“; 400 → Meldung der API in der Fehlerbox, Feldfehler `date` am Datumsfeld (sperrt ‹ › nicht, entfällt beim nächsten Request oder einer Eingabe), ohne „Erneut versuchen“; Netzwerk/5xx → „Server nicht erreichbar.“ mit „Erneut versuchen“. Tipp-Eingaben im Datumsfeld werden verzögert übernommen (`KEYBOARD_COMMIT_DELAY_MS`) |
 | `monthly-page` | Monatsdiagramm (Tagesmittel und Niederschlag) mit Kennzahlen. Auswahl Jahr und Monat aus der URL (`year`, `month`), zwei Selects navigieren per Router. `state: LoadState`, `monthData`, `dataPeriod` (Zeitraum der angezeigten Daten, damit die Achse beim Nachladen stabil bleibt). Volle Monatsachse, Tage ohne Daten als Lücke (`null`). Bei Fehler „Erneut versuchen“ (`retry()`, Zähler im Request) |
 | `yearly-page` | Jahresdiagramm (Monatsmittel und Niederschlag) mit Kennzahlen wärmster und kältester Monat. Auswahl Jahr aus der URL (`year`), ein Select. `state: LoadState`, `yearData`; volle Achse Jan–Dez mit Lücken. Bei Fehler „Erneut versuchen“ (`retry()`, Zähler im Request) |
-| `stats-page` | Rekorde: fünf Kennzahl-Karten (heißester, kältester, regenreichster Tag, längste Trockenperiode, gespeicherte Messtage). Kein Router-Parameter. Eigene Signale `stats`, `loading`, `error` (kein `LoadState`), lädt in `ngOnInit`, kein Erneut-versuchen |
+| `stats-page` | Rekorde aus Nest `getRecords()` (`/api/records`): Hinweisbox „Datenbasis“ (`daysCounted` vollständige Tage, ohne Vorhersagestunden) und vier Rekordkarten: heißester und kältester Tag mit Wert, Datum **und** Stunde („02.07.2026, 15:00 Uhr“), regenreichster Tag mit Datum, längste Trockenperiode mit Zeitraum. Je Karte ein Textlink „Tag ansehen →“ auf `/tag/:date` (Trockenperiode: „Ersten Tag ansehen →“ auf `from`); ein fehlender Rekord zeigt „–“ und „Noch keine Daten“. Kein Router-Parameter. `state: LoadState`, `records`, `error`, `apiError`; Skelett beim Laden, Leerzustand, wenn alle Rekorde `null` sind und `daysCounted = 0` (US06-5), Fehlerbox mit „Erneut versuchen“ (`retry()`, Zähler) |
 
-Alle Seiten setzen den Seitentitel per `setPageTitle` aus einem `effect`.
+Alle Seiten setzen den Seitentitel per `setPageTitle` aus einem `effect` (Rekorde: fester Titel aus der Route).
+
+Datenquelle je Seite: Heute/Tag und Rekorde lesen von Nest (`/api/days`, `/api/forecasts`, `/api/records`), Monat und Jahr bis Schritt 8 von Express (`/api/data/month/…`, `/api/data/year/…`), der Footer von Nest (`/api/status`, `/api/locations`).
 
 ### 4.3 Gemeinsame Komponenten
 
@@ -378,13 +446,13 @@ Ordner `frontend/src/app/components/`. Alle Selektoren beginnen mit `app-`.
 | `app-kpi-card` | `kicker` (Pflicht), `value`, `unit`, `digits`, `meta`, `loading`, `busy`, `reveal`, `revealIndex` | Zusatzzeile per Projection | Kennzahl-Karte; Zahl wird hier deutsch formatiert, ohne Wert „–“ und „keine Daten“ |
 | `app-chip` | `variant` (`status`/`forecast`) | Text per Projection | nicht klickbare Markierung, z. B. „Vorhersage“ |
 | `app-notice` | `variant` (`info`/`error`/`forecast`), `kicker`, `announce` | Text per Projection | Hinweisbox mit Linie links; `announce` setzt `role="alert"` bzw. `status` |
-| `app-form-field` | `label` und `fieldId` (Pflicht), `hint`, `error`, `control` (`AbstractControl`) | Feld per Projection | Label, Hilfetext, Fehlermeldung, setzt `aria-describedby` und `aria-invalid` am Feld. Mit `control` zeigt es auch dessen Server-Fehler (`errors.server`, gesetzt von `applyServerErrors`) im Fehlerstil E3.7.3; `error` hat Vorrang. Ändert sich der Wert, entfällt der Server-Fehler. `control` ist noch an keiner Seite gesetzt (Schritt 7/11) |
+| `app-form-field` | `label` und `fieldId` (Pflicht), `hint`, `error`, `control` (`AbstractControl`) | Feld per Projection | Label, Hilfetext, Fehlermeldung, setzt `aria-describedby` und `aria-invalid` am Feld. Mit `control` zeigt es auch dessen Server-Fehler (`errors.server`, gesetzt von `applyServerErrors`) im Fehlerstil E3.7.3; `error` hat Vorrang. Ändert sich der Wert, entfällt der Server-Fehler. `control` ist noch an keiner Seite gesetzt (Importformular, Schritt 11); das Datumsfeld der Tagesansicht ist kein Reactive-Forms-Feld und gibt Server-Fehler über `error` weiter |
 | `app-data-table` | `caption`, `columns`, `rows` (Pflicht), `captionHidden`, `columnsNarrow`, `emptyText` | – (Zellen: Text, Zahl, Chip, Icon) | barrierefreie Tabelle; unter 48em optional anderer Spaltensatz |
 | `app-climate-chart` | `data` (`ClimateChartDataset`), `title`, `caption`, `labelHeading`, `predictionFromIndex` | – | Chart.js-Diagramm (Temperatur Linie, Niederschlag Balken) mit Kernaussage, HTML-Legende und Wertetabelle in `<details>`; Vorhersageteil gestrichelt/schraffiert |
 | `app-skeleton` | `width`, `height` | – | Platzhalter in Endgröße, `aria-hidden` |
 | `app-loading` | `label` | Skelette per Projection | Ladezustand mit `aria-live="polite"`-Text |
 | `app-empty` | `message` (Pflicht), `kicker`, `announce` | Link per Projection | Leerzustand als Hinweisbox |
-| `app-error` | `message` (`string \| null`, Vorrang), `apiError` (`ApiError \| null`), `details`, `retryable`, `retryLabel`, `announce` | Output `retry`; Projection | Fehlerbox mit Button „Erneut versuchen“. Text: `message`, sonst `apiError.message`, sonst „Fehler beim Laden.“. Bei `apiError.code = "NO_DATA"` mit gültigem `details.dataFrom` zusätzlich der Link „Zum Datenbeginn (TT.MM.JJJJ)“ auf `/tag/<dataFrom>`. Noch keine Seite übergibt `apiError` (die Seiten lesen bis Schritt 7/8 von Express) |
+| `app-error` | `message` (`string \| null`, Vorrang), `apiError` (`ApiError \| null`), `details`, `retryable`, `retryLabel`, `announce` | Output `retry`; Projection | Fehlerbox mit Button „Erneut versuchen“. Text: `message`, sonst `apiError.message`, sonst „Fehler beim Laden.“. Bei `apiError.code = "NO_DATA"` mit gültigem `details.dataFrom` zusätzlich der Link „Zum Datenbeginn (TT.MM.JJJJ)“ auf `/tag/<dataFrom>`. `apiError` übergeben Heute/Tag und Rekorde; Monat und Jahr ab Schritt 8 |
 
 `loading`, `empty` und `error` liegen gemeinsam in `components/state/` (Datei `state.css` geteilt).
 
@@ -392,14 +460,14 @@ Ordner `frontend/src/app/components/`. Alle Selektoren beginnen mit `app-`.
 
 | Datei (`frontend/src/app/…`) | Exporte | Zweck |
 |---|---|---|
-| `services/weather.service.ts` | `WeatherService`: `getStatus`, `getLocation(id)` (neue API, 3a.2); `getToday`, `getDay`, `getMonth`, `getYear`, `getForecast`, `getStats` (Express, 3.2) | ein HTTP-Aufruf je Endpunkt, Basis `/api` |
-| `models/weather.ts` | `HourlyEntry`, `DayData`, `MonthSummary`, `MonthResponse`, `YearSummary`, `YearResponse`, `DayForecast`, `StatsRecord`, `Stats` | Typen der Express-Antworten |
-| `models/api.ts` | `Location`, `LocationList`, `UpdateState`, `Status`, `DayHour`, `Day`, `Forecast`, `ForecastList`, `ApiFieldError`, `ApiError` | Typen der neuen API (3a.2), Messwerte `number \| null`; Fehlerformat B3.3 (3a.8), `path`/`timestamp`/`requestId` optional (fehlen bei übersetzten Fehlern), `statusCode = 0` = keine Antwort |
+| `services/weather.service.ts` | `WeatherService`: neue API (3a.2): `getStatus` (`/api/status`), `getLocation(id)` (`/api/locations/:id`), `getToday` (`/api/days/today`), `getDay(date)` (`/api/days/:date`), `getForecasts` (`/api/forecasts`, `ForecastList`), `getRecords` (`/api/records`); Express (3.2) bis Schritt 8: `getMonth`, `getYear` | ein HTTP-Aufruf je Endpunkt, Basis `/api`. `getForecast` und `getStats` (Express) sind entfallen |
+| `models/weather.ts` | `MonthSummary`, `MonthResponse`, `YearSummary`, `YearResponse` | Typen der Express-Antworten für Monat und Jahr (entfällt in Schritt 8) |
+| `models/api.ts` | `Location`, `LocationList`, `UpdateState`, `Status`, `ObservationSource`, `DayHour`, `DayTemperature`, `DayCurrent`, `Day`, `Forecast`, `ForecastList`, `HourRecord`, `Records`, `ApiFieldError`, `ApiError` | Typen der neuen API (3a.2, Antwortformen 3a.9), Messwerte `number \| null`. `Day` mit `hoursObserved`/`hoursPredicted`, `complete`, `current`, `observed` (`temperature { mean, min, max, minAt, maxAt }`, `precipitationSum`, `isDryDay`), `predicted`; `DayHour` mit `source`, `isPrediction`, `correctedAt`. `Records` mit `hottest`/`coldest` (`HourRecord`: `value`, `timeLocal`, `date`), `wettestDay`, `longestDryPeriod`, `daysCounted`. Fehlerformat B3.3 (3a.8), `path`/`timestamp`/`requestId` optional (fehlen bei übersetzten Fehlern), `statusCode = 0` = keine Antwort |
 | `interceptors/api-error.interceptor.ts` | `apiErrorInterceptor`, `ApiErrorResponse`, `toApiError`, `apiErrorOf`, `isApiErrorBody`, `codeForStatus` | Wandelt jede HTTP-Fehlerantwort in eine `ApiErrorResponse` um: eine `HttpErrorResponse` mit unverändertem `status`, `headers` und `error` (Body) plus `apiError` (`ApiError`). So unterscheiden die Seiten weiter nach `status` und Express-Text `error.error` (V20). Übersetzung: B3.3-Body unverändert; Express `{ error }` → `code` je Status, `message` = Text von Express; Status 0/502/503/504 → `SERVICE_UNAVAILABLE`, „Server nicht erreichbar.“; andere 5xx ohne B3.3 → `INTERNAL_ERROR`, „Interner Fehler“. `apiErrorOf(err)` liefert das `ApiError` auch ohne Interceptor (z. B. in Specs) |
 | `models/load-state.ts` | `LoadState`, `LoadResult<T>` | Ladezustand `idle/loading/success/empty/error` |
 | `pipes/unit.pipe.ts` | `UnitPipe` (`unit`), `UNIT_SEPARATOR` | Zahl in deutscher Schreibweise plus Einheit, fehlend = „–“ |
 | `utils/apply-server-errors.ts` | `applyServerErrors(response, form)`, `isApiError`, `SERVER_ERROR_KEY` (`server`) | B5.2: setzt bei 400 mit `errors[]` je `field` (auch Punktpfad) `{ server: message }` am Control und markiert es als berührt; gibt die Fehler ohne passendes Control zurück (für eine Meldung oben im Formular). Andere Antworten: leere Liste, Formular unverändert |
-| `utils/berlin-date.ts` | `berlinToday`, `berlinHour`, `addDays`, `isValidIsoDate`, `formatDateLongDe`, `formatDateDe` | Datumsrechnung in Europe/Berlin |
+| `utils/berlin-date.ts` | `berlinToday`, `berlinHour`, `addDays`, `isValidIsoDate`, `formatDateLongDe`, `formatDateDe` | Datumsrechnung in Europe/Berlin (`berlinHour` nutzt keine Seite mehr; das Vorhersageband kommt aus `isPrediction`) |
 | `utils/page-title.ts` | `SITE_TITLE`, `MONTH_LONG`, `viewTitle`, `fullTitle`, `longDateLabel`, `monthLabel`, `dayViewTitle`, `monthViewTitle`, `yearViewTitle`, `setPageTitle`, `AppTitleStrategy` | Seitentitel und Beschriftungen |
 | `utils/route-params.ts` | `dayParamStatus`, `isValidYearParam`, `isValidMonthParam` | Prüfung der Route-Parameter |
 | `utils/weather-icon.ts` | `getWeatherIcon`, `describeWeather`, `getWeatherDescription`, `getWindDirection` | WMO-Wettercode zu Symbol und Text, Windrichtung |
@@ -412,24 +480,28 @@ Ordner `frontend/src/app/components/`. Alle Selektoren beginnen mit `app-`.
 1. Die Route liefert Parameter. `withComponentInputBinding()` setzt sie als `input()` der Seite.
 2. Die Seite leitet daraus per `computed` die Auswahl ab (ohne Parameter: heute, aktueller Monat, aktuelles Jahr) und baut ein Anfrage-Objekt.
 3. `toObservable(request)` mit `distinctUntilChanged` und `switchMap` löst genau einen Request je Wechsel aus; ein überholter Request wird abgebrochen.
-4. Der Service-Aufruf wird in ein `LoadResult` übersetzt: `loading` (Start), `success`, `empty` (404 oder leere Liste), `error` (anderer Fehler); ungültige Parameter ergeben `idle` ohne Request.
+4. Der Service-Aufruf wird in ein `LoadResult` übersetzt: `loading` (Start), `success`, `empty` (404 oder leere Liste; Rekorde: alle `null`), `error` (anderer Fehler); ungültige Parameter ergeben `idle` ohne Request. Ausnahme Heute/Tag: 404 `NO_DATA` ist `error` und erscheint als Fehlerbox mit Link zum Datenbeginn (`app-error` mit `apiError`).
 5. Die Seite setzt `state`, `error` und die Daten. Bei `loading` bleiben alte Daten sichtbar (Karte `busy`), bei `empty` und `error` werden sie entfernt.
-6. Die Vorlage zeigt je Zustand `app-loading`, `app-empty`, `app-error` oder den Inhalt. „Erneut versuchen“ erhöht einen Zähler und löst denselben Weg neu aus (Heute, Monat, Jahr; Rekorde noch ohne).
+6. Die Vorlage zeigt je Zustand `app-loading`, `app-empty`, `app-error` oder den Inhalt. „Erneut versuchen“ erhöht einen Zähler und löst denselben Weg neu aus (Heute, Monat, Jahr, Rekorde; auf Heute nicht bei 400 und `NO_DATA`).
 7. HTTP-Fehler laufen durch den `apiErrorInterceptor` (4.4): Die Seite bekommt eine `HttpErrorResponse` mit zusätzlichem `apiError`.
 
 Die Auswahl steht ausschließlich in der URL; Select und Datumsfeld rufen `router.navigate` auf.
 
 ### 4.6 Dev-Proxy: Verteilung je Ressource
 
-Quelle: `frontend/proxy.conf.json`. Der Dev-Server nimmt den **ersten** passenden Eintrag; der Fallback `/api` steht deshalb zuletzt. Gelistet werden nur Ressourcen, die das Frontend schon von Nest liest.
+Quelle: `frontend/proxy.conf.json`. Der Dev-Server nimmt den **ersten** passenden Eintrag; der Fallback `/api` steht deshalb zuletzt. Gelistet werden die Ressourcen, die Nest schon bedient (Schritt 7); alles andere geht an Express.
 
 | Pfad-Präfix | Ziel | Backend |
 |---|---|---|
 | `/api/locations` | `http://localhost:3001` | Nest |
 | `/api/status` | `http://localhost:3001` | Nest |
+| `/api/days` | `http://localhost:3001` | Nest |
+| `/api/forecasts` | `http://localhost:3001` | Nest |
+| `/api/records` | `http://localhost:3001` | Nest |
+| `/api/summaries` | `http://localhost:3001` | Nest (noch von keiner Seite genutzt, Monat/Jahr ab Schritt 8) |
 | `/api` (alles andere, z. B. `/api/data/*`, `/api/forecast`, `/api/stats`) | `http://localhost:3000` | Express |
 
-`/api/days` und `/api/forecasts` von Nest sind direkt auf `127.0.0.1:3001` erreichbar, über den Proxy aber noch nicht (die Seiten werden erst später umgestellt). Fehlerantworten von Express (`{ error }`) und Proxy-Fehler (z. B. Ziel nicht gestartet) sind nicht B3.3; der `apiErrorInterceptor` übersetzt sie (4.4).
+Die Schlüssel sind Präfixe: `/api/forecast` (Express) beginnt nicht mit `/api/forecasts` und fällt deshalb auf den Fallback; `/api/forecasts` trifft vorher den eigenen Eintrag. Fehlerantworten von Express (`{ error }`) und Proxy-Fehler (z. B. Ziel nicht gestartet) sind nicht B3.3; der `apiErrorInterceptor` übersetzt sie (4.4).
 
 ---
 
@@ -466,7 +538,7 @@ Regeln:
 | Frontend-Tests | Vitest über den Angular-Builder `@angular/build:unit-test` (`ng test`), Umgebung jsdom |
 | Befehl | `cd frontend && npm test -- --watch=false` |
 | Worker | `vitest.config.mjs` setzt `maxWorkers: 2`. Auf der USB-Platte (FAT32) laufen sonst zu viele jsdom-Worker gleichzeitig an und brechen mit „Timeout waiting for worker to respond“ ab |
-| Umfang | 19 Spec-Dateien (im Dateisystem gezählt), 210 Tests laut letztem bekannten Lauf; je Komponente, Seite, Service, Pipe und Util eine `*.spec.ts` neben der Quelle, dazu `app.spec.ts` |
+| Umfang | 22 Spec-Dateien, 273 Tests laut letztem Lauf (Schritt 7); je Komponente, Seite, Service, Pipe und Util eine `*.spec.ts` neben der Quelle, dazu `app.spec.ts` |
 | Erster Lauf | kann wegen der langsamen Platte (jsdom laden, ca. 130 s) mit dem Worker-Timeout abbrechen; erneut starten, danach ist der Cache warm |
 | stylelint | `cd frontend && npm run lint:css` (Basis `stylelint-config-standard`, siehe `.stylelintrc.json`) |
 | Backend Express | keine automatisierten Tests |
@@ -493,7 +565,7 @@ Regeln:
 | CSS prüfen | `frontend/` | `npm run lint:css` |
 | Golden Files neu aufnehmen | Repo-Wurzel | `bash api/test/characterization/capture.sh` (Backend muss laufen) |
 
-Reihenfolge für die Entwicklung: zuerst Express (`:3000`) und Nest (`:3001`), dann Frontend (`:4200`). Der Browser spricht nur mit `:4200`; `/api` verteilt der Dev-Proxy je Ressource (4.6). Läuft Nest nicht, zeigt der Footer nur den statischen Standorttext; alle Seiten funktionieren weiter über Express. Nest braucht Express nicht, liest aber dessen Dateien: ohne laufenden Scheduler fehlt die Datei für heute (`/api/days/today` → 404).
+Reihenfolge für die Entwicklung: zuerst Express (`:3000`) und Nest (`:3001`), dann Frontend (`:4200`). Der Browser spricht nur mit `:4200`; `/api` verteilt der Dev-Proxy je Ressource (4.6). Läuft Nest nicht, zeigen Heute/Tag und Rekorde die Fehlerbox „Server nicht erreichbar.“ und der Footer nur den statischen Standorttext; Monat und Jahr funktionieren weiter über Express. Nest braucht Express nicht, liest aber dessen Dateien: ohne laufenden Scheduler fehlt die Datei für heute (`/api/days/today` → 404).
 
 ---
 
@@ -507,7 +579,7 @@ Reihenfolge für die Entwicklung: zuerst Express (`:3000`) und Nest (`:3001`), d
 | Express und Nest nur auf `127.0.0.1` | Beide Backends sind von außen nicht erreichbar. Zugriff im Betrieb nur über den Proxy von `ng serve` |
 | Nest-Daten beim Start geladen | Nest liest alle Tagesdateien nur beim Start; neu gelesen werden nur die Datei für heute und `forecast.json`. Ändert ein Backfill ältere Tage, Nest neu starten |
 | Zeitstempel ohne Offset | `time` ist Berliner Ortszeit ohne Offset. An Tagen mit Zeitumstellung (26.10.2025, 29.03.2026) hat die Datei 24 Einträge; das Thema ist in `docs/umbau/03-zielbild.md` (Befund Z1) beschrieben |
-| Heutige Tagesdatei | Sie enthält 24 Stunden, auch die Stunden nach der aktuellen Uhrzeit: das sind **Vorhersagewerte**. Das Frontend trennt sie nur übergangsweise über die aktuelle Berliner Stunde (`chartPredictionFrom`). Monats-, Jahres- und Rekordwerte rechnen den laufenden Tag mit Vorhersagestunden mit |
+| Heutige Tagesdatei | Sie enthält 24 Stunden, auch die Stunden nach der aktuellen Uhrzeit: das sind **Vorhersagewerte**. Nest kennzeichnet sie mit `isPrediction` (R08), Heute und Rekorde rechnen sie nicht mit (die Übergangslösung über `berlinHour()` ist seit Schritt 7 entfernt). Die Monats- und Jahreswerte von Express rechnen den laufenden Tag bis Schritt 8 mit Vorhersagestunden mit |
 | `seed-data.ts` | überschreibt echte Dateien im Mai 2026, siehe 3.5 |
 | `backend/data/` | nicht im Git; nie löschen oder überschreiben, nur lesen |
 | Nest-Cache der Altdaten | `LegacyFileSource` liest alle Tagesdateien nur beim Start; neu gelesen werden je Anfrage nur die Datei für heute und `forecast.json`. Ändert ein Backfill ältere Tage, liefert Nest den alten Stand bis zum Neustart (gilt bis Schritt 9) |

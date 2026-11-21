@@ -12,9 +12,12 @@ import { ImportsService } from './imports/imports.service';
 import { LegacyFileSource } from './legacy/legacy-file-source';
 import { LocationsService } from './locations/locations.service';
 import { OBSERVATION_STORE } from './observations/observation.store';
+import { RecordsService } from './records/records.service';
 import { isSchedulerEnabled } from './scheduler/scheduler-enabled';
 import { SchedulerService } from './scheduler/scheduler.service';
+import { AggregationService } from './stats/aggregation.service';
 import { StatusService } from './status/status.service';
+import { SummariesService } from './summaries/summaries.service';
 import { OpenMeteoClient } from './weather-provider/open-meteo.client';
 
 /**
@@ -35,6 +38,9 @@ describe('AppModule (Boot, Module nach B4.1)', () => {
     for (const token of [
       LocationsService,
       DaysService,
+      SummariesService,
+      RecordsService,
+      AggregationService,
       ForecastsService,
       ImportsService,
       StatusService,

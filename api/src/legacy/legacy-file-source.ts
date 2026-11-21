@@ -44,7 +44,8 @@ function isDayFile(value: unknown): value is LegacyDayFileRaw {
 /**
  * Liest die JSON-Dateien von Express aus `backend/data/` (Übergang bis Schritt 9).
  *
- * - Beim Start werden alle Tagesdateien asynchron in eine `Map<date, hours[]>` geladen.
+ * - Beim Start werden alle Tagesdateien asynchron in eine `Map<date, Datei>` geladen, mit der
+ *   Änderungszeit jeder Datei (R08: Stunden nach diesem Zeitpunkt waren beim Schreiben Vorhersage).
  * - Die Datei für den heutigen Berliner Tag und `forecast.json` werden bei jeder Anfrage
  *   neu gelesen, weil Express sie stündlich überschreibt.
  * - Nur lesend: Diese Klasse schreibt, verschiebt und löscht nichts im Datenordner.
@@ -52,7 +53,7 @@ function isDayFile(value: unknown): value is LegacyDayFileRaw {
 @Injectable()
 export class LegacyFileSource implements OnModuleInit {
   private readonly logger = new Logger(LegacyFileSource.name);
-  private readonly days = new Map<string, LegacyHour[]>();
+  private readonly days = new Map<string, LegacyDayFile>();
 
   constructor(
     @Inject(LEGACY_DATA_DIR) private readonly dataDir: string,
@@ -74,20 +75,19 @@ export class LegacyFileSource implements OnModuleInit {
   }
 
   /**
-   * Stunden eines Tages mit der Änderungszeit der Datei. `modifiedAt` gibt es nur für die heutige
-   * Datei, weil nur sie bei jeder Anfrage neu gelesen wird; sonst `null`.
+   * Stunden eines Tages mit der Änderungszeit der Datei (UTC). Die heutige Datei wird bei jeder Anfrage
+   * neu gelesen, alle anderen stammen aus dem Ladevorgang beim Start.
    */
   async getDayFile(date: string): Promise<LegacyDayFile | null> {
     if (!isIsoDate(date)) return null;
     if (date === this.today()) {
-      const fresh = await this.readDayFile(date, true);
+      const fresh = await this.readDayFile(date);
       if (fresh) {
-        this.days.set(date, fresh.hours);
+        this.days.set(date, fresh);
         return fresh;
       }
     }
-    const hours = this.days.get(date);
-    return hours ? { hours, modifiedAt: null } : null;
+    return this.days.get(date) ?? null;
   }
 
   /** Erster und letzter Tag mit Daten (heutige Datei eingeschlossen) oder `null`. */
@@ -154,26 +154,23 @@ export class LegacyFileSource implements OnModuleInit {
         .filter((date): date is string => date !== undefined && isIsoDate(date) && date.startsWith(month));
       const loaded = await Promise.all(files.map(async date => [date, await this.readDayFile(date)] as const));
       for (const [date, file] of loaded) {
-        if (file) this.days.set(date, file.hours);
+        if (file) this.days.set(date, file);
       }
     }
 
     this.logger.log(`${this.days.size} Tagesdateien aus ${this.dataDir} geladen (${Date.now() - started} ms)`);
   }
 
-  private async readDayFile(date: string, withModifiedAt = false): Promise<LegacyDayFile | null> {
+  private async readDayFile(date: string): Promise<LegacyDayFile | null> {
     const file = path.join(this.dataDir, date.slice(0, 7), `${date}.json`);
     try {
-      const [content, info] = await Promise.all([
-        readFile(file, 'utf-8'),
-        withModifiedAt ? stat(file) : Promise.resolve(null),
-      ]);
+      const [content, info] = await Promise.all([readFile(file, 'utf-8'), stat(file)]);
       const parsed: unknown = JSON.parse(content);
       if (!isDayFile(parsed)) {
         this.logger.warn(`${file} hat kein gültiges Format, wird ignoriert`);
         return null;
       }
-      return { hours: parsed.hourly.map(toHour), modifiedAt: info ? formatUtc(info.mtime) : null };
+      return { hours: parsed.hourly.map(toHour), modifiedAt: formatUtc(info.mtime) };
     } catch (error) {
       if (!isNotFound(error)) {
         this.logger.warn(`${file} nicht lesbar: ${errorText(error)}`);

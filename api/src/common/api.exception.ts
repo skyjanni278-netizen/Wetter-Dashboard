@@ -40,7 +40,15 @@ export class ApiException extends HttpException {
    * Daten oder `null`, wenn es noch gar keine gibt). Die Meldung nennt den Datenbeginn als `DD.MM.YYYY`.
    */
   static noData(date: string, dataFrom: string | null): ApiException {
-    const base = `Für den ${formatDateDe(date)} liegen keine Daten vor.`;
+    return ApiException.noDataFor(`den ${formatDateDe(date)}`, dataFrom);
+  }
+
+  /**
+   * R03 (US04-5, US05-5): Monat oder Jahr ohne einzige Stunde → 404 `NO_DATA` wie bei Tagen.
+   * `period` ist der Text nach „Für“, z. B. „Dezember 2024“ oder „das Jahr 2024“.
+   */
+  static noDataFor(period: string, dataFrom: string | null): ApiException {
+    const base = `Für ${period} liegen keine Daten vor.`;
     const message = dataFrom === null ? base : `${base} Daten gibt es ab ${formatDateDe(dataFrom)}.`;
     return new ApiException(404, 'NO_DATA', message, { details: { dataFrom } });
   }

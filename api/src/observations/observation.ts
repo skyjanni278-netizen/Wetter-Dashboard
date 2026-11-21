@@ -20,17 +20,38 @@ export const OBSERVATION_FIELDS: readonly (keyof ObservationValues)[] = [
   'windDirection',
 ];
 
+/**
+ * Herkunft eines Werts (03 B2.2): `archive` (Open-Meteo-Archiv), `forecast_api` (vergangene Stunde aus der
+ * Forecast-API), `prediction` (die Stunde lag beim Abruf in der Zukunft). Eine `prediction`, deren Zeit
+ * vorbei ist, bleibt eine (veraltete) Vorhersage und zählt nie als Messwert (R08).
+ */
+export type ObservationSource = 'archive' | 'forecast_api' | 'prediction';
+
 /** Gespeicherte Stunde eines Berliner Kalendertags. */
 export interface ObservationHour extends ObservationValues {
   /** Berliner Ortszeit ohne Offset, z. B. `2026-11-10T14:00` (Form des Altbestands, Befund Z1). */
   timeLocal: string;
   /** UTC-Zeitpunkt `YYYY-MM-DDTHH:MM:SSZ`; `null` bei Stunden aus dem Altbestand (nur Ortszeit bekannt). */
   timeUtc: string | null;
+  /**
+   * Herkunft; `null` = unbekannt (Altbestand bis Schritt 9: Archiv oder Forecast-API lässt sich ohne die
+   * Regeln aus 03 B2.7 nicht unterscheiden). `prediction` ist auch im Altbestand bekannt: Stunde nach der
+   * Änderungszeit der Datei.
+   */
+  source: ObservationSource | null;
 }
 
 /** Eingabe eines Imports: Zeitpunkt immer in UTC (03 B2.6, `timezone=GMT`). */
 export interface ObservationInput extends ObservationValues {
   timeUtc: string;
+  /** Abgefragte API; ob die Stunde eine Vorhersage ist, entscheidet der Store beim Schreiben (R08). */
+  source?: 'archive' | 'forecast_api';
+}
+
+/** Stunden eines Berliner Kalendertags, wie sie der Store für Auswertungen liefert. */
+export interface StoredDay {
+  date: string;
+  hours: ObservationHour[];
 }
 
 /** Zähler eines Schreibvorgangs (03 B2.7 Schritt 8). */

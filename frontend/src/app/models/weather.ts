@@ -1,18 +1,4 @@
-export interface HourlyEntry {
-  time: string;
-  temperature: number;
-  apparentTemperature: number;
-  precipitation: number;
-  weathercode: number;
-  windspeed: number;
-  winddirection: number;
-}
-
-export interface DayData {
-  date: string;
-  location: string;
-  hourly: HourlyEntry[];
-}
+/** Antworten der Express-API (Monat, Jahr), bis Monat und Jahr in Schritt 8 umziehen. */
 
 export interface MonthSummary {
   day: number;
@@ -35,25 +21,4 @@ export interface YearSummary {
 export interface YearResponse {
   year: string;
   data: YearSummary[];
-}
-
-export interface DayForecast {
-  date: string;
-  maxTemp: number;
-  minTemp: number;
-  precipitation: number;
-  weathercode: number;
-}
-
-export interface StatsRecord {
-  date: string;
-  value: number;
-}
-
-export interface Stats {
-  hottestDay: StatsRecord | null;
-  coldestDay: StatsRecord | null;
-  rainiestDay: StatsRecord | null;
-  driestStreak: { days: number; from: string; to: string } | null;
-  totalDays: number;
 }

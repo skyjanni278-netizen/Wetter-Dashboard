@@ -130,7 +130,7 @@ describe('apiErrorInterceptor', () => {
 
   it('Netzwerkfehler: status 0 bleibt, apiError „Server nicht erreichbar.“', async () => {
     const result = firstValueFrom(TestBed.inject(WeatherService).getToday()).catch((e: unknown) => e);
-    controller.expectOne('/api/data/today').error(new ProgressEvent('error'), { status: 0, statusText: 'Unknown Error' });
+    controller.expectOne('/api/days/today').error(new ProgressEvent('error'), { status: 0, statusText: 'Unknown Error' });
     const error = (await result) as ApiErrorResponse;
     expect(error.status).toBe(0);
     expect(error.apiError).toMatchObject({ code: 'SERVICE_UNAVAILABLE', message: 'Server nicht erreichbar.' });

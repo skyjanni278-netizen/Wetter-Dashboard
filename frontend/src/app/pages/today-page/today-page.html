@@ -11,9 +11,10 @@
     </div>
 
     <div class="page-controls">
-      <!-- Gruppe „Tag wählen“ (E3.7.3): ‹ [Datum] › und „Heute“; Fehler und aria-Verknüpfung setzt app-form-field -->
+      <!-- Gruppe „Tag wählen“ (E3.7.3): ‹ [Datum] › und „Heute“; Fehler und aria-Verknüpfung setzt app-form-field.
+           Meldung: Prüfung im Browser, sonst Server-Fehler am Feld `date` (400, B5.2) -->
       <app-form-field class="controls" label="Tag wählen" fieldId="date-input"
-                      [hint]="'Daten ab ' + formatDateDe(minDate)" [error]="fieldError()">
+                      [hint]="'Daten ab ' + formatDateDe(minDate)" [error]="shownFieldError()">
         <button type="button" class="btn btn-secondary btn-icon" (click)="loadPreviousDay()" [disabled]="prevDisabled()" aria-label="Vorheriger Tag">&#8249;</button>
         <input #dateInput id="date-input" type="date" [min]="minDate" [max]="maxDate" [value]="selectedDate()"
                (change)="onDateChange($event)" (keydown)="onDateKeydown($event)" (blur)="onDateBlur()" />
@@ -29,8 +30,8 @@
         <p>Für dieses Datum liegen noch keine Messdaten vor.</p>
         @if (futureForecast(); as f) {
           <p>
-            <span aria-hidden="true">{{ getWeatherIcon(f.weathercode) }}</span>
-            {{ describeWeather(f.weathercode) }} · max. {{ f.maxTemp | unit:'°C':'1.0-0' }} · min. {{ f.minTemp | unit:'°C':'1.0-0' }} · {{ f.precipitation | unit:'mm':'1.1-1' }}
+            <span aria-hidden="true">{{ getWeatherIcon(f.weatherCode) }}</span>
+            {{ describeWeather(f.weatherCode) }} · max. {{ f.maxTemp | unit:'°C':'1.0-0' }} · min. {{ f.minTemp | unit:'°C':'1.0-0' }} · {{ f.precipitationSum | unit:'mm':'1.1-1' }}
           </p>
         }
         <a routerLink="/" class="btn btn-text">Zurück zu heute</a>
@@ -44,8 +45,11 @@
       }
 
       @if (state() === 'error') {
-        <app-error [message]="error() ?? 'Fehler beim Laden.'" (retry)="retry()">
-          <a [routerLink]="['/tag', minDate]" class="btn btn-text">Zum Datenbeginn ({{ formatDateDe(minDate) }})</a>
+        <!-- Bei NO_DATA setzt app-error den Link zum Datenbeginn aus details.dataFrom selbst (B3.3) -->
+        <app-error [message]="error() ?? 'Fehler beim Laden.'" [apiError]="apiError()" [retryable]="retryable()" (retry)="retry()">
+          @if (apiError()?.code !== 'NO_DATA') {
+            <a [routerLink]="['/tag', minDate]" class="btn btn-text">Zum Datenbeginn ({{ formatDateDe(minDate) }})</a>
+          }
         </app-error>
       }
       @if (state() === 'empty') {
@@ -71,31 +75,47 @@
 
       @if (dayData()) {
         <div class="card-stack">
-          @if (isToday() && currentHourEntry()) {
-            <!-- Hero (nur heute) -->
-            <app-card class="surface-dark hero" [busy]="loading()" [reveal]="true">
-              <div class="hero-body">
-                <div class="hero-main">
-                  <p class="kicker">Jetzt · {{ currentHourEntry()!.time.slice(11, 16) }} Uhr</p>
-                  <p class="hero-value num">{{ currentHourEntry()!.temperature | unit:'°C':'1.1-1' }}</p>
-                  <p class="hero-desc">{{ describeWeather(currentHourEntry()!.weathercode) }}</p>
-                  <p class="hero-sub">Gefühlt {{ currentHourEntry()!.apparentTemperature | unit:'°C':'1.1-1' }}</p>
+          @if (liveDay()) {
+            <!-- Hero (laufender Tag): Werte der Stunde current.timeLocal (US01-6) -->
+            @if (currentHour(); as now) {
+              <app-card class="surface-dark hero" [busy]="loading()" [reveal]="true">
+                <div class="hero-body">
+                  <div class="hero-main">
+                    <p class="kicker">Jetzt · {{ hourOf(now.timeLocal) }} Uhr</p>
+                    <p class="hero-value num">{{ now.temperature | unit:'°C':'1.1-1' }}</p>
+                    <p class="hero-desc">{{ describeWeather(now.weatherCode) }}</p>
+                    <p class="hero-sub">Gefühlt {{ now.apparentTemperature | unit:'°C':'1.1-1' }}</p>
+                  </div>
+                  <dl class="hero-facts">
+                    <div>
+                      <dt>Wind</dt>
+                      <dd class="num">{{ windText(now) }}</dd>
+                    </div>
+                    @if (restOfDayText(); as rest) {
+                      <div>
+                        <dt>Rest des Tages <span class="visually-hidden">(Vorhersage)</span></dt>
+                        <dd class="num">{{ rest }}</dd>
+                      </div>
+                    }
+                  </dl>
+                  <span class="hero-icon" aria-hidden="true">{{ getWeatherIcon(now.weatherCode) }}</span>
                 </div>
-                <span class="hero-icon" aria-hidden="true">{{ getWeatherIcon(currentHourEntry()!.weathercode) }}</span>
-              </div>
-            </app-card>
+              </app-card>
+            }
 
+            <!-- Kennzahlen nur aus vergangenen Stunden (observed); Vorhersage getrennt (predicted, F13) -->
             <div class="split" [class.split-forecast]="forecastRows().length > 0">
               <div class="kpi-grid">
-                <app-kpi-card kicker="Höchstwert heute" [value]="dayMaxTemp()" unit="°C" meta="inkl. Vorhersage"
+                <app-kpi-card kicker="Höchstwert bis jetzt" [value]="observedMax()" unit="°C" [meta]="maxAtText()"
                               [busy]="loading()" [reveal]="true" [revealIndex]="1" />
-                <app-kpi-card kicker="Tiefstwert heute" [value]="dayMinTemp()" unit="°C" meta="inkl. Vorhersage"
+                <app-kpi-card kicker="Tiefstwert bis jetzt" [value]="observedMin()" unit="°C" [meta]="minAtText()"
                               [busy]="loading()" [reveal]="true" [revealIndex]="2" />
-                <app-kpi-card kicker="Niederschlag heute" [value]="totalDayPrecip()" unit="mm"
-                              [busy]="loading()" [reveal]="true" [revealIndex]="3" />
-                <app-kpi-card kicker="Wind" [value]="currentHourEntry()!.windspeed" unit="km/h" [digits]="0"
-                              [meta]="'Richtung ' + getWindDirection(currentHourEntry()!.winddirection)"
-                              [busy]="loading()" [reveal]="true" [revealIndex]="4" />
+                <app-kpi-card class="kpi-precip" kicker="Niederschlag bis jetzt" [value]="observedPrecip()" unit="mm"
+                              [meta]="expectedPrecipText()" [busy]="loading()" [reveal]="true" [revealIndex]="3">
+                  @if (expectedPrecipText()) {
+                    <app-chip variant="forecast" />
+                  }
+                </app-kpi-card>
               </div>
 
               <!-- 7-Tage-Vorschau als Tabelle mit Wettertext (E3.7.5, F17) -->
@@ -112,22 +132,22 @@
             </div>
           }
 
-          @if (!isToday() && noonHourEntry()) {
+          @if (!liveDay() && noonHour()) {
             <!-- Rückblick (vergangene Tage): Höchstwert mit Kicker, Tiefstwert einmal (F23, F24) -->
             <app-card class="surface-dark hero" [busy]="loading()" [reveal]="true">
               <div class="hero-body">
                 <div class="hero-main">
                   <p class="kicker">Höchstwert</p>
-                  <p class="hero-value num">{{ dayMaxTemp() | unit:'°C':'1.1-1' }}</p>
-                  <p class="hero-desc">{{ describeWeather(noonHourEntry()!.weathercode) }}</p>
-                  <p class="hero-sub">Tiefstwert {{ dayMinTemp() | unit:'°C':'1.1-1' }}</p>
+                  <p class="hero-value num">{{ observedMax() | unit:'°C':'1.1-1' }}</p>
+                  <p class="hero-desc">{{ describeWeather(noonHour()!.weatherCode) }}</p>
+                  <p class="hero-sub">Tiefstwert {{ observedMin() | unit:'°C':'1.1-1' }}</p>
                 </div>
-                <span class="hero-icon" aria-hidden="true">{{ getWeatherIcon(noonHourEntry()!.weathercode) }}</span>
+                <span class="hero-icon" aria-hidden="true">{{ getWeatherIcon(noonHour()!.weatherCode) }}</span>
               </div>
             </app-card>
 
             <div class="kpi-grid">
-              <app-kpi-card kicker="Niederschlag gesamt" [value]="totalDayPrecip()" unit="mm"
+              <app-kpi-card kicker="Niederschlag gesamt" [value]="observedPrecip()" unit="mm"
                             [busy]="loading()" [reveal]="true" [revealIndex]="1" />
               <app-kpi-card kicker="Temperaturschwankung" [value]="dayTempRange()" unit="°C"
                             [busy]="loading()" [reveal]="true" [revealIndex]="2" />

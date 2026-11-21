@@ -41,7 +41,10 @@ export interface LegacyHour {
   windDirection: number | null;
 }
 
-/** Inhalt einer Tagesdatei; `modifiedAt` (UTC) nur bei frisch gelesenen Dateien, sonst `null`. */
+/**
+ * Inhalt einer Tagesdatei mit ihrer Änderungszeit (UTC). `null` nur ohne echte Datei dahinter
+ * (Testersatz `FakeLegacySource`).
+ */
 export interface LegacyDayFile {
   hours: LegacyHour[];
   modifiedAt: string | null;

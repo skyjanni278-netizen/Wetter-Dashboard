@@ -109,6 +109,9 @@ describe('Erste GET-Endpunkte (Schritt 2, e2e mit Altdateien im Temp-Ordner)', (
       weatherCode: 3,
       windSpeed: 12.34,
       windDirection: 220,
+      source: null,
+      isPrediction: false,
+      correctedAt: null,
     });
     expect(res.body.hours[5].temperature).toBeNull();
   });

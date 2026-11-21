@@ -8,37 +8,62 @@
   </div>
 
   <div class="page-stack">
-    @if (error()) {
-      <app-error [message]="error()!" [retryable]="false" />
+    @if (state() === 'error') {
+      <app-error [message]="error()" [apiError]="apiError()" (retry)="retry()" />
+    }
+
+    @if (state() === 'empty') {
+      <app-empty [message]="error() ?? ''" />
     }
 
     <!-- Laden: Skelett statt „aus 0 gespeicherten Tagen“ (V14) -->
-    @if (loading()) {
+    @if (loading() && !records()) {
       <app-loading>
         <div class="kpi-grid">
-          @for (kicker of ['Heißester Tag', 'Kältester Tag', 'Regenreichster Tag', 'Längste Trockenperiode', 'Gespeicherte Messtage']; track kicker) {
+          @for (kicker of skeletonKickers; track kicker) {
             <app-kpi-card [kicker]="kicker" [loading]="true" />
           }
         </div>
       </app-loading>
     }
 
-    @if (stats(); as s) {
+    @if (records(); as r) {
+      <!-- Datenbasis (E3.9): Zahl der vollständigen Tage, Vorhersagestunden zählen nie (R11) -->
+      <app-notice class="records-basis" kicker="Datenbasis">
+        <p>
+          {{ r.daysCounted }} vollständige {{ r.daysCounted === 1 ? 'Tag' : 'Tage' }}, ohne Vorhersagestunden.
+          Rekord = höchster bzw. niedrigster Stundenwert.
+        </p>
+      </app-notice>
+
+      <!-- Rekordkarten (E3.7.4): Datum und Stunde, nur der Textlink ist klickbar -->
       <div class="kpi-grid">
-        <app-kpi-card kicker="Heißester Tag" [value]="s.hottestDay?.value" unit="°C"
-                      [meta]="s.hottestDay ? formatDate(s.hottestDay.date) : null"
-                      [reveal]="true" />
-        <app-kpi-card kicker="Kältester Tag" [value]="s.coldestDay?.value" unit="°C"
-                      [meta]="s.coldestDay ? formatDate(s.coldestDay.date) : null"
-                      [reveal]="true" [revealIndex]="1" />
-        <app-kpi-card kicker="Regenreichster Tag" [value]="s.rainiestDay?.value" unit="mm"
-                      [meta]="s.rainiestDay ? formatDate(s.rainiestDay.date) : null"
-                      [reveal]="true" [revealIndex]="2" />
-        <app-kpi-card kicker="Längste Trockenperiode" [value]="s.driestStreak?.days" unit="Tage" [digits]="0"
-                      [meta]="s.driestStreak ? formatDate(s.driestStreak.from) + ' – ' + formatDate(s.driestStreak.to) : null"
-                      [reveal]="true" [revealIndex]="3" />
-        <app-kpi-card kicker="Gespeicherte Messtage" [value]="s.totalDays" [digits]="0"
-                      [reveal]="true" [revealIndex]="4" />
+        <app-kpi-card class="record-hottest" kicker="Heißester Tag" [value]="r.hottest?.value" unit="°C"
+                      [meta]="r.hottest ? recordTime(r.hottest) : 'Noch keine Daten'" [busy]="loading()" [reveal]="true">
+          @if (r.hottest; as rec) {
+            <a class="btn btn-text" [routerLink]="['/tag', rec.date]">Tag ansehen <span aria-hidden="true">→</span><span class="visually-hidden"> (heißester Tag, {{ formatDate(rec.date) }})</span></a>
+          }
+        </app-kpi-card>
+        <app-kpi-card class="record-coldest" kicker="Kältester Tag" [value]="r.coldest?.value" unit="°C"
+                      [meta]="r.coldest ? recordTime(r.coldest) : 'Noch keine Daten'" [busy]="loading()" [reveal]="true" [revealIndex]="1">
+          @if (r.coldest; as rec) {
+            <a class="btn btn-text" [routerLink]="['/tag', rec.date]">Tag ansehen <span aria-hidden="true">→</span><span class="visually-hidden"> (kältester Tag, {{ formatDate(rec.date) }})</span></a>
+          }
+        </app-kpi-card>
+        <app-kpi-card class="record-wettest" kicker="Regenreichster Tag" [value]="r.wettestDay?.value" unit="mm"
+                      [meta]="r.wettestDay ? formatDate(r.wettestDay.date) : 'Noch keine Daten'" [busy]="loading()" [reveal]="true" [revealIndex]="2">
+          @if (r.wettestDay; as rec) {
+            <a class="btn btn-text" [routerLink]="['/tag', rec.date]">Tag ansehen <span aria-hidden="true">→</span><span class="visually-hidden"> (regenreichster Tag, {{ formatDate(rec.date) }})</span></a>
+          }
+        </app-kpi-card>
+        <app-kpi-card class="record-dry" kicker="Längste Trockenperiode" [value]="r.longestDryPeriod?.days"
+                      [unit]="r.longestDryPeriod?.days === 1 ? 'Tag' : 'Tage'" [digits]="0"
+                      [meta]="r.longestDryPeriod ? formatDate(r.longestDryPeriod.from) + ' – ' + formatDate(r.longestDryPeriod.to) : 'Noch keine Daten'"
+                      [busy]="loading()" [reveal]="true" [revealIndex]="3">
+          @if (r.longestDryPeriod; as rec) {
+            <a class="btn btn-text" [routerLink]="['/tag', rec.from]">Ersten Tag ansehen <span aria-hidden="true">→</span><span class="visually-hidden"> ({{ formatDate(rec.from) }})</span></a>
+          }
+        </app-kpi-card>
       </div>
     }
   </div>

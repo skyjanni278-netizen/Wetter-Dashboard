@@ -1,8 +1,8 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { DayData, MonthResponse, YearResponse, DayForecast, Stats } from '../models/weather';
-import { Location, Status } from '../models/api';
+import { MonthResponse, YearResponse } from '../models/weather';
+import { Day, ForecastList, Location, Records, Status } from '../models/api';
 
 const API = '/api';
 
@@ -20,27 +20,33 @@ export class WeatherService {
     return this.http.get<Location>(`${API}/locations/${id}`);
   }
 
-  getToday(): Observable<DayData> {
-    return this.http.get<DayData>(`${API}/data/today`);
+  /** Neue API (Nest): der heutige Berliner Tag laut Server (US01). */
+  getToday(): Observable<Day> {
+    return this.http.get<Day>(`${API}/days/today`);
   }
 
-  getDay(date: string): Observable<DayData> {
-    return this.http.get<DayData>(`${API}/data/day/${date}`);
+  /** Neue API (Nest): ein Tag `YYYY-MM-DD` (US02). */
+  getDay(date: string): Observable<Day> {
+    return this.http.get<Day>(`${API}/days/${date}`);
   }
 
+  /** Neue API (Nest): 7-Tage-Vorschau (US03); ohne Vorhersage `items = []`. */
+  getForecasts(): Observable<ForecastList> {
+    return this.http.get<ForecastList>(`${API}/forecasts`);
+  }
+
+  /** Neue API (Nest): Rekorde ohne Vorhersagestunden (US06). */
+  getRecords(): Observable<Records> {
+    return this.http.get<Records>(`${API}/records`);
+  }
+
+  /** Express (bis Schritt 8). */
   getMonth(year: string, month: string): Observable<MonthResponse> {
     return this.http.get<MonthResponse>(`${API}/data/month/${year}/${month}`);
   }
 
+  /** Express (bis Schritt 8). */
   getYear(year: string): Observable<YearResponse> {
     return this.http.get<YearResponse>(`${API}/data/year/${year}`);
-  }
-
-  getForecast(): Observable<DayForecast[]> {
-    return this.http.get<DayForecast[]>(`${API}/forecast`);
-  }
-
-  getStats(): Observable<Stats> {
-    return this.http.get<Stats>(`${API}/stats`);
   }
 }

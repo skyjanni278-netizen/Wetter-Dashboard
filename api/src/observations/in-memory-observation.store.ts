@@ -1,17 +1,27 @@
-import { Injectable } from '@nestjs/common';
-import { localDate, localDateTime } from '../common/berlin-time';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import { addDays, localDate, localDateTime } from '../common/berlin-time';
 import { Clock } from '../common/clock';
 import { formatUtc } from '../common/utc';
+import { ACTIVE_FIXTURE } from '../fixtures/fixture';
+import type { Fixture } from '../fixtures/fixture';
 import { LegacyFileSource } from '../legacy/legacy-file-source';
 import type { LegacyDayFile, LegacyHour } from '../legacy/legacy-types';
 import { pickValues, sameValues } from './observation';
-import type { DataRange, ObservationHour, ObservationInput, UpsertCounts } from './observation';
+import type {
+  DataRange,
+  ObservationHour,
+  ObservationInput,
+  ObservationSource,
+  StoredDay,
+  UpsertCounts,
+} from './observation';
 import type { ObservationStore, UpsertOptions } from './observation.store';
 
-/** Von Nest importierte Stunde (nur im Arbeitsspeicher). */
+/** Von Nest importierte (oder aus einer Fixture geladene) Stunde, nur im Arbeitsspeicher. */
 interface ImportedHour extends ObservationHour {
   timeUtc: string;
-  importId: number;
+  /** Import, der die Stunde geschrieben hat; `null` bei Stunden aus einer Fixture. */
+  importId: number | null;
   /** `true`, wenn die Stunde eine Stunde des Altbestands mit derselben Ortszeit ersetzt. */
   replacesLegacy: boolean;
 }
@@ -22,12 +32,19 @@ interface ImportedDay {
   hours: Map<string, ImportedHour>;
 }
 
-function fromLegacy(hour: LegacyHour): ObservationHour {
-  return { timeLocal: hour.time, timeUtc: null, ...pickValues(hour) };
+/**
+ * Stunde des Altbestands. R08: Liegt ihre Ortszeit nach der Änderungszeit der Datei, war sie beim
+ * Schreiben eine Vorhersage (`source = "prediction"`), auch wenn ihre Zeit inzwischen vorbei ist
+ * (veraltete Vorhersage, Befund Z3). Sonst ist die Herkunft unbekannt (`null`, bis Schritt 9).
+ */
+function fromLegacy(hour: LegacyHour, modifiedAt: string | null): ObservationHour {
+  const writtenLocal = modifiedAt ? localDateTime(new Date(modifiedAt)) : null;
+  const source: ObservationSource | null = writtenLocal !== null && hour.time > writtenLocal ? 'prediction' : null;
+  return { timeLocal: hour.time, timeUtc: null, ...pickValues(hour), source };
 }
 
 function toHour(hour: ImportedHour): ObservationHour {
-  return { timeLocal: hour.timeLocal, timeUtc: hour.timeUtc, ...pickValues(hour) };
+  return { timeLocal: hour.timeLocal, timeUtc: hour.timeUtc, ...pickValues(hour), source: hour.source };
 }
 
 function compareHours(a: ObservationHour, b: ObservationHour): number {
@@ -45,8 +62,8 @@ function byTimeUtc(a: { timeUtc: string }, b: { timeUtc: string }): number {
  * Altbestand plus importierte Stunden. Eine importierte Stunde mit `replacesLegacy` ersetzt die erste
  * Stunde des Altbestands mit derselben Ortszeit; alle übrigen kommen hinzu.
  */
-function mergeDay(base: readonly LegacyHour[], imported: readonly ImportedHour[]): ObservationHour[] {
-  const result = base.map(fromLegacy);
+function mergeDay(file: LegacyDayFile | null, imported: readonly ImportedHour[]): ObservationHour[] {
+  const result = (file?.hours ?? []).map(h => fromLegacy(h, file?.modifiedAt ?? null));
   const added: ObservationHour[] = [];
   for (const hour of [...imported].sort(byTimeUtc)) {
     if (hour.replacesLegacy) {
@@ -66,27 +83,44 @@ function mergeDay(base: readonly LegacyHour[], imported: readonly ImportedHour[]
  *
  * - Grundlage ist der Altbestand aus `LegacyFileSource`. Die Datei für heute liest diese bei jeder
  *   Anfrage neu; das bleibt erhalten, weil der Store bei jedem Lesen über `LegacyFileSource` geht.
+ * - Mit `FIXTURE=<name>` (Token `ACTIVE_FIXTURE`) ist die Fixture die Grundlage, der Altbestand wird
+ *   nicht gelesen. Ihre Stunden verhalten sich wie importierte Stunden.
  * - Importe von Nest liegen getrennt daneben. Für ältere Tage haben sie Vorrang vor dem Altbestand.
  * - Für **heute** gilt die neuere Quelle: Ist die Tagesdatei von Express (Änderungszeit) neuer als der
  *   letzte Schreibvorgang eines Imports für diesen Tag, gilt nur die Datei und die importierten Stunden
  *   des Tages werden verworfen. So friert ein Import die stündlich aktualisierte Datei nicht ein.
+ * - R08: Eine Stunde, die beim Schreiben in der Zukunft lag, wird als `source = "prediction"` gespeichert.
  * - Schreibt **nie** in Dateien: Express bleibt bis Schritt 9 der einzige Schreiber.
  */
 @Injectable()
 export class InMemoryObservationStore implements ObservationStore {
   /** Berliner Datum → Schreibzeitpunkt und (UTC-Zeitpunkt → Stunde). */
   private readonly imported = new Map<string, ImportedDay>();
+  private readonly useLegacy: boolean;
 
   constructor(
     private readonly legacy: LegacyFileSource,
     private readonly clock: Clock,
-  ) {}
+    @Optional() @Inject(ACTIVE_FIXTURE) fixture: Fixture | null = null,
+  ) {
+    this.useLegacy = fixture === null;
+    if (fixture) this.seed(fixture);
+  }
 
   async getDay(date: string): Promise<ObservationHour[] | null> {
-    const file = await this.legacy.getDayFile(date);
+    const file = this.useLegacy ? await this.legacy.getDayFile(date) : null;
     const imported = this.currentImported(date, file);
     if (!file && !imported) return null;
-    return mergeDay(file?.hours ?? [], imported ? [...imported.hours.values()] : []);
+    return mergeDay(file, imported ? [...imported.hours.values()] : []);
+  }
+
+  async getRange(from: string, to: string): Promise<StoredDay[]> {
+    const days: StoredDay[] = [];
+    for (let date = from; date <= to; date = addDays(date, 1)) {
+      const hours = await this.getDay(date);
+      if (hours && hours.length > 0) days.push({ date, hours });
+    }
+    return days;
   }
 
   /** Importierte Stunden eines Tages, außer sie sind heute von einer neueren Express-Datei überholt. */
@@ -105,7 +139,7 @@ export class InMemoryObservationStore implements ObservationStore {
   }
 
   async getDataRange(): Promise<DataRange> {
-    let { from, to } = await this.legacy.getDataRange();
+    let { from, to } = this.useLegacy ? await this.legacy.getDataRange() : { from: null, to: null };
     for (const date of this.imported.keys()) {
       if (from === null || date < from) from = date;
       if (to === null || date > to) to = date;
@@ -115,6 +149,7 @@ export class InMemoryObservationStore implements ObservationStore {
 
   async upsertHours(hours: readonly ObservationInput[], options: UpsertOptions): Promise<UpsertCounts> {
     const counts: UpsertCounts = { inserted: 0, updated: 0, unchanged: 0 };
+    const now = this.clock.now();
     const byDate = new Map<string, ObservationInput[]>();
     const seen = new Set<string>();
     for (const hour of hours) {
@@ -149,17 +184,29 @@ export class InMemoryObservationStore implements ObservationStore {
           }
         }
 
+        // R08: Stunde nach dem Abrufzeitpunkt = Vorhersage.
+        const source: ObservationSource | null =
+          Date.parse(input.timeUtc) > now.getTime() ? 'prediction' : (input.source ?? null);
         const next: ImportedHour = {
           timeLocal,
           timeUtc: input.timeUtc,
           ...pickValues(input),
+          source,
           importId: options.importId,
           replacesLegacy,
         };
         if (index < 0) {
           counts.inserted++;
           changes.push([date, next]);
-        } else if (options.mode === 'insertMissing' || sameValues(current[index], input)) {
+          continue;
+        }
+        const wasPrediction = current[index].source === 'prediction';
+        const isPrediction = source === 'prediction';
+        if (wasPrediction && !isPrediction) {
+          // Eine (veraltete) Vorhersage gilt als Lücke (R08) und wird auch von `gaps` ersetzt.
+          counts.updated++;
+          changes.push([date, next]);
+        } else if (options.mode === 'insertMissing' || (sameValues(current[index], input) && wasPrediction === isPrediction)) {
           counts.unchanged++;
         } else {
           counts.updated++;
@@ -168,7 +215,7 @@ export class InMemoryObservationStore implements ObservationStore {
       }
     }
 
-    const writtenAt = formatUtc(this.clock.now());
+    const writtenAt = formatUtc(now);
     for (const [date, hour] of changes) {
       const day = this.imported.get(date) ?? { writtenAt, hours: new Map<string, ImportedHour>() };
       day.writtenAt = writtenAt;
@@ -176,5 +223,24 @@ export class InMemoryObservationStore implements ObservationStore {
       this.imported.set(date, day);
     }
     return counts;
+  }
+
+  /** Lädt die Stunden einer Fixture als Grundlage (statt des Altbestands). */
+  private seed(fixture: Fixture): void {
+    const writtenAt = formatUtc(this.clock.now());
+    for (const observation of fixture.observations) {
+      const instant = new Date(observation.timeUtc);
+      const date = localDate(instant);
+      const day = this.imported.get(date) ?? { writtenAt, hours: new Map<string, ImportedHour>() };
+      day.hours.set(observation.timeUtc, {
+        timeLocal: localDateTime(instant),
+        timeUtc: observation.timeUtc,
+        ...pickValues(observation),
+        source: observation.source,
+        importId: null,
+        replacesLegacy: false,
+      });
+      this.imported.set(date, day);
+    }
   }
 }

@@ -5,7 +5,7 @@ import { Router, provideRouter, withComponentInputBinding } from '@angular/route
 import { of } from 'rxjs';
 import { App } from './app';
 import { routes } from './app.routes';
-import { Location, Status } from './models/api';
+import { Day, Location, Records, Status } from './models/api';
 import { WeatherService } from './services/weather.service';
 
 const STATUS: Status = {
@@ -16,6 +16,21 @@ const STATUS: Status = {
 const HEUBACH: Location = {
   id: 1, slug: 'heubach', name: 'Heubach', postalCode: '73540', region: 'Ostalbkreis',
   latitude: 48.7936, longitude: 9.9369, timezone: 'Europe/Berlin', isDefault: true,
+};
+
+/** Tag ohne Stunden (Seite zeigt den Leerzustand); für die Navigation reicht das. */
+function emptyDay(date: string): Day {
+  return {
+    id: date, date, locationId: 1, timezone: 'Europe/Berlin', isToday: false,
+    hoursExpected: 24, hoursObserved: 0, hoursPredicted: 0, complete: false, current: null,
+    observed: { temperature: { mean: null, min: null, max: null, minAt: null, maxAt: null }, precipitationSum: null, isDryDay: null },
+    predicted: { temperature: { min: null, max: null }, precipitationSum: null },
+    hours: [],
+  };
+}
+
+const NO_RECORDS: Records = {
+  locationId: 1, hottest: null, coldest: null, wettestDay: null, longestDryPeriod: null, daysCounted: 0, excludesPredictions: true,
 };
 
 /** Antworten der neuen API für den Footer (Status und Standort). */
@@ -33,10 +48,10 @@ describe('App Navigation (V08)', () => {
           ...footerApi,
           getMonth: (year: string, month: string) => of({ year, month, data: [] }),
           getYear: (year: string) => of({ year, data: [] }),
-          getToday: () => of({ date: '2026-11-19', location: 'Heubach', hourly: [] }),
-          getDay: (date: string) => of({ date, location: 'Heubach', hourly: [] }),
-          getForecast: () => of([]),
-          getStats: () => of({ hottestDay: null, coldestDay: null, rainiestDay: null, driestStreak: null, totalDays: 0 }),
+          getToday: () => of(emptyDay('2026-11-19')),
+          getDay: (date: string) => of(emptyDay(date)),
+          getForecasts: () => of({ items: [], fetchedAt: null }),
+          getRecords: () => of(NO_RECORDS),
         } },
       ],
     });
@@ -141,8 +156,8 @@ describe('App Navigation (V08)', () => {
         provideRouter(routes, withComponentInputBinding()),
         { provide: WeatherService, useValue: {
           ...footerApi,
-          getToday: () => of({ date: '2026-11-19', location: 'Heubach', hourly: [] }),
-          getForecast: () => of([]),
+          getToday: () => of(emptyDay('2026-11-19')),
+          getForecasts: () => of({ items: [], fetchedAt: null }),
         } },
       ],
     });

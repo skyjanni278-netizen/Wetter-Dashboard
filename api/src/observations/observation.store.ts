@@ -1,4 +1,11 @@
-import type { DataRange, ObservationHour, ObservationInput, UpsertCounts, UpsertMode } from './observation';
+import type {
+  DataRange,
+  ObservationHour,
+  ObservationInput,
+  StoredDay,
+  UpsertCounts,
+  UpsertMode,
+} from './observation';
 
 /** DI-Token für den `ObservationStore` (Schritt 3: In-Memory, Schritt 9: TypeORM). */
 export const OBSERVATION_STORE = 'OBSERVATION_STORE';
@@ -16,6 +23,13 @@ export interface UpsertOptions {
 export interface ObservationStore {
   /** Stunden eines Berliner Kalendertags in zeitlicher Reihenfolge oder `null`, wenn es keine gibt. */
   getDay(date: string): Promise<ObservationHour[] | null>;
+
+  /**
+   * Alle Tage mit mindestens einer Stunde von `from` bis `to` (Berliner Kalendertage, beide eingeschlossen),
+   * aufsteigend nach Datum. Grundlage der Auswertungen (`AggregationService`); Schritt 9 tauscht nur diese
+   * Abfrage gegen SQL.
+   */
+  getRange(from: string, to: string): Promise<StoredDay[]>;
 
   /** Erster und letzter Berliner Kalendertag mit Daten. */
   getDataRange(): Promise<DataRange>;

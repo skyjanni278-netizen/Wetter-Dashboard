@@ -1,14 +1,36 @@
-import { Injectable } from '@nestjs/common';
-import { ACTIVE_IMPORT_STATUSES } from './import';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import { ACTIVE_FIXTURE } from '../fixtures/fixture';
+import type { Fixture } from '../fixtures/fixture';
+import { HEUBACH } from '../locations/location';
+import { ACTIVE_IMPORT_STATUSES, emptyCounts } from './import';
 import type { ImportKind, ImportRecord, ImportStatus } from './import';
 import { ImportAlreadyRunningError } from './import.store';
 import type { ImportStore, ImportUpdate, NewImport } from './import.store';
 
-/** `ImportStore` im Arbeitsspeicher (Schritt 3, bis Schritt 9). IDs beginnen nach jedem Start bei 1. */
+/**
+ * `ImportStore` im Arbeitsspeicher (Schritt 3, bis Schritt 9). IDs beginnen nach jedem Start bei 1.
+ * Mit `FIXTURE=<name>` stehen die Importe der Fixture schon darin (für `updateState`, R25, US16).
+ */
 @Injectable()
 export class InMemoryImportStore implements ImportStore {
   private readonly records = new Map<number, ImportRecord>();
   private nextId = 1;
+
+  constructor(@Optional() @Inject(ACTIVE_FIXTURE) fixture: Fixture | null = null) {
+    for (const entry of fixture?.imports ?? []) {
+      const id = this.nextId++;
+      this.records.set(id, {
+        ...entry,
+        id,
+        locationId: HEUBACH.id,
+        overwriteCorrections: false,
+        requestedBy: null,
+        counts: emptyCounts(),
+        warnings: [],
+        error: null,
+      });
+    }
+  }
 
   async create(input: NewImport): Promise<ImportRecord> {
     // Synchron zwischen Prüfung und Anlegen: kein zweiter Aufruf kann dazwischenkommen (R19).

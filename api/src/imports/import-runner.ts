@@ -5,6 +5,7 @@ import { formatUtc } from '../common/utc';
 import { FORECAST_STORE } from '../forecasts/forecast.store';
 import type { ForecastStore } from '../forecasts/forecast.store';
 import { HEUBACH } from '../locations/location';
+import type { ObservationInput } from '../observations/observation';
 import { OBSERVATION_STORE } from '../observations/observation.store';
 import type { ObservationStore } from '../observations/observation.store';
 import { OpenMeteoClient, OpenMeteoError } from '../weather-provider/open-meteo.client';
@@ -84,13 +85,15 @@ export class ImportRunner {
     }
 
     // 1. Stundenwerte: erst alle Abfragen, dann schreiben. Ein Fehler → nichts geschrieben (R32).
-    const hours: ProviderHour[] = [];
+    const hours: ObservationInput[] = [];
     try {
       for (const plan of planHourlyRequests(record.from, record.to, localDate(this.clock.now()))) {
-        const fetched = await this.provider.fetchHourly(plan.request, HEUBACH);
+        const fetched: ProviderHour[] = await this.provider.fetchHourly(plan.request, HEUBACH);
+        // Herkunft je Wert (03 B2.2); ob eine Stunde Vorhersage ist, entscheidet der Store (R08).
+        const source = plan.request.source === 'archive' ? 'archive' : 'forecast_api';
         for (const hour of fetched) {
           const date = localDate(new Date(hour.timeUtc));
-          if (date >= plan.fromLocal && date <= plan.toLocal) hours.push(hour);
+          if (date >= plan.fromLocal && date <= plan.toLocal) hours.push({ ...hour, source });
         }
       }
     } catch (error) {

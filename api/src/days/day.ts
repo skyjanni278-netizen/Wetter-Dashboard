@@ -1,8 +1,9 @@
+import type { ObservationSource } from '../observations/observation';
+
 /**
- * Tag nach B2.2 in der Grundform von Schritt 2. Berechnete Felder (`hoursObserved`,
- * `hoursPredicted`, `complete`, `current`, `observed`, `predicted`) und je Stunde `id`,
- * `source`, `isPrediction`, `correctedAt` folgen mit den Fachregeln (Schritt 7) bzw. der
- * Datenbank (Schritt 9).
+ * Tag nach 03 B2.2 (Schritt 7: berechnete Felder). Stundenwerte sind ungerundet wie gespeichert,
+ * berechnete Werte (`observed`, `predicted`) auf eine Nachkommastelle gerundet (R11, `round1`).
+ * Noch nicht enthalten (Schritt 9, Datenbank): `hours[].id` und `current.observationId` (bis dahin `null`).
  */
 export interface DayHour {
   /** Berliner Ortszeit; im Altbestand ohne Offset, z. B. `2026-11-10T14:00` (Befund Z1). */
@@ -13,6 +14,26 @@ export interface DayHour {
   weatherCode: number | null;
   windSpeed: number | null;
   windDirection: number | null;
+  /** Herkunft (B2.2); `null` = unbekannt (Altbestand bis Schritt 9). */
+  source: ObservationSource | null;
+  /** R08: Vorhersage (gespeichert als solche oder Stunde nach „jetzt“). */
+  isPrediction: boolean;
+  /** Korrekturen gibt es ab Schritt 12a; bis dahin immer `null`. */
+  correctedAt: string | null;
+}
+
+export interface DayTemperature {
+  mean: number | null;
+  min: number | null;
+  max: number | null;
+  minAt: string | null;
+  maxAt: string | null;
+}
+
+export interface DayCurrent {
+  /** Bis Schritt 9 `null` (keine IDs im Arbeitsspeicher); die Stunde findet man über `timeLocal`. */
+  observationId: number | null;
+  timeLocal: string;
 }
 
 export interface Day {
@@ -22,5 +43,18 @@ export interface Day {
   timezone: string;
   isToday: boolean;
   hoursExpected: number;
+  hoursObserved: number;
+  hoursPredicted: number;
+  complete: boolean;
+  current: DayCurrent | null;
+  observed: {
+    temperature: DayTemperature;
+    precipitationSum: number | null;
+    isDryDay: boolean | null;
+  };
+  predicted: {
+    temperature: { min: number | null; max: number | null };
+    precipitationSum: number | null;
+  };
   hours: DayHour[];
 }

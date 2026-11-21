@@ -4,8 +4,9 @@ import { Title } from '@angular/platform-browser';
 import { Router, RouterLink } from '@angular/router';
 import { Observable, of, catchError, distinctUntilChanged, map, startWith, switchMap } from 'rxjs';
 import { WeatherService } from '../../services/weather.service';
-import { DayData, DayForecast } from '../../models/weather';
+import { ApiError, Day, DayHour, Forecast } from '../../models/api';
 import { LoadResult, LoadState } from '../../models/load-state';
+import { UNREACHABLE_MESSAGE, apiErrorOf } from '../../interceptors/api-error.interceptor';
 import { ClimateChartComponent, ClimateChartDataset } from '../../components/climate-chart/climate-chart';
 import { CardComponent } from '../../components/card/card';
 import { KpiCardComponent } from '../../components/kpi-card/kpi-card';
@@ -18,7 +19,7 @@ import { LoadingComponent } from '../../components/state/loading';
 import { EmptyComponent } from '../../components/state/empty';
 import { ErrorComponent } from '../../components/state/error';
 import { getWeatherIcon, describeWeather, getWindDirection } from '../../utils/weather-icon';
-import { berlinToday, berlinHour, addDays, formatDateDe, formatDateLongDe, isValidIsoDate } from '../../utils/berlin-date';
+import { berlinToday, addDays, formatDateDe, formatDateLongDe, isValidIsoDate } from '../../utils/berlin-date';
 import { DATA_START } from '../../config/data-range';
 import { UnitPipe } from '../../pipes/unit.pipe';
 import { dayViewTitle, setPageTitle } from '../../utils/page-title';
@@ -28,6 +29,17 @@ const DAY_NAMES = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
 
 /** Pause, nach der ein getipptes Datum ohne Enter oder Verlassen des Felds übernommen wird. */
 export const KEYBOARD_COMMIT_DELAY_MS = 800;
+
+/** Ladeergebnis eines Tages mit dem Fehler der API (für `app-error`) und dem Server-Fehler am Feld `date`. */
+interface DayResult extends LoadResult<Day> {
+  apiError: ApiError | null;
+  fieldError: string | null;
+}
+
+/** „14:00“ aus `2026-11-19T14:00`. */
+function hourOf(timeLocal: string): string {
+  return timeLocal.slice(11, 16);
+}
 
 @Component({
   selector: 'app-today-page',
@@ -107,11 +119,26 @@ export class TodayPageComponent implements OnInit {
    */
   private navBase = linkedSignal(() => this.selectedDate());
 
-  dayData = signal<DayData | null>(null);
-  forecast = signal<DayForecast[]>([]);
+  dayData = signal<Day | null>(null);
+  forecast = signal<Forecast[]>([]);
   state = signal<LoadState>('idle');
   loading = computed(() => this.state() === 'loading');
   error = signal<string | null>(null);
+  /** Fehler der API zum letzten Request (B3.3); `app-error` zeigt bei `NO_DATA` den Link zum Datenbeginn. */
+  apiError = signal<ApiError | null>(null);
+  /** „Erneut versuchen“ nur, wenn ein neuer Versuch etwas ändern kann (nicht bei 400 und `NO_DATA`). */
+  retryable = computed(() => {
+    const e = this.apiError();
+    return !e || (e.statusCode !== 400 && e.code !== 'NO_DATA');
+  });
+  /**
+   * Server-Fehler am Feld `date` (400 mit `errors[].field = "date"`, B5.2), z. B. `DATE_IN_FUTURE`,
+   * wenn die Uhr des Servers einen anderen Tag hat. Entfällt beim nächsten Request oder einer Eingabe.
+   * Sperrt ‹ › nicht, damit man vom Tag wegnavigieren kann.
+   */
+  serverFieldError = signal<string | null>(null);
+  /** Angezeigte Meldung am Datumsfeld: Prüfung im Browser vor Server-Fehler. */
+  shownFieldError = computed(() => this.fieldError() ?? this.serverFieldError());
 
   /** Erhöht sich bei „Heute“ (auf `/`) und „Erneut versuchen“, damit ohne Datumswechsel neu geladen wird. */
   private reloadCount = signal(0);
@@ -128,67 +155,74 @@ export class TodayPageComponent implements OnInit {
   futureForecast = computed(() =>
     this.isFuture() ? this.forecast().find(f => f.date === this.selectedDate()) ?? null : null);
 
-  currentHourEntry = computed(() => {
+  /**
+   * Der geladene Tag läuft noch (Server: `isToday`): Werte „bis jetzt“, Hero „Jetzt“, Vorschau.
+   * Der Server entscheidet, weil nur er weiß, welche Stunden schon vergangen sind (R08, F06).
+   */
+  liveDay = computed(() => this.dayData()?.isToday === true);
+
+  /** Stunde für den Hero „Jetzt“ (US01-6): Eintrag in `hours[]` mit `timeLocal = current.timeLocal`. */
+  currentHour = computed<DayHour | null>(() => {
     const data = this.dayData();
-    if (!data || !this.isToday()) return null;
-    const currentHour = `${data.date}T${String(berlinHour()).padStart(2, '0')}:00`;
-    return data.hourly.find(h => h.time === currentHour) ?? data.hourly[data.hourly.length - 1];
+    const current = data?.current;
+    if (!data || !current) return null;
+    return data.hours.find(h => h.timeLocal === current.timeLocal) ?? null;
   });
 
-  noonHourEntry = computed(() => {
-    const data = this.dayData();
-    if (!data) return null;
-    return data.hourly.find(h => h.time.endsWith('T12:00')) ?? data.hourly[Math.floor(data.hourly.length / 2)];
+  /** Mittagsstunde für Symbol und Wettertext an vergangenen Tagen. */
+  noonHour = computed<DayHour | null>(() => {
+    const hours = this.dayData()?.hours ?? [];
+    return hours.find(h => h.timeLocal.endsWith('T12:00')) ?? hours[Math.floor(hours.length / 2)] ?? null;
   });
 
-  /** Temperaturen ohne fehlende Werte (null), damit Min/Max nicht zu 0 werden (V13, F15). */
-  private validTemps = computed(() =>
-    (this.dayData()?.hourly ?? [])
-      .map(h => h.temperature)
-      .filter((t): t is number => t !== null && t !== undefined));
+  /** Min, Max und Summe kommen fertig vom Server, nur aus vergangenen Stunden (F13, F15, S8). */
+  observedMin = computed(() => this.dayData()?.observed.temperature.min ?? null);
+  observedMax = computed(() => this.dayData()?.observed.temperature.max ?? null);
+  observedPrecip = computed(() => this.dayData()?.observed.precipitationSum ?? null);
 
-  dayMinTemp = computed(() => {
-    const temps = this.validTemps();
-    return temps.length ? Math.min(...temps) : null;
-  });
-
-  dayMaxTemp = computed(() => {
-    const temps = this.validTemps();
-    return temps.length ? Math.max(...temps) : null;
-  });
+  /** Uhrzeit von Höchst- und Tiefstwert („um 13:00 Uhr“). */
+  maxAtText = computed(() => this.atText(this.dayData()?.observed.temperature.maxAt ?? null));
+  minAtText = computed(() => this.atText(this.dayData()?.observed.temperature.minAt ?? null));
 
   dayTempRange = computed(() => {
-    const min = this.dayMinTemp();
-    const max = this.dayMaxTemp();
+    const min = this.observedMin();
+    const max = this.observedMax();
     if (min === null || max === null) return null;
     return Math.round((max - min) * 10) / 10;
   });
 
-  totalDayPrecip = computed(() => {
+  /** Vorhersage für den Rest des Tages (F13): nur, wenn es Vorhersagestunden gibt. */
+  predicted = computed(() => {
     const data = this.dayData();
-    if (!data) return 0;
-    return Math.round(data.hourly.reduce((s, h) => s + (h.precipitation ?? 0), 0) * 10) / 10;
+    return data && data.hoursPredicted > 0 ? data.predicted : null;
+  });
+
+  /** Zusatz an „Niederschlag bis jetzt“: „+5,4 mm erwartet“. */
+  expectedPrecipText = computed(() => {
+    const sum = this.predicted()?.precipitationSum ?? null;
+    return sum === null ? null : `+${this.unitPipe.transform(sum, 'mm', '1.1-1')} erwartet`;
+  });
+
+  /** Temperaturspanne der Vorhersagestunden („8,1 bis 9,4 °C“). */
+  restOfDayText = computed(() => {
+    const t = this.predicted()?.temperature;
+    if (!t || t.min === null || t.max === null) return null;
+    return `${this.unitPipe.transform(t.min, '°C', '1.1-1')} bis ${this.unitPipe.transform(t.max, '°C', '1.1-1')}`;
   });
 
   chartData = computed<ClimateChartDataset | null>(() => {
     const data = this.dayData();
     if (!data) return null;
     return {
-      labels: data.hourly.map(h => h.time.slice(11, 16)),
-      temperatures: data.hourly.map(h => h.temperature),
-      precipitations: data.hourly.map(h => h.precipitation),
+      labels: data.hours.map(h => hourOf(h.timeLocal)),
+      temperatures: data.hours.map(h => h.temperature),
+      precipitations: data.hours.map(h => h.precipitation),
     };
   });
 
-  /**
-   * Erste Vorhersagestunde im Diagramm: übergangsweise alle Stunden nach der aktuellen
-   * Berliner Stunde, nur für heute (ab Schritt 7 aus `isPrediction`).
-   */
+  /** Erste Vorhersagestunde im Diagramm aus `isPrediction` (R08); ohne Vorhersage `null`. */
   chartPredictionFrom = computed<number | null>(() => {
-    const data = this.dayData();
-    if (!data || !this.isToday()) return null;
-    const now = berlinHour();
-    const index = data.hourly.findIndex(h => parseInt(h.time.slice(11, 13), 10) > now);
+    const index = this.dayData()?.hours.findIndex(h => h.isPrediction) ?? -1;
     return index >= 0 ? index : null;
   });
 
@@ -201,11 +235,11 @@ export class TodayPageComponent implements OnInit {
       const min = this.unitPipe.transform(f.minTemp, '°', '1.0-0');
       return {
         day: f.date === berlinToday() ? 'Heute' : label,
-        weather: { icon: getWeatherIcon(f.weathercode), text: describeWeather(f.weathercode) },
+        weather: { icon: getWeatherIcon(f.weatherCode), text: describeWeather(f.weatherCode) },
         max,
         min,
         maxmin: `${max} / ${min}`,
-        rain: this.unitPipe.transform(f.precipitation, 'mm', '1.1-1'),
+        rain: this.unitPipe.transform(f.precipitationSum, 'mm', '1.1-1'),
       };
     })
   );
@@ -235,7 +269,22 @@ export class TodayPageComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    this.weather.getForecast().subscribe({ next: f => this.forecast.set(f), error: () => {} });
+    this.weather.getForecasts().subscribe({ next: f => this.forecast.set(f.items ?? []), error: () => {} });
+  }
+
+  /** Wind der Stunde: „21 km/h aus SW“; ohne Richtung nur die Geschwindigkeit. */
+  windText(hour: DayHour): string {
+    const speed = this.unitPipe.transform(hour.windSpeed, 'km/h', '1.0-0');
+    return hour.windDirection === null ? speed : `${speed} aus ${getWindDirection(hour.windDirection)}`;
+  }
+
+  /** „14:00“ aus `timeLocal`. */
+  hourOf(timeLocal: string): string {
+    return hourOf(timeLocal);
+  }
+
+  private atText(timeLocal: string | null): string | null {
+    return timeLocal ? `um ${hourOf(timeLocal)} Uhr` : null;
   }
 
   /**
@@ -252,6 +301,7 @@ export class TodayPageComponent implements OnInit {
     const byKeyboard = this.keyboardEdit;
     this.keyboardEdit = false;
     this.cancelPending();
+    this.serverFieldError.set(null);
     if (!value || !field.validity.valid || !this.isSelectable(value)) {
       this.fieldInput.set(value);
       return;
@@ -336,43 +386,58 @@ export class TodayPageComponent implements OnInit {
     this.router.navigate(date === berlinToday() ? ['/'] : ['/tag', date]);
   }
 
-  private loadDay(date: string): Observable<LoadResult<DayData>> {
+  private loadDay(date: string): Observable<DayResult> {
     const today = berlinToday();
     const status = dayParamStatus(date, today);
     // Ungültige Daten und Zukunftsdaten lösen keinen Request aus
     if (status === 'invalid' || status === 'future') {
-      return of<LoadResult<DayData>>({ state: 'idle', data: null, message: null });
+      return of<DayResult>({ state: 'idle', data: null, message: null, apiError: null, fieldError: null });
     }
     const obs = date === today
       ? this.weather.getToday()
       : this.weather.getDay(date);
     return obs.pipe(
-      map((data): LoadResult<DayData> => data?.hourly?.length
-        ? { state: 'success', data, message: null }
-        : { state: 'empty', data: null, message: 'Keine Daten für diesen Tag gefunden.' }),
+      map((data): DayResult => data?.hours?.length
+        ? { state: 'success', data, message: null, apiError: null, fieldError: null }
+        : { state: 'empty', data: null, message: 'Keine Daten für diesen Tag gefunden.', apiError: null, fieldError: null }),
       catchError(err => of(this.errorResult(err, date))),
-      startWith<LoadResult<DayData>>({ state: 'loading', data: null, message: null }),
+      startWith<DayResult>({ state: 'loading', data: null, message: null, apiError: null, fieldError: null }),
     );
   }
 
-  /** Meldung je nach Ursache (V20). */
-  private errorResult(err: { status?: number; error?: { error?: string } }, date: string): LoadResult<DayData> {
-    if (err?.status === 404) {
+  /**
+   * Meldung je nach Ursache (V20), aus dem Fehler der API (B3.3):
+   * - 404 `NO_DATA`: „Für den … liegen keine Daten vor. Daten gibt es ab dem …“ (Datenbeginn aus
+   *   `details.dataFrom`), Fehlerbox mit Link zum Datenbeginn, ohne „Erneut versuchen“;
+   * - 400 (z. B. `DATE_IN_FUTURE`, `VALIDATION_FAILED`): Meldung der API, Feldfehler `date` am Datumsfeld;
+   * - Netzwerk und 5xx: „Server nicht erreichbar.“ (wie bisher), mit „Erneut versuchen“.
+   */
+  private errorResult(err: unknown, date: string): DayResult {
+    const apiError = apiErrorOf(err);
+    if (apiError.code === 'NO_DATA' || apiError.statusCode === 404) {
+      const from = apiError.details?.['dataFrom'];
+      const dataFrom = typeof from === 'string' && isValidIsoDate(from) ? from : null;
       // Nur ein gültiges Datum erscheint im Text (sonst „Für den  liegen …“)
-      const message = isValidIsoDate(date) && date < DATA_START
-        ? `Für den ${formatDateDe(date)} liegen keine Daten vor. Daten gibt es ab dem ${formatDateDe(DATA_START)}.`
-        : (err?.error?.error ?? 'Keine Daten für diesen Tag gefunden.');
-      return { state: 'empty', data: null, message };
+      const message = isValidIsoDate(date)
+        ? `Für den ${formatDateDe(date)} liegen keine Daten vor.` +
+          (dataFrom ? ` Daten gibt es ab dem ${formatDateDe(dataFrom)}.` : '')
+        : apiError.message;
+      return { state: 'error', data: null, message, apiError, fieldError: null };
     }
-    if (!err?.status || err.status >= 500) {
-      return { state: 'error', data: null, message: 'Server nicht erreichbar.' };
+    if (apiError.statusCode === 0 || apiError.statusCode >= 500) {
+      return { state: 'error', data: null, message: UNREACHABLE_MESSAGE, apiError, fieldError: null };
     }
-    return { state: 'error', data: null, message: err?.error?.error ?? 'Fehler beim Laden.' };
+    const fieldError = apiError.statusCode === 400
+      ? apiError.errors.find(e => e.field === 'date')?.message ?? null
+      : null;
+    return { state: 'error', data: null, message: apiError.message, apiError, fieldError };
   }
 
-  private applyResult(result: LoadResult<DayData>): void {
+  private applyResult(result: DayResult): void {
     this.state.set(result.state);
     this.error.set(result.message);
+    this.apiError.set(result.apiError);
+    this.serverFieldError.set(result.fieldError);
     // Bei loading bleiben vorhandene Daten sichtbar; bei empty/error werden sie null (V02, F03)
     if (result.state !== 'loading') this.dayData.set(result.data);
   }

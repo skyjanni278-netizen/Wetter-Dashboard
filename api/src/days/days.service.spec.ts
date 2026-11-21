@@ -3,8 +3,9 @@ import type { Response } from 'express';
 import { ApiException } from '../common/api.exception';
 import { ApiValidationException } from '../common/api-validation.exception';
 import { Clock, FixedClock } from '../common/clock';
-import type { ObservationHour } from '../observations/observation';
+import type { ObservationHour, StoredDay } from '../observations/observation';
 import { OBSERVATION_STORE } from '../observations/observation.store';
+import { AggregationService } from '../stats/aggregation.service';
 import type { ObservationStore } from '../observations/observation.store';
 import { DaysController } from './days.controller';
 import { DaysService } from './days.service';
@@ -19,6 +20,7 @@ function hour(timeLocal: string, temperature: number | null): ObservationHour {
     weatherCode: 3,
     windSpeed: 12.34,
     windDirection: 220,
+    source: null,
   };
 }
 
@@ -31,6 +33,12 @@ class FakeObservationStore implements ObservationStore {
 
   async getDay(date: string): Promise<ObservationHour[] | null> {
     return this.days.get(date) ?? null;
+  }
+
+  async getRange(from: string, to: string): Promise<StoredDay[]> {
+    return [...this.days.entries()]
+      .filter(([date]) => date >= from && date <= to)
+      .map(([date, hours]) => ({ date, hours }));
   }
 
   async getDataRange() {
@@ -52,6 +60,7 @@ describe('DaysService und DaysController mit Fake-Store (DI, ohne Dateien)', () 
       controllers: [DaysController],
       providers: [
         DaysService,
+        AggregationService,
         { provide: OBSERVATION_STORE, useClass: FakeObservationStore },
         { provide: Clock, useValue: clock },
       ],
@@ -60,7 +69,7 @@ describe('DaysService und DaysController mit Fake-Store (DI, ohne Dateien)', () 
     controller = moduleRef.get(DaysController);
   });
 
-  it('findOne liefert den Tag in der Form aus B2.2, Werte ungerundet, null bleibt null', async () => {
+  it('findOne liefert den Tag in der Form aus B2.2, Stundenwerte ungerundet, null bleibt null', async () => {
     const day = await service.findOne('2026-11-10');
     expect(day).toMatchObject({
       id: '2026-11-10',
@@ -69,6 +78,16 @@ describe('DaysService und DaysController mit Fake-Store (DI, ohne Dateien)', () 
       timezone: 'Europe/Berlin',
       isToday: false,
       hoursExpected: 24,
+      hoursObserved: 24,
+      hoursPredicted: 0,
+      complete: false, // R14: Stunde 5 ohne Temperatur
+      current: null,
+      observed: {
+        temperature: { mean: 6.2, min: 5, max: 7.3, minAt: '2026-11-10T00:00', maxAt: '2026-11-10T23:00' },
+        precipitationSum: 1,
+        isDryDay: null,
+      },
+      predicted: { temperature: { min: null, max: null }, precipitationSum: null },
     });
     expect(day.hours).toHaveLength(24);
     expect(day.hours[0]).toEqual({
@@ -79,6 +98,9 @@ describe('DaysService und DaysController mit Fake-Store (DI, ohne Dateien)', () 
       weatherCode: 3,
       windSpeed: 12.34,
       windDirection: 220,
+      source: null,
+      isPrediction: false,
+      correctedAt: null,
     });
     expect(day.hours[5].temperature).toBeNull();
     expect(day.hours[0]).not.toHaveProperty('timeUtc');

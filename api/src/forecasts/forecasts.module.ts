@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { FixturesModule } from '../fixtures/fixtures.module';
 import { LegacyModule } from '../legacy/legacy.module';
 import { FORECAST_STORE } from './forecast.store';
 import { ForecastsController } from './forecasts.controller';
@@ -10,7 +11,7 @@ import { InMemoryForecastStore } from './in-memory-forecast.store';
  * für das `ImportsModule`; kennt selbst keine Abläufe.
  */
 @Module({
-  imports: [LegacyModule],
+  imports: [LegacyModule, FixturesModule],
   controllers: [ForecastsController],
   providers: [ForecastsService, { provide: FORECAST_STORE, useClass: InMemoryForecastStore }],
   exports: [FORECAST_STORE],

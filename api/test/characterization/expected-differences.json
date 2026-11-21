@@ -1,0 +1,52 @@
+{
+  "description": "Liste „erwartet anders“ für characterization.e2e-spec.ts (03 B2.7 Schritt 9). Jede Abweichung der neuen API von den Golden Files muss hier über `pattern` (RegExp auf den Vergleichsschlüssel) erfasst sein, mit F-/R-Nummer und Begründung. Einträge mit `mayBeAbsent: true` beschreiben gewollte Unterschiede, die im Altbestand nicht vorkommen; sie sind in Unit- und e2e-Tests abgedeckt. Alle anderen Einträge müssen auch auftreten, sonst ist die Liste veraltet.",
+  "differences": [
+    {
+      "pattern": "^month:(2025-02:2025-02-12|2025-06:2025-06-21|2025-07:2025-07-05|2025-11:2025-11-30|2025-12:2025-12-31|2026-01:2026-01-17|2026-05:2026-05-10|2026-06:2026-06-06|2026-10:2026-10-31|2026-11:2026-11-07):avgTemp$",
+      "ref": "R11",
+      "reason": "Das ungerundete Tagesmittel liegt genau auf x,x5 (z. B. 5,75; −4,75). Express rundet mit Math.round(x*10)/10: Gleitkomma-Reste (5,7499999…) und negative Werte (Math.round(−47,5) = −47) landen auf der falschen Seite. round1 rundet kaufmännisch vom Nullpunkt weg (R11): 5,8 statt 5,7, −4,8 statt −4,7. Differenz immer genau 0,1."
+    },
+    {
+      "pattern": "^month:2026-11:2026-11-19:(avgTemp|totalPrecip)$",
+      "ref": "F13, Z3",
+      "reason": "Teiltag 19.11.2026 (README „Teiltag“): Express summiert Vorhersagestunden mit (Aufnahme ca. 18:28, Stunden ab 19:00 Vorhersage). Die Datei wurde danach um 22:04 neu geschrieben; die Stunde 23:00 liegt nach ihrer Änderungszeit und ist eine veraltete Vorhersage (R08, Befund Z3). observed enthält nur vergangene Stunden."
+    },
+    {
+      "pattern": "^month:2026-11:days$",
+      "ref": "F13, R13",
+      "reason": "Express zählt jede Datei (19 Tage), die neue API nur vollständige Tage (daysComplete = 18). Der 19.11. ist wegen der veralteten Vorhersagestunde 23:00 unvollständig."
+    },
+    {
+      "pattern": "^year:2026:2026-11:(avgTemp|totalPrecip)$",
+      "ref": "F13, R13",
+      "reason": "Monatswerte November 2026 nur aus den 18 vollständigen Tagen; Express nimmt den Teiltag 19.11. mit Vorhersagewerten dazu."
+    },
+    {
+      "pattern": "^year:2026:mean$",
+      "ref": "F28, R12",
+      "reason": "Das Frontend (yearly-page.ts) zeigt das ungewichtete Mittel der Monatsmittel (11,4 °C, unvollständiger November zählt wie ein ganzer Monat). Die neue API rechnet das Mittel der Tagesmittel aller vollständigen Tage (11,7 °C, nahe am stundengewichteten Wert 11,65 °C aus 01-analyse.md). 2025 weicht nicht ab, weil alle Monate vollständig sind."
+    },
+    {
+      "pattern": "^year:2026:precipitationSum$",
+      "ref": "F13, R13",
+      "reason": "Jahressumme 2026 ohne den Teiltag 19.11. (nur vollständige Tage); Express enthält ihn mit Vorhersagestunden."
+    },
+    {
+      "pattern": "^stats:totalDays$",
+      "ref": "F13, R13",
+      "reason": "Express zählt alle 688 Dateien, daysCounted nur vollständige Tage (687: 01.01.2025–18.11.2026). Der 19.11. ist unvollständig, der 20.11. ist heute (R13: heute ist nie vollständig)."
+    },
+    {
+      "pattern": "^stats:(hottest|coldest):(date|value)$",
+      "ref": "F14",
+      "mayBeAbsent": true,
+      "reason": "Express vergleicht den ungerundeten Tageswert mit dem schon gerundeten Rekord; bei Werten wie 30,04 / 30,03 gewinnt der falsche Tag. Die neue API vergleicht ungerundet (R11). Im Altbestand ohne Wirkung (Rekorde gleich); geprüft in aggregation.service.spec.ts und stats.e2e-spec.ts (Fixture us06-records)."
+    },
+    {
+      "pattern": "^stats:dryPeriod:(days|from|to)$",
+      "ref": "F27",
+      "mayBeAbsent": true,
+      "reason": "Express zählt Trockentage über fehlende Tage hinweg weiter. Die neue API beendet die Serie bei einer Lücke oder einem unvollständigen Tag (R10). Im Altbestand gibt es keine Lücke (Periode 22.04.–03.05.2026 gleich); geprüft mit der Fixture us06-records."
+    }
+  ]
+}

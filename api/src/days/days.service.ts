@@ -1,18 +1,23 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ApiException } from '../common/api.exception';
 import { assertNotInFuture } from '../common/api-validation.exception';
-import { BERLIN_TIMEZONE, hoursInDay, localDate } from '../common/berlin-time';
+import { localDate } from '../common/berlin-time';
 import { Clock } from '../common/clock';
-import { HEUBACH } from '../locations/location';
 import { OBSERVATION_STORE } from '../observations/observation.store';
 import type { ObservationStore } from '../observations/observation.store';
+import { AggregationService } from '../stats/aggregation.service';
 import type { Day } from './day';
+import { toDay } from './day.mapper';
 
-/** US01 (Grundform) und US02: Tage aus dem `ObservationStore`. Format und Kalendertag (R01) prüft vorher die Pipe. */
+/**
+ * US01 und US02: Tage aus dem `ObservationStore` mit den berechneten Feldern (Schritt 7, R06–R14).
+ * Format und Kalendertag (R01) prüft vorher die Pipe; „jetzt“ für R08 kommt aus der `Clock`.
+ */
 @Injectable()
 export class DaysService {
   constructor(
     @Inject(OBSERVATION_STORE) private readonly store: ObservationStore,
+    private readonly aggregation: AggregationService,
     private readonly clock: Clock,
   ) {}
 
@@ -31,29 +36,13 @@ export class DaysService {
    * Datei) → 404 `NO_DATA` mit `details.dataFrom` = erster Tag mit Daten laut Store.
    */
   async findOne(date: string): Promise<Day> {
-    const today = this.today();
-    assertNotInFuture('date', date, today);
+    const now = this.clock.now();
+    assertNotInFuture('date', date, localDate(now));
     const hours = await this.store.getDay(date);
-    if (!hours) {
+    if (!hours || hours.length === 0) {
       const { from } = await this.store.getDataRange();
       throw ApiException.noData(date, from);
     }
-    return {
-      id: date,
-      date,
-      locationId: HEUBACH.id,
-      timezone: BERLIN_TIMEZONE,
-      isToday: date === today,
-      hoursExpected: hoursInDay(date),
-      hours: hours.map(h => ({
-        timeLocal: h.timeLocal,
-        temperature: h.temperature,
-        apparentTemperature: h.apparentTemperature,
-        precipitation: h.precipitation,
-        weatherCode: h.weatherCode,
-        windSpeed: h.windSpeed,
-        windDirection: h.windDirection,
-      })),
-    };
+    return toDay(this.aggregation.aggregateDay(date, hours, now));
   }
 }

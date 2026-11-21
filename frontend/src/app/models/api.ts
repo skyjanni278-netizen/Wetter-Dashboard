@@ -1,7 +1,6 @@
 /**
- * Typen der neuen NestJS-API (`api/`, Zielbild B2.2) in der Grundform von Schritt 2.
+ * Typen der neuen NestJS-API (`api/`, Zielbild B2.2), Stand Schritt 7 (berechnete Felder).
  * Messwerte sind `number | null`: fehlende Werte kommen als `null`, nie als 0 (F15).
- * Felder, die erst spätere Schritte berechnen, fehlen hier noch.
  */
 
 /** `GET /api/locations/:id` */
@@ -35,7 +34,13 @@ export interface Status {
   updateState: UpdateState;
 }
 
-/** Stunde eines Tages; `timeLocal` ist Berliner Ortszeit (im Altbestand ohne Offset). */
+/** Herkunft einer Stunde (B2.2); `null` = unbekannt (Altbestand bis Schritt 9). */
+export type ObservationSource = 'archive' | 'forecast_api' | 'prediction';
+
+/**
+ * Stunde eines Tages; `timeLocal` ist Berliner Ortszeit (im Altbestand ohne Offset).
+ * Werte ungerundet wie gespeichert; gerundet wird erst bei der Ausgabe (Unit-Pipe).
+ */
 export interface DayHour {
   timeLocal: string;
   temperature: number | null;
@@ -44,9 +49,33 @@ export interface DayHour {
   weatherCode: number | null;
   windSpeed: number | null;
   windDirection: number | null;
+  source: ObservationSource | null;
+  /** R08: Vorhersage (gespeichert als solche oder Stunde nach „jetzt“). */
+  isPrediction: boolean;
+  /** Korrekturen ab Schritt 12a; bis dahin `null`. */
+  correctedAt: string | null;
 }
 
-/** `GET /api/days/:date` und `GET /api/days/today` */
+/** Temperatur der vergangenen Stunden; `minAt`/`maxAt` = `timeLocal` der Stunde. */
+export interface DayTemperature {
+  mean: number | null;
+  min: number | null;
+  max: number | null;
+  minAt: string | null;
+  maxAt: string | null;
+}
+
+/** Aktuelle Stunde (US01-6), nur heute; die Werte stehen in `hours[]` mit gleichem `timeLocal`. */
+export interface DayCurrent {
+  /** Bis Schritt 9 `null`. */
+  observationId: number | null;
+  timeLocal: string;
+}
+
+/**
+ * `GET /api/days/:date` und `GET /api/days/today`. `observed` rechnet nur vergangene Stunden,
+ * `predicted` nur Vorhersagestunden (F13); berechnete Werte auf eine Nachkommastelle gerundet.
+ */
 export interface Day {
   id: string;
   date: string;
@@ -54,6 +83,21 @@ export interface Day {
   timezone: string;
   isToday: boolean;
   hoursExpected: number;
+  hoursObserved: number;
+  hoursPredicted: number;
+  complete: boolean;
+  /** `null` an anderen Tagen als heute oder ohne vergangene Stunde. */
+  current: DayCurrent | null;
+  observed: {
+    temperature: DayTemperature;
+    precipitationSum: number | null;
+    /** R09, nur bei vollständigen Tagen; sonst `null`. */
+    isDryDay: boolean | null;
+  };
+  predicted: {
+    temperature: { min: number | null; max: number | null };
+    precipitationSum: number | null;
+  };
   hours: DayHour[];
 }
 
@@ -72,6 +116,29 @@ export interface Forecast {
 export interface ForecastList {
   items: Forecast[];
   fetchedAt: string | null;
+}
+
+/** Stundenrekord (US06): höchster bzw. niedrigster vergangener Stundenwert. */
+export interface HourRecord {
+  value: number | null;
+  timeLocal: string;
+  date: string;
+  /** Bis Schritt 9 `null`. */
+  observationId: number | null;
+  /** Bis Schritt 12a immer `false`. */
+  corrected: boolean;
+}
+
+/** `GET /api/records`. Ohne Daten sind alle vier Rekorde `null` und `daysCounted = 0` (US06-5). */
+export interface Records {
+  locationId: number;
+  hottest: HourRecord | null;
+  coldest: HourRecord | null;
+  wettestDay: { value: number | null; date: string } | null;
+  longestDryPeriod: { days: number; from: string; to: string } | null;
+  /** Zahl der vollständigen Tage. */
+  daysCounted: number;
+  excludesPredictions: true;
 }
 
 /** Fehler an einem Feld (B3.3). `field` ist der Pfad im Body, Query oder Pfad (`date`, `to`); `null` = ganzes Objekt. */

@@ -145,4 +145,64 @@ describe('InMemoryObservationStore', () => {
     await store.upsertHours(providerHours('2024-12-31T23:00:00Z', 1), { mode: 'upsert', importId: 1 });
     expect(await store.getDataRange()).toEqual({ from: '2025-01-01', to: '2026-11-10' });
   });
+
+  it('getRange liefert nur Tage mit Stunden, aufsteigend, Grenzen eingeschlossen', async () => {
+    const { legacy, store } = setup();
+    legacy.days.set('2026-11-10', legacyDay('2026-11-10'));
+    legacy.days.set('2026-11-12', legacyDay('2026-11-12'));
+    legacy.days.set('2026-11-14', legacyDay('2026-11-14'));
+    const days = await store.getRange('2026-11-10', '2026-11-13');
+    expect(days.map(d => d.date)).toEqual(['2026-11-10', '2026-11-12']);
+    expect(days[0].hours).toHaveLength(24);
+    expect(await store.getRange('2026-11-15', '2026-11-14')).toEqual([]);
+  });
+
+  describe('R08: Herkunft und Vorhersage', () => {
+    it('Altbestand: Stunden nach der Änderungszeit der Datei sind Vorhersage (Befund Z3), sonst Herkunft null', async () => {
+      const { legacy, store } = setup();
+      legacy.days.set('2026-11-19', legacyDay('2026-11-19'));
+      legacy.modifiedAt.set('2026-11-19', '2026-11-19T21:04:32Z'); // 22:04 MEZ
+      const day = await store.getDay('2026-11-19');
+      expect(day?.[22].source).toBeNull();
+      expect(day?.[23]).toMatchObject({ timeLocal: '2026-11-19T23:00', source: 'prediction' });
+    });
+
+    it('Import: Stunden nach dem Abruf werden als prediction gespeichert, sonst mit der abgefragten API', async () => {
+      const { store } = setup(); // jetzt 11:00 MEZ
+      const hours = providerHours('2026-11-19T23:00:00Z', 24).map(h => ({ ...h, source: 'forecast_api' as const }));
+      await store.upsertHours(hours, { mode: 'upsert', importId: 1 });
+      const day = await store.getDay('2026-11-20');
+      expect(day?.[11]).toMatchObject({ timeLocal: '2026-11-20T11:00', source: 'forecast_api' });
+      expect(day?.[12]).toMatchObject({ timeLocal: '2026-11-20T12:00', source: 'prediction' });
+    });
+
+    it('eine veraltete Vorhersage wird ersetzt, auch bei gleichen Werten und auch von gaps', async () => {
+      const { clock, store } = setup();
+      const hours = providerHours('2026-11-19T23:00:00Z', 24).map(h => ({ ...h, source: 'forecast_api' as const }));
+      await store.upsertHours(hours, { mode: 'upsert', importId: 1 }); // 12:00–23:00 prediction
+      clock.set('2026-11-21T10:00:00Z');
+      const counts = await store.upsertHours(hours, { mode: 'insertMissing', importId: 2 });
+      expect(counts).toEqual({ inserted: 0, updated: 12, unchanged: 12 });
+      expect((await store.getDay('2026-11-20'))?.every(h => h.source === 'forecast_api')).toBe(true);
+    });
+  });
+
+  it('mit Fixture: Stunden der Fixture statt des Altbestands, Datenbereich nur aus der Fixture', async () => {
+    const legacy = new FakeLegacySource();
+    legacy.days.set('2025-01-01', legacyDay('2025-01-01'));
+    const fixture = {
+      name: 'test',
+      description: '',
+      fakeNow: null,
+      observations: providerHours('2026-03-28T23:00:00Z', 23).map(h => ({ ...h, source: 'archive' as const })),
+      imports: [],
+      forecast: null,
+    };
+    const store = new InMemoryObservationStore(legacy.asSource(), new FixedClock('2026-11-19T13:30:00Z'), fixture);
+    expect(await store.getDay('2025-01-01')).toBeNull();
+    const day = await store.getDay('2026-03-29');
+    expect(day).toHaveLength(23);
+    expect(day?.[2]).toMatchObject({ timeLocal: '2026-03-29T03:00', timeUtc: '2026-03-29T01:00:00Z', source: 'archive' });
+    expect(await store.getDataRange()).toEqual({ from: '2026-03-29', to: '2026-03-29' });
+  });
 });

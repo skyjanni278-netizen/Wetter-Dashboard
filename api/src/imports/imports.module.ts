@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { CommonModule } from '../common/common.module';
+import { FixturesModule } from '../fixtures/fixtures.module';
 import { ForecastsModule } from '../forecasts/forecasts.module';
 import { ObservationsModule } from '../observations/observations.module';
 import { WeatherProviderModule } from '../weather-provider/weather-provider.module';
@@ -15,7 +16,7 @@ import { InMemoryImportStore } from './in-memory-import.store';
  * `ImportStore` (Token `IMPORT_STORE`) für das Lesemodell im `StatusModule`. R19 prüft nur dieser Teil.
  */
 @Module({
-  imports: [CommonModule, ObservationsModule, ForecastsModule, WeatherProviderModule],
+  imports: [CommonModule, ObservationsModule, ForecastsModule, WeatherProviderModule, FixturesModule],
   controllers: [ImportsController],
   providers: [ImportsService, ImportRunner, { provide: IMPORT_STORE, useClass: InMemoryImportStore }],
   exports: [ImportsService, IMPORT_STORE],
