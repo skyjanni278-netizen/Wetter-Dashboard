@@ -1,6 +1,6 @@
 # Projektdokumentation – Wetter-Dashboard Heubach
 
-> Stand: 21.11.2026 · Roadmap-Schritt 7 (`ed8d361`) · Pflege: siehe Abschnitt „11. Pflege dieser Datei“
+> Stand: 21.11.2026 · Roadmap-Schritt 8 (`2099d52`) · Pflege: siehe Abschnitt „11. Pflege dieser Datei“
 
 Diese Datei ist eine Landkarte des **aktuellen** Systems: was es gibt, wo es liegt, wie es zusammenhängt. Sie enthält keinen Code und keine Planung (die steht in `docs/umbau/`).
 
@@ -648,6 +648,7 @@ Neueste oben.
 
 | Datum | Schritt | Commit | Änderung |
 |---|---|---|---|
+| 2026-11-21 | 8 | `2099d52` | `GET /api/days?from&to`, `/api/summaries/months?year=`, `/api/summaries/years`, `GET /api/imports` mit Filter und Pagination, alle Query-Schemas `.strict()`; OpenAPI unter `/api/docs` (`SWAGGER_ENABLED`, Schemas aus Zod); Postman-Collection `docs/api/`; Monat und Jahr lesen von Nest (je 2 parallele Requests, Jahresauswahl aus der API, Chips „Unvollständig“ und „N von M Tagen“), `models/weather.ts` entfernt |
 | 2026-11-21 | 7 | `ed8d361` | AggregationService mit Fachregeln R06–R14 und R08, `/api/records`, `/api/summaries/months/:yearMonth`, `/api/summaries/years/:year`, `FAKE_NOW`/`FIXTURE` mit Fixtures, Charakterisierungstest; Heute und Rekorde lesen von Nest (Hero „Jetzt“, „bis jetzt“-Werte, Vorhersageband aus `isPrediction`, Rekorde mit Stunde und „Tag ansehen“) |
 | 2026-11-20 | 6 | `4b1955d` | Module je Ressource (Common, Legacy, Locations, Observations, Forecasts, WeatherProvider, Imports, Stats, Status, Scheduler) ohne Zyklen; `SchedulerService` mit `@nestjs/schedule`, stündlich xx:05 Berlin, R19-Überspringen, `SCHEDULER_ENABLED` (Standard `false`) |
 | 2026-11-20 | 5 | `08c3711` | Einheitliches Fehlerformat (`ApiExceptionFilter`, `X-Request-Id`), 406/413/415, `NO_DATA`/`IMPORT_RUNNING`/`NOT_FOUND`, JSON-404; Frontend `apiErrorInterceptor`, `app-error` mit NO_DATA-Link, Retry auf Monat und Jahr |

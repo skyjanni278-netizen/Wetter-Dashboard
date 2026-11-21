@@ -32,7 +32,7 @@ Stand: 19.11.2026 · Grundlage: `01-analyse.md` (F01–F34, S1–S12, Abschnitt 
 | 5 | Einheitliche Fehlerbehandlung und Statuscodes | S | 4 | ✅ erledigt (`08c3711`) |
 | 6 | Module je Ressource, Regeln zwischen Modulen | M | 5 | ✅ erledigt (`4b1955d`) |
 | 7 | Fachregeln und berechnete Felder; Heute und Rekorde auf die neue API | L | 6, 1 | ✅ erledigt (`ed8d361`) |
-| 8 | Filter, Sortierung, OpenAPI; Monat und Jahr auf die neue API | M | 7 | offen |
+| 8 | Filter, Sortierung, OpenAPI; Monat und Jahr auf die neue API | M | 7 | ✅ erledigt (`2099d52`) |
 | 9 | Datenbank, Migrationen, Altdatenimport, Übergabe des Schedulers, Express aus | L | 8 | offen |
 | 10 | Login, JWT, AuthGuard, Login-Seite (keine Registrierung) | M | 9, 1 | offen |
 | 11 | Rollen, RolesGuard, `.env`, sichere Grundeinstellungen, Admin-Bereich | L | 10 | offen |
@@ -462,7 +462,7 @@ Der Strang über 0.2 bis 1 (Frontend) und der Strang über 2 bis 6 (Backend) kö
   - `GET /api/status` mit echtem `dataFrom`/`dataTo` (V35)
 - **Sortierung** ist fest je Liste. Einen `sort`-Parameter gibt es bewusst nicht (B3.1).
 - `@nestjs/swagger` 11: `SwaggerModule.setup('api/docs')`, Schemas aus `z.toJSONSchema()`, `addBearerAuth()`. Übergangsweise eingeschaltet über `process.env.SWAGGER_ENABLED`.
-- Postman-Collection `docs/api/wetter-heubach.postman_collection.json` mit den Ordnern US01–US08.
+- Postman-Collection `docs/api/wetter-heubach.postman_collection.json` mit den Ordnern US01–US07, US10 und US11 (US08 ist der stündliche Abruf ohne eigene Anfrage; Auth-Ordner ab Schritt 10).
 - **Frontend:**
   - `monthly-page` und `yearly-page` laden parallel (`/summaries/months/{ym}` + `/days?from&to` bzw. `/summaries/years/{y}` + `/summaries/months?year=`). Sie rechnen nichts mehr selbst (S8). Für den laufenden Monat gilt `to = min(Monatsende, heute)`; die x-Achse füllt das Frontend bis zum Monatsende auf (03 B5.1, V21).
   - Jahresliste aus `/summaries/years` (F20).
