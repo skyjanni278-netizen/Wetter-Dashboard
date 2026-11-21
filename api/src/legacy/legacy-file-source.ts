@@ -42,7 +42,7 @@ function isDayFile(value: unknown): value is LegacyDayFileRaw {
 }
 
 /**
- * Liest die JSON-Dateien von Express aus `backend/data/` (Übergang bis Schritt 9).
+ * Liest die JSON-Dateien von Express aus `backend/data/` (Übergang; seit Schritt 9 nur im Testpfad `useLegacyStores`, bis 9b).
  *
  * - Beim Start werden alle Tagesdateien asynchron in eine `Map<date, Datei>` geladen, mit der
  *   Änderungszeit jeder Datei (R08: Stunden nach diesem Zeitpunkt waren beim Schreiben Vorhersage).

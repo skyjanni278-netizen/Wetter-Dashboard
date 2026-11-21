@@ -2,16 +2,13 @@ import { Logger } from '@nestjs/common';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
-import { FakeLegacySource } from '../../test/support/fakes';
-import { LegacyFileSource } from '../legacy/legacy-file-source';
+import { DatabaseModule } from '../database/database.module';
 import { SchedulerModule } from './scheduler.module';
 import { SCHEDULED_IMPORT_JOB, SchedulerService } from './scheduler.service';
 
 async function boot(enabled: boolean): Promise<TestingModule> {
-  const moduleRef = await Test.createTestingModule({ imports: [SchedulerModule.forRoot(enabled)] })
-    .overrideProvider(LegacyFileSource)
-    .useValue(new FakeLegacySource())
-    .compile();
+  // Die Stores brauchen die Datenbank (`:memory:`, test/support/test-env.ts).
+  const moduleRef = await Test.createTestingModule({ imports: [DatabaseModule, SchedulerModule.forRoot(enabled)] }).compile();
   await moduleRef.init();
   return moduleRef;
 }

@@ -1,14 +1,16 @@
 # Fixtures (feste Testdaten)
 
-Übergang bis Roadmap-Schritt 9 (dort `npm run db:seed -- --fixture <name>`). Mit `FIXTURE=<name>` lesen die In-Memory-Stores die Datei `<name>.json` aus diesem Ordner **statt** des Altbestands in `backend/data` (Stundenwerte, Importe für `updateState`, Tagesvorhersage). Ohne `FIXTURE` bleibt alles beim Altbestand. Zusammen mit `FAKE_NOW` (feste Uhr, nur bei `SCHEDULER_ENABLED` ≠ `true`) lassen sich die Akzeptanzkriterien mit fester Uhrzeit in der laufenden App prüfen.
+Seit Roadmap-Schritt 9 liest die App nur noch die Datenbank. Eine Fixture kommt mit `npm run db:seed -- --fixture <name>` in die **Dev-DB** (`%LOCALAPPDATA%\wetter-heubach\weather.dev.db` bzw. `DB_PATH`); der Seed ersetzt dabei alle Stundenwerte, Importe und Vorhersagen (der Standort bleibt). Zusammen mit `FAKE_NOW` (feste Uhr, nur bei `SCHEDULER_ENABLED` ≠ `true`) lassen sich die Akzeptanzkriterien mit fester Uhrzeit in der laufenden App prüfen. `FIXTURE=<name>` beim Start gibt es nicht mehr (Abbruch mit Hinweis).
 
 ```bash
-cd api && npm run build
-FAKE_NOW=2026-11-19T13:30:00Z FIXTURE=us16-ok node dist/main.js
+cd api && npm run db:seed -- --fixture us16-ok
+FAKE_NOW=2026-11-19T13:30:00Z node dist/main.js
 curl -s http://127.0.0.1:3001/api/days/today
 ```
 
-Die e2e-Tests laden die Dateien mit `loadFixture(<name>)` und setzen sie per `overrideProvider(ACTIVE_FIXTURE)` ein.
+Abweichung beim Seed: Importe mit `kind` `legacy`/`scheduled` werden als `range` angelegt. Diese Arten kennzeichnen gesammelte Daten, und der nächste `db:seed`/`db:reset` würde sich sonst verweigern; für `updateState` (R25) zählt `range` gleich. Fixtures ohne Import (`us06-records`, `us02-dst`) bekommen einen Import `range` mit `finishedAt` = `fakeNow`, weil jede Stunde einen Import braucht (`observation.import_id`).
+
+Die e2e-Tests laden die Dateien mit `loadFixture(<name>)` und geben sie über `useLegacyStores` (`test/support/legacy-stores.ts`) den In-Memory-Stores (Übergang bis Schritt 9b).
 
 ## Format
 

@@ -6,9 +6,8 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../../src/app.module';
 import { Clock, FixedClock } from '../../src/common/clock';
-import { ACTIVE_FIXTURE } from '../../src/fixtures/fixture';
-import { LEGACY_DATA_DIR } from '../../src/legacy/legacy-data-dir';
 import { createTestApp } from '../support/app';
+import { useLegacyStores } from '../support/legacy-stores';
 
 /**
  * Charakterisierung (03 B2.7 Schritt 9, Roadmap Schritt 7): vergleicht die neue API (Nest, Altbestand aus
@@ -94,14 +93,14 @@ run('Charakterisierung: neue API gegenüber den Golden Files von Express', () =>
   }
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
-      .overrideProvider(Clock)
-      .useValue(new FixedClock(NOW))
-      .overrideProvider(LEGACY_DATA_DIR)
-      .useValue(DATA_DIR)
-      .overrideProvider(ACTIVE_FIXTURE)
-      .useValue(null)
-      .compile();
+    // TODO(9b): Nach `cli import:legacy` gegen die Datenbank prüfen (Altbestand importiert, ohne
+    // `useLegacyStores`) und die erwarteten Abweichungen der DST-Regel aus B2.7 Schritt 2 ergänzen.
+    // Bis dahin lesen die In-Memory-Stores `backend/data` wie vor Schritt 9 (nur lesend).
+    const clock = new FixedClock(NOW);
+    const moduleRef = await useLegacyStores(
+      Test.createTestingModule({ imports: [AppModule] }).overrideProvider(Clock).useValue(clock),
+      { clock, dataDir: DATA_DIR },
+    ).compile();
     app = await createTestApp(moduleRef);
   });
 

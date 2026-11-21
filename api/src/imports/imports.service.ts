@@ -1,4 +1,5 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import type { OnApplicationBootstrap } from '@nestjs/common';
 import { ApiException } from '../common/api.exception';
 import { assertNotInFuture } from '../common/api-validation.exception';
 import { localDate } from '../common/berlin-time';
@@ -15,12 +16,28 @@ import type { ImportStore } from './import.store';
 
 /** US10-3, US11-1/-2: Importaufträge anlegen und abfragen; R19 (höchstens ein laufender Import). */
 @Injectable()
-export class ImportsService {
+export class ImportsService implements OnApplicationBootstrap {
+  private readonly logger = new Logger(ImportsService.name);
+
   constructor(
     @Inject(IMPORT_STORE) private readonly store: ImportStore,
     private readonly runner: ImportRunner,
     private readonly clock: Clock,
   ) {}
+
+  /** R19: Beim Start kann kein Import mehr laufen. Was noch `queued`/`running` ist, wurde unterbrochen. */
+  async onApplicationBootstrap(): Promise<void> {
+    await this.recoverInterrupted();
+  }
+
+  /** Setzt hängengebliebene Läufe auf `failed` mit `INTERRUPTED` (R19) und liefert ihre IDs. */
+  async recoverInterrupted(): Promise<number[]> {
+    const ids = await this.store.markInterrupted(formatUtc(this.clock.now()));
+    if (ids.length > 0) {
+      this.logger.warn(`Unterbrochene Importe auf failed (INTERRUPTED) gesetzt: ${ids.join(', ')}`);
+    }
+    return ids;
+  }
 
   /**
    * Legt den Auftrag mit `queued` an und startet ihn danach (`setImmediate`), ohne darauf zu warten.

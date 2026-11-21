@@ -5,10 +5,10 @@ import { LegacyFileSource } from '../legacy/legacy-file-source';
 import type { ForecastStore, StoredForecast } from './forecast.store';
 
 /**
- * `ForecastStore` im Arbeitsspeicher (Schritt 3, bis Schritt 9).
+ * `ForecastStore` im Arbeitsspeicher (Schritt 3). Seit Schritt 9 nur Unit-Tests und Testpfad (`useLegacyStores`).
  *
  * - `forecast.json` liest `LegacyFileSource` bei jeder Anfrage neu (Express überschreibt sie stündlich).
- * - Mit `FIXTURE=<name>` tritt die Vorhersage der Fixture an die Stelle von `forecast.json`.
+ * - Mit einer Fixture tritt die Vorhersage der Fixture an die Stelle von `forecast.json`.
  * - Eine von Nest importierte Vorhersage liegt nur im Arbeitsspeicher. Geliefert wird die jüngere
  *   von beiden (Vergleich der Abrufzeitpunkte; beim Altbestand ist das die Änderungszeit der Datei).
  * - Schreibt **nie** in Dateien.

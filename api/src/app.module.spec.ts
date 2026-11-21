@@ -1,16 +1,17 @@
 import { Logger } from '@nestjs/common';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { Test } from '@nestjs/testing';
-import { FakeLegacySource } from '../test/support/fakes';
 import { AppModule } from './app.module';
 import { Clock, SystemClock } from './common/clock';
+import { DB_PATH } from './database/db-path';
 import { DaysService } from './days/days.service';
 import { FORECAST_STORE } from './forecasts/forecast.store';
 import { ForecastsService } from './forecasts/forecasts.service';
+import { HealthService } from './health/health.service';
 import { IMPORT_STORE } from './imports/import.store';
 import { ImportsService } from './imports/imports.service';
-import { LegacyFileSource } from './legacy/legacy-file-source';
 import { LocationsService } from './locations/locations.service';
+import { GapsService } from './observations/gaps.service';
 import { OBSERVATION_STORE } from './observations/observation.store';
 import { RecordsService } from './records/records.service';
 import { isSchedulerEnabled } from './scheduler/scheduler-enabled';
@@ -29,10 +30,8 @@ describe('AppModule (Boot, Module nach B4.1)', () => {
   afterEach(() => jest.restoreAllMocks());
 
   it('kompiliert und startet; alle Services und Stores sind erreichbar', async () => {
-    const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
-      .overrideProvider(LegacyFileSource)
-      .useValue(new FakeLegacySource())
-      .compile();
+    // Datenbank `:memory:` (test/support/test-env.ts), Schema über die Migrationen beim Verbinden.
+    const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
     await moduleRef.init();
 
     for (const token of [
@@ -44,6 +43,8 @@ describe('AppModule (Boot, Module nach B4.1)', () => {
       ForecastsService,
       ImportsService,
       StatusService,
+      GapsService,
+      HealthService,
       SchedulerService,
       OpenMeteoClient,
       OBSERVATION_STORE,
@@ -53,6 +54,7 @@ describe('AppModule (Boot, Module nach B4.1)', () => {
       expect(moduleRef.get(token, { strict: false })).toBeDefined();
     }
     expect(moduleRef.get(Clock, { strict: false })).toBeInstanceOf(SystemClock);
+    expect(moduleRef.get(DB_PATH, { strict: false })).toBe(':memory:');
     // Standard SCHEDULER_ENABLED=false: kein ScheduleModule, kein Cron-Job.
     // Ist der Schalter in der Shell gesetzt, gibt es die Registry (Wert wird beim Laden gelesen).
     if (isSchedulerEnabled()) {

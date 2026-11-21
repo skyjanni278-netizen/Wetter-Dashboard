@@ -11,6 +11,12 @@ frontend/.angular/
 # Runtime weather data (wird vom Scheduler generiert)
 backend/data/
 
+# SQLite (Nest, Schritt 9): Dev- und Sammel-DB liegen unter %LOCALAPPDATA%\wetter-heubach, nie im Repo
+*.db
+*.db-wal
+*.db-shm
+api/backups/
+
 # Logs
 backend/backend.log
 *.log

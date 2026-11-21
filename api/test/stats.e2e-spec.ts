@@ -7,10 +7,10 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { Clock, FixedClock } from '../src/common/clock';
-import { ACTIVE_FIXTURE, loadFixture } from '../src/fixtures/fixture';
+import { loadFixture } from '../src/fixtures/fixture';
 import type { Fixture } from '../src/fixtures/fixture';
-import { LEGACY_DATA_DIR } from '../src/legacy/legacy-data-dir';
 import { createTestApp } from './support/app';
+import { useLegacyStores } from './support/legacy-stores';
 
 /** 14:30 MEZ am 19.11.2026 (03 B1.2). */
 const NOW = '2026-11-19T13:30:00Z';
@@ -25,14 +25,10 @@ interface Harness {
 async function startWith(fixture: Fixture, now = NOW): Promise<Harness> {
   const emptyDir = await mkdtemp(path.join(tmpdir(), 'wetter-stats-e2e-'));
   const clock = new FixedClock(now);
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
-    .overrideProvider(Clock)
-    .useValue(clock)
-    .overrideProvider(LEGACY_DATA_DIR)
-    .useValue(emptyDir)
-    .overrideProvider(ACTIVE_FIXTURE)
-    .useValue(fixture)
-    .compile();
+  const moduleRef = await useLegacyStores(
+    Test.createTestingModule({ imports: [AppModule] }).overrideProvider(Clock).useValue(clock),
+    { clock, dataDir: emptyDir, fixture },
+  ).compile();
   const app = await createTestApp(moduleRef);
   return {
     app,

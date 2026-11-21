@@ -1,17 +1,12 @@
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { Clock, FixedClock } from '../src/common/clock';
-import { ACTIVE_FIXTURE } from '../src/fixtures/fixture';
-import { LEGACY_DATA_DIR } from '../src/legacy/legacy-data-dir';
 import { createTestApp } from './support/app';
 
-/** Alle Nest-Pfade aus 03 B3.1, die es bis Schritt 8 gibt (OpenAPI-Schreibweise), mit ihren Methoden. */
+/** Alle Nest-Pfade aus 03 B3.1, die es bis Schritt 9 gibt (OpenAPI-Schreibweise), mit ihren Methoden. */
 const EXPECTED_PATHS: Record<string, string[]> = {
   '/api/days': ['get'],
   '/api/days/today': ['get'],
@@ -27,25 +22,20 @@ const EXPECTED_PATHS: Record<string, string[]> = {
   '/api/locations/{id}': ['get'],
   '/api/imports': ['get', 'post'],
   '/api/imports/{id}': ['get'],
+  '/api/gaps': ['get'],
+  '/api/health': ['get'],
 };
 
+/** App wie `main.ts` mit leerer Datenbank (`:memory:`, Schema über die Migrationen). */
 async function start(env: NodeJS.ProcessEnv) {
-  const emptyDir = await mkdtemp(path.join(tmpdir(), 'wetter-openapi-e2e-'));
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
     .overrideProvider(Clock)
     .useValue(new FixedClock('2026-11-19T13:30:00Z'))
-    .overrideProvider(LEGACY_DATA_DIR)
-    .useValue(emptyDir)
-    .overrideProvider(ACTIVE_FIXTURE)
-    .useValue(null)
     .compile();
   const app = await createTestApp(moduleRef, env);
   return {
     app,
-    close: async () => {
-      await app.close();
-      await rm(emptyDir, { recursive: true, force: true });
-    },
+    close: () => app.close(),
   };
 }
 

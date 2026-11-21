@@ -8,11 +8,11 @@ import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { Clock, FixedClock } from '../src/common/clock';
 import { ImportRunner } from '../src/imports/import-runner';
-import { LEGACY_DATA_DIR } from '../src/legacy/legacy-data-dir';
 import { OpenMeteoClient } from '../src/weather-provider/open-meteo.client';
 import type { HourlyRequest, ProviderHour } from '../src/weather-provider/open-meteo.client';
 import { createTestApp } from './support/app';
 import { forecastDays, legacyDay, providerHours } from './support/fakes';
+import { useLegacyStores } from './support/legacy-stores';
 
 /** Stunden für die angefragten UTC-Tage, wie Open-Meteo sie mit `timezone=GMT` liefert. */
 function hoursFor(req: HourlyRequest): ProviderHour[] {
@@ -58,14 +58,14 @@ describe('Importe (Schritt 3, e2e mit gemocktem Provider, ohne Netz)', () => {
     await writeDay(dataDir, '2026-10-01');
     await writeDay(dataDir, '2026-10-02');
 
-    const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
-      .overrideProvider(Clock)
-      .useValue(clock)
-      .overrideProvider(LEGACY_DATA_DIR)
-      .useValue(dataDir)
-      .overrideProvider(OpenMeteoClient)
-      .useValue(provider)
-      .compile();
+    const moduleRef = await useLegacyStores(
+      Test.createTestingModule({ imports: [AppModule] })
+        .overrideProvider(Clock)
+        .useValue(clock)
+        .overrideProvider(OpenMeteoClient)
+        .useValue(provider),
+      { clock, dataDir },
+    ).compile();
     app = await createTestApp(moduleRef);
     runner = app.get(ImportRunner);
   });

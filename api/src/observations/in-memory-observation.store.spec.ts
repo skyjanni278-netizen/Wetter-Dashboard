@@ -41,7 +41,7 @@ describe('InMemoryObservationStore', () => {
 
     const counts = await store.upsertHours(hours, { mode: 'upsert', importId: 1 });
 
-    expect(counts).toEqual({ inserted: 0, updated: 12, unchanged: 12 });
+    expect(counts).toEqual({ inserted: 0, updated: 12, unchanged: 12, skippedCorrected: 0 });
     const day = await store.getDay('2026-11-20');
     expect(day).toHaveLength(24);
     expect(day?.[0]).toMatchObject({ timeLocal: '2026-11-20T00:00', timeUtc: null });
@@ -53,6 +53,7 @@ describe('InMemoryObservationStore', () => {
       inserted: 0,
       updated: 0,
       unchanged: 24,
+      skippedCorrected: 0,
     });
   });
 
@@ -89,7 +90,7 @@ describe('InMemoryObservationStore', () => {
         providerHours('2026-11-20T00:00:00Z', 1, () => ({ temperature: 3 })),
         { mode: 'upsert', importId: 2 },
       );
-      expect(counts).toEqual({ inserted: 0, updated: 1, unchanged: 0 });
+      expect(counts).toEqual({ inserted: 0, updated: 1, unchanged: 0, skippedCorrected: 0 });
       const after = await store.getDay('2026-11-20');
       expect(after?.[0].temperature).toBe(2);
       expect(after?.[1].temperature).toBe(3);
@@ -116,7 +117,7 @@ describe('InMemoryObservationStore', () => {
     const counts = await store.upsertHours(hours, { mode: 'upsert', importId: 1 });
 
     // 00:00–02:00 (MESZ) gleich dem Altbestand, 02:00 MEZ neu, ab 03:00 um eine Stunde versetzte Werte.
-    expect(counts).toEqual({ inserted: 1, updated: 21, unchanged: 3 });
+    expect(counts).toEqual({ inserted: 1, updated: 21, unchanged: 3, skippedCorrected: 0 });
     const day = await store.getDay('2026-10-25');
     expect(day).toHaveLength(25);
     expect(day?.filter(h => h.timeLocal === '2026-10-25T02:00').map(h => h.timeUtc)).toEqual([
@@ -132,7 +133,7 @@ describe('InMemoryObservationStore', () => {
       mode: 'insertMissing',
       importId: 1,
     });
-    expect(counts).toEqual({ inserted: 4, updated: 0, unchanged: 20 });
+    expect(counts).toEqual({ inserted: 4, updated: 0, unchanged: 20, skippedCorrected: 0 });
     const day = await store.getDay('2026-11-20');
     expect(day).toHaveLength(24);
     expect(day?.[0].temperature).toBe(99);
@@ -182,7 +183,7 @@ describe('InMemoryObservationStore', () => {
       await store.upsertHours(hours, { mode: 'upsert', importId: 1 }); // 12:00–23:00 prediction
       clock.set('2026-11-21T10:00:00Z');
       const counts = await store.upsertHours(hours, { mode: 'insertMissing', importId: 2 });
-      expect(counts).toEqual({ inserted: 0, updated: 12, unchanged: 12 });
+      expect(counts).toEqual({ inserted: 0, updated: 12, unchanged: 12, skippedCorrected: 0 });
       expect((await store.getDay('2026-11-20'))?.every(h => h.source === 'forecast_api')).toBe(true);
     });
   });

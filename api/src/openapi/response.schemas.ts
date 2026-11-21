@@ -3,9 +3,12 @@ import { API_ERROR_CODES } from '../common/api-error';
 import type { ApiErrorBody } from '../common/api-error';
 import type { Day, DayList } from '../days/day';
 import type { ForecastList } from '../forecasts/forecast';
+import type { Health } from '../health/health';
 import { IMPORT_KINDS, IMPORT_STATUSES } from '../imports/import';
 import type { ImportList, ImportResource } from '../imports/import';
 import type { Location } from '../locations/location';
+import { GAP_REASONS } from '../observations/gap';
+import type { GapList } from '../observations/gap';
 import type { Records } from '../records/record';
 import type { Status } from '../status/status';
 import type { MonthSummary, MonthSummaryList, YearList, YearSummary } from '../summaries/summary';
@@ -223,6 +226,18 @@ export const ImportListSchema = z.object({
   meta: z.object({ page: z.number().int(), limit: z.number().int(), total: z.number().int() }),
 });
 
+export const GapSchema = z.object({
+  id: utc().describe('UTC-Zeitpunkt der ersten Stunde'),
+  from: z.string().describe('Beginn der ersten Stunde, Berliner Ortszeit mit Offset, z. B. 2026-11-12T04:00:00+01:00'),
+  to: z.string().describe('Beginn der letzten Stunde, Berliner Ortszeit mit Offset'),
+  hours: z.number().int(),
+  reason: z.enum(GAP_REASONS),
+});
+
+export const GapListSchema = z.object({ items: z.array(GapSchema) });
+
+export const HealthSchema = z.object({ status: z.literal('ok'), database: z.literal('ok') });
+
 /** Genau gleiche Typen (auch Optionalität und `null`), sonst `false`. */
 type Equals<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
 type Assert<T extends true> = T;
@@ -242,4 +257,6 @@ export type ResponseSchemaChecks = [
   Assert<Equals<z.infer<typeof StatusSchema>, Status>>,
   Assert<Equals<z.infer<typeof ImportResourceSchema>, ImportResource>>,
   Assert<Equals<z.infer<typeof ImportListSchema>, ImportList>>,
+  Assert<Equals<z.infer<typeof GapListSchema>, GapList>>,
+  Assert<Equals<z.infer<typeof HealthSchema>, Health>>,
 ];

@@ -2,7 +2,9 @@ import { Module } from '@nestjs/common';
 import { APP_FILTER } from '@nestjs/core';
 import { ApiExceptionFilter } from './common/api-exception.filter';
 import { CommonModule } from './common/common.module';
+import { DatabaseModule } from './database/database.module';
 import { ForecastsModule } from './forecasts/forecasts.module';
+import { HealthModule } from './health/health.module';
 import { ImportsModule } from './imports/imports.module';
 import { LocationsModule } from './locations/locations.module';
 import { ObservationsModule } from './observations/observations.module';
@@ -16,9 +18,11 @@ import { WeatherProviderModule } from './weather-provider/weather-provider.modul
  * anderen nur, was diese über `exports` freigeben. `AppModule` bündelt die Module und registriert den
  * globalen `ApiExceptionFilter` (Fehlerformat B3.3); Middleware und Body-Parser richtet `configureApp`
  * ein (`app.setup.ts`). `SCHEDULER_ENABLED` liest `SchedulerModule.forRoot()` beim Laden dieser Datei.
+ * Schritt 9: `DatabaseModule` (SQLite über TypeORM, `DB_PATH`) steht zuerst; `HealthModule` für `GET /api/health`.
  */
 @Module({
   imports: [
+    DatabaseModule,
     CommonModule,
     LocationsModule,
     ObservationsModule,
@@ -28,6 +32,7 @@ import { WeatherProviderModule } from './weather-provider/weather-provider.modul
     SchedulerModule.forRoot(),
     StatsModule,
     StatusModule,
+    HealthModule,
   ],
   providers: [{ provide: APP_FILTER, useClass: ApiExceptionFilter }],
 })

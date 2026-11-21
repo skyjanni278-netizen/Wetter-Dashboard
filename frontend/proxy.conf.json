@@ -34,6 +34,16 @@
     "secure": false,
     "changeOrigin": true
   },
+  "/api/gaps": {
+    "target": "http://localhost:3001",
+    "secure": false,
+    "changeOrigin": true
+  },
+  "/api/health": {
+    "target": "http://localhost:3001",
+    "secure": false,
+    "changeOrigin": true
+  },
   "/api": {
     "target": "http://localhost:3000",
     "secure": false,

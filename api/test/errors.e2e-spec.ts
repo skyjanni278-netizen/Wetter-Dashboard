@@ -7,11 +7,11 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { Clock, FixedClock } from '../src/common/clock';
-import { LEGACY_DATA_DIR } from '../src/legacy/legacy-data-dir';
 import { LocationsService } from '../src/locations/locations.service';
 import { OpenMeteoClient } from '../src/weather-provider/open-meteo.client';
 import { createTestApp } from './support/app';
 import { legacyDay } from './support/fakes';
+import { useLegacyStores } from './support/legacy-stores';
 
 const REQUEST_ID = /^[0-9a-f]{8}$/;
 
@@ -51,14 +51,14 @@ describe('Fehlerformat und Statuscodes (Schritt 5, B3.2/B3.3)', () => {
     await writeDay(dataDir, '2025-01-01');
     await writeDay(dataDir, '2026-11-19');
 
-    const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
-      .overrideProvider(Clock)
-      .useValue(clock)
-      .overrideProvider(LEGACY_DATA_DIR)
-      .useValue(dataDir)
-      .overrideProvider(OpenMeteoClient)
-      .useValue(offlineProvider)
-      .compile();
+    const moduleRef = await useLegacyStores(
+      Test.createTestingModule({ imports: [AppModule] })
+        .overrideProvider(Clock)
+        .useValue(clock)
+        .overrideProvider(OpenMeteoClient)
+        .useValue(offlineProvider),
+      { clock, dataDir },
+    ).compile();
     app = await createTestApp(moduleRef);
   });
 
@@ -238,16 +238,17 @@ describe('Unerwarteter Fehler im Service (Schritt 5: 500 ohne Stacktrace)', () =
 
   beforeAll(async () => {
     dataDir = await mkdtemp(path.join(tmpdir(), 'wetter-api-500-'));
-    const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
-      .overrideProvider(Clock)
-      .useValue(new FixedClock('2026-11-20T10:00:00Z'))
-      .overrideProvider(LEGACY_DATA_DIR)
-      .useValue(dataDir)
-      .overrideProvider(OpenMeteoClient)
-      .useValue(offlineProvider)
-      .overrideProvider(LocationsService)
-      .useValue(failing)
-      .compile();
+    const clock = new FixedClock('2026-11-20T10:00:00Z');
+    const moduleRef = await useLegacyStores(
+      Test.createTestingModule({ imports: [AppModule] })
+        .overrideProvider(Clock)
+        .useValue(clock)
+        .overrideProvider(OpenMeteoClient)
+        .useValue(offlineProvider)
+        .overrideProvider(LocationsService)
+        .useValue(failing),
+      { clock, dataDir },
+    ).compile();
     app = await createTestApp(moduleRef);
   });
 

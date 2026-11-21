@@ -5,11 +5,12 @@ import { IsoDateSchema } from '../common/dto/iso-date.schema';
 
 /**
  * Feste Testdaten für Prüfungen mit fester Uhr (03 B4.8, US01-6, US16-4/-5, US20-6, US06-2…-4).
- * Übergang bis Schritt 9 (`db:seed --fixture <name>`): Ist `FIXTURE=<name>` gesetzt, lesen die
- * In-Memory-Stores die Datei `api/test/fixtures/<name>.json` statt des Altbestands in `backend/data`.
+ * Seit Schritt 9 kommen sie mit `npm run db:seed -- --fixture <name>` in die Dev-DB (`database/seeds/`);
+ * die App liest nur noch die Datenbank. Die e2e-Tests laden sie weiter mit `loadFixture` und geben sie den
+ * In-Memory-Stores (`test/support/legacy-stores.ts`, Übergang bis 9b).
  */
 
-/** DI-Token: die aktive Fixture oder `null` (Altbestand). */
+/** Konstruktor-Token der In-Memory-Stores: die Fixture oder `null` (Altbestand); seit Schritt 9 nur im Testpfad. */
 export const ACTIVE_FIXTURE = 'ACTIVE_FIXTURE';
 
 /** Ordner der Fixtures; gleich aus `src/fixtures` (Jest) und `dist/fixtures` (Build). */
@@ -128,7 +129,10 @@ export function loadFixture(name: string, dir: string = FIXTURE_DIR): Fixture {
   return result.data;
 }
 
-/** `FIXTURE` aus der Umgebung (übergangsweise, Schritt 9: `db:seed --fixture`); leer → `null`. */
+/**
+ * `FIXTURE` aus der Umgebung; leer → `null`. Seit Schritt 9 nicht mehr im Startpfad (`main.ts` lehnt
+ * `FIXTURE` mit Hinweis auf `db:seed --fixture` ab); bleibt für Tests und Werkzeuge.
+ */
 export function fixtureFromEnv(env: NodeJS.ProcessEnv = process.env, dir: string = FIXTURE_DIR): Fixture | null {
   const name = env['FIXTURE']?.trim();
   return name ? loadFixture(name, dir) : null;

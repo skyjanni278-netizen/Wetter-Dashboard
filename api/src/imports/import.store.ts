@@ -59,4 +59,16 @@ export interface ImportStore {
     kinds: readonly ImportKind[];
     statuses: readonly ImportStatus[];
   }): Promise<ImportRecord | null>;
+
+  /**
+   * R19, beim Start: Importe, die noch `queued`/`running` sind, wurden durch einen Neustart unterbrochen.
+   * Sie werden `failed` mit `error.code = "INTERRUPTED"` und `finishedAt`. Liefert ihre IDs.
+   */
+  markInterrupted(finishedAt: string): Promise<number[]>;
 }
+
+/** Fehlercode eines durch Neustart unterbrochenen Imports (R19). */
+export const INTERRUPTED_ERROR = {
+  code: 'INTERRUPTED',
+  message: 'Der Import wurde durch einen Neustart unterbrochen.',
+} as const;

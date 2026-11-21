@@ -79,11 +79,12 @@ function mergeDay(file: LegacyDayFile | null, imported: readonly ImportedHour[])
 }
 
 /**
- * `ObservationStore` im Arbeitsspeicher (Schritt 3, bis Schritt 9).
+ * `ObservationStore` im Arbeitsspeicher (Schritt 3). Seit Schritt 9 nur noch für Unit-Tests und den Testpfad
+ * mit Altdateien (`test/support/legacy-stores.ts`); die App nutzt den `TypeOrmObservationStore`.
  *
  * - Grundlage ist der Altbestand aus `LegacyFileSource`. Die Datei für heute liest diese bei jeder
  *   Anfrage neu; das bleibt erhalten, weil der Store bei jedem Lesen über `LegacyFileSource` geht.
- * - Mit `FIXTURE=<name>` (Token `ACTIVE_FIXTURE`) ist die Fixture die Grundlage, der Altbestand wird
+ * - Mit einer Fixture (Token `ACTIVE_FIXTURE`) ist die Fixture die Grundlage, der Altbestand wird
  *   nicht gelesen. Ihre Stunden verhalten sich wie importierte Stunden.
  * - Importe von Nest liegen getrennt daneben. Für ältere Tage haben sie Vorrang vor dem Altbestand.
  * - Für **heute** gilt die neuere Quelle: Ist die Tagesdatei von Express (Änderungszeit) neuer als der
@@ -147,8 +148,14 @@ export class InMemoryObservationStore implements ObservationStore {
     return { from, to };
   }
 
+  /** Nie zwischenspeicherbar: die Datei für heute ändert sich ohne Schreibvorgang dieses Stores. */
+  async getRevision(): Promise<string | null> {
+    return null;
+  }
+
   async upsertHours(hours: readonly ObservationInput[], options: UpsertOptions): Promise<UpsertCounts> {
-    const counts: UpsertCounts = { inserted: 0, updated: 0, unchanged: 0 };
+    // Korrekturen gibt es hier nicht (Schritt 12a, nur im TypeORM-Store): `skippedCorrected` bleibt 0.
+    const counts: UpsertCounts = { inserted: 0, updated: 0, unchanged: 0, skippedCorrected: 0 };
     const now = this.clock.now();
     const byDate = new Map<string, ObservationInput[]>();
     const seen = new Set<string>();

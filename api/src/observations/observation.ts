@@ -59,11 +59,15 @@ export interface UpsertCounts {
   inserted: number;
   updated: number;
   unchanged: number;
+  /** R20: Stunde mit `corrected_at`, deren Werte sich geändert hätten; sie bleibt unverändert. */
+  skippedCorrected: number;
 }
 
 /**
  * `upsert`: neue Stunden anlegen, geänderte überschreiben (`kind = "range"`).
- * `insertMissing`: nur fehlende Stunden anlegen, vorhandene bleiben unberührt (`kind = "gaps"`).
+ * `insertMissing`: nur fehlende Stunden anlegen (`kind = "gaps"`). Vorhandene bleiben unberührt, außer sie
+ * sind selbst eine Lücke (R08: veraltete Vorhersage; im TypeORM-Store auch `null` bei Temperatur oder
+ * Niederschlag, wie `GET /api/gaps`).
  */
 export type UpsertMode = 'upsert' | 'insertMissing';
 

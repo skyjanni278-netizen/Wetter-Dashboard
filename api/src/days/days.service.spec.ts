@@ -45,6 +45,10 @@ class FakeObservationStore implements ObservationStore {
     return { from: '2026-11-10', to: '2026-11-20' };
   }
 
+  async getRevision(): Promise<null> {
+    return null;
+  }
+
   async upsertHours(): Promise<never> {
     throw new Error('nicht benötigt');
   }

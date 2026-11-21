@@ -8,14 +8,14 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { Clock, FixedClock } from '../src/common/clock';
-import { ACTIVE_FIXTURE, loadFixture } from '../src/fixtures/fixture';
+import { loadFixture } from '../src/fixtures/fixture';
 import type { Fixture } from '../src/fixtures/fixture';
 import { emptyCounts } from '../src/imports/import';
 import type { ImportKind, ImportStatus } from '../src/imports/import';
 import { IMPORT_STORE } from '../src/imports/import.store';
 import type { ImportStore } from '../src/imports/import.store';
-import { LEGACY_DATA_DIR } from '../src/legacy/legacy-data-dir';
 import { createTestApp } from './support/app';
+import { useLegacyStores } from './support/legacy-stores';
 
 /** Prüfzeitpunkt der Roadmap: 14:30 MEZ am 19.11.2026 (`FAKE_NOW=2026-11-19T13:30:00Z`). */
 const NOW = '2026-11-19T13:30:00Z';
@@ -26,14 +26,11 @@ const runWithData = existsSync(DATA_DIR) ? describe : describe.skip;
 
 async function start(options: { dataDir?: string; fixture?: Fixture | null }) {
   const emptyDir = options.dataDir ? null : await mkdtemp(path.join(tmpdir(), 'wetter-lists-e2e-'));
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
-    .overrideProvider(Clock)
-    .useValue(new FixedClock(NOW))
-    .overrideProvider(LEGACY_DATA_DIR)
-    .useValue(options.dataDir ?? emptyDir)
-    .overrideProvider(ACTIVE_FIXTURE)
-    .useValue(options.fixture ?? null)
-    .compile();
+  const clock = new FixedClock(NOW);
+  const moduleRef = await useLegacyStores(
+    Test.createTestingModule({ imports: [AppModule] }).overrideProvider(Clock).useValue(clock),
+    { clock, dataDir: options.dataDir ?? emptyDir!, fixture: options.fixture ?? null },
+  ).compile();
   const app = await createTestApp(moduleRef);
   return {
     app,

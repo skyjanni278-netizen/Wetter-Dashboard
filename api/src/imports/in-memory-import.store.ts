@@ -4,12 +4,12 @@ import type { Fixture } from '../fixtures/fixture';
 import { HEUBACH } from '../locations/location';
 import { ACTIVE_IMPORT_STATUSES, emptyCounts } from './import';
 import type { ImportKind, ImportRecord, ImportStatus } from './import';
-import { ImportAlreadyRunningError } from './import.store';
+import { ImportAlreadyRunningError, INTERRUPTED_ERROR } from './import.store';
 import type { ImportPage, ImportPageQuery, ImportStore, ImportUpdate, NewImport } from './import.store';
 
 /**
- * `ImportStore` im Arbeitsspeicher (Schritt 3, bis Schritt 9). IDs beginnen nach jedem Start bei 1.
- * Mit `FIXTURE=<name>` stehen die Importe der Fixture schon darin (für `updateState`, R25, US16).
+ * `ImportStore` im Arbeitsspeicher (Schritt 3; seit Schritt 9 nur Unit-Tests und Testpfad). IDs ab 1 nach jedem Start.
+ * Mit einer Fixture stehen die Importe der Fixture schon darin (für `updateState`, R25, US16).
  */
 @Injectable()
 export class InMemoryImportStore implements ImportStore {
@@ -99,6 +99,18 @@ export class InMemoryImportStore implements ImportStore {
       }
     }
     return latest ? clone(latest) : null;
+  }
+
+  async markInterrupted(finishedAt: string): Promise<number[]> {
+    const ids: number[] = [];
+    for (const record of this.records.values()) {
+      if (!ACTIVE_IMPORT_STATUSES.includes(record.status)) continue;
+      record.status = 'failed';
+      record.finishedAt = finishedAt;
+      record.error = { ...INTERRUPTED_ERROR };
+      ids.push(record.id);
+    }
+    return ids;
   }
 }
 

@@ -106,6 +106,34 @@ function startOfLocalDay(year: number, month: number, day: number): number {
   return wallClock - offsetMs(guess);
 }
 
+/** Abstand Berlin zu UTC in Minuten (60 MEZ, 120 MESZ), gespeichert als `utc_offset_min` (03 B2.5). */
+export function utcOffsetMinutes(instant: Date): number {
+  if (Number.isNaN(instant.getTime())) {
+    throw new RangeError('Ungültiger Zeitpunkt');
+  }
+  return Math.round(offsetMs(instant.getTime()) / 60000);
+}
+
+/**
+ * Berliner Ortszeit **mit** Offset als `YYYY-MM-DDTHH:MM:SS+01:00` (Zielformat aus 03 B2.2, eindeutig auch
+ * am Ende der Sommerzeit). Genutzt von neuen Ressourcen (`gaps`); die übrigen Antworten folgen später.
+ */
+export function localDateTimeWithOffset(instant: Date): string {
+  const offset = utcOffsetMinutes(instant);
+  const sign = offset < 0 ? '-' : '+';
+  const abs = Math.abs(offset);
+  return `${localDateTime(instant)}:${pad(localParts(instant).second, 2)}${sign}${pad(Math.floor(abs / 60), 2)}:${pad(abs % 60, 2)}`;
+}
+
+/** Beginn (00:00 Uhr Berliner Zeit) eines Kalendertags als UTC-Zeitpunkt. */
+export function startOfDayUtc(date: string): Date {
+  const match = ISO_DATE.exec(date);
+  if (!match || !isIsoDate(date)) {
+    throw new RangeError(`Ungültiges Datum: "${date}"`);
+  }
+  return new Date(startOfLocalDay(Number(match[1]), Number(match[2]), Number(match[3])));
+}
+
 /**
  * Anzahl der Stunden eines Berliner Kalendertags: 23 (Beginn der Sommerzeit),
  * 25 (Ende der Sommerzeit), sonst 24.

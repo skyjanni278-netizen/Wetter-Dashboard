@@ -35,6 +35,13 @@ export interface ObservationStore {
   getDataRange(): Promise<DataRange>;
 
   /**
+   * Datenrevision (03 B2.4): ändert sich mit jedem Schreibvorgang und ist Schlüssel des Caches für
+   * `records` und `summaries/years`. `null` = nicht zwischenspeicherbar (In-Memory-Store: die Datei für heute
+   * ändert sich ohne Schreibvorgang des Stores).
+   */
+  getRevision(): Promise<string | null>;
+
+  /**
    * Schreibt Stunden als Ganzes (alles oder nichts) und zählt neue, geänderte und unveränderte Stunden.
    * Der Berliner Kalendertag ergibt sich aus `timeUtc` (BerlinTime).
    */

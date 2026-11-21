@@ -10,6 +10,7 @@ import { OBSERVATION_STORE } from '../observations/observation.store';
 import type { ObservationStore } from '../observations/observation.store';
 import { AggregationService, daysInMonth, daysInYear, MEAN_METHOD } from '../stats/aggregation.service';
 import type { DayAggregate, PeriodAggregate } from '../stats/aggregation.service';
+import { RevisionCache } from '../stats/revision-cache';
 import type { MonthSummary, MonthSummaryList, YearList, YearSummary } from './summary';
 
 const MONTH_NAMES = [
@@ -47,6 +48,7 @@ export class SummariesService {
     @Inject(OBSERVATION_STORE) private readonly store: ObservationStore,
     private readonly aggregation: AggregationService,
     private readonly clock: Clock,
+    private readonly cache: RevisionCache,
   ) {}
 
   /** R02: Monat nach dem laufenden → 400 `DATE_IN_FUTURE` an `yearMonth`; laufender Monat gültig. */
@@ -106,8 +108,13 @@ export class SummariesService {
    * US04-8 (F20): Jahre mit mindestens einer Stunde vom Datenbeginn bis heute, aufsteigend, in der Form
    * „year list“ aus B2.2 (`complete`, `daysComplete` wie `findYear`). Ohne Daten `items = []`.
    */
-  async findYears(): Promise<YearList> {
+  findYears(): Promise<YearList> {
     const now = this.clock.now();
+    return this.cache.get('summaries/years', now, () => this.computeYears(now));
+  }
+
+  /** Ungecachte Fassung von `findYears` (Schlüssel und Gültigkeit: `RevisionCache`, B2.4). */
+  private async computeYears(now: Date): Promise<YearList> {
     const today = localDate(now);
     const { from, to } = await this.store.getDataRange();
     if (from === null || to === null || from > today) return { items: [] };

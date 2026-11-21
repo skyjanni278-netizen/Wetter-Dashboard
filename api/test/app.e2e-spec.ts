@@ -7,8 +7,8 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { Clock, FixedClock } from '../src/common/clock';
-import { LEGACY_DATA_DIR } from '../src/legacy/legacy-data-dir';
 import { createTestApp } from './support/app';
+import { useLegacyStores } from './support/legacy-stores';
 
 /** Tagesdatei im Altformat von Express; Stunde 5 ohne Temperatur. */
 function dayFile(date: string): string {
@@ -53,12 +53,10 @@ describe('Erste GET-Endpunkte (Schritt 2, e2e mit Altdateien im Temp-Ordner)', (
     await writeDay(dataDir, '2026-11-19');
     await writeFile(path.join(dataDir, 'forecast.json'), forecastFile(19));
 
-    const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
-      .overrideProvider(Clock)
-      .useValue(clock)
-      .overrideProvider(LEGACY_DATA_DIR)
-      .useValue(dataDir)
-      .compile();
+    const moduleRef = await useLegacyStores(
+      Test.createTestingModule({ imports: [AppModule] }).overrideProvider(Clock).useValue(clock),
+      { clock, dataDir },
+    ).compile();
     app = await createTestApp(moduleRef);
   });
 

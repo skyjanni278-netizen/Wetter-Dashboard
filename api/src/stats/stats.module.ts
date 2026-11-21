@@ -8,6 +8,7 @@ import { RecordsService } from '../records/records.service';
 import { SummariesController } from '../summaries/summaries.controller';
 import { SummariesService } from '../summaries/summaries.service';
 import { AggregationService } from './aggregation.service';
+import { RevisionCache } from './revision-cache';
 
 /**
  * Berechnete Ressourcen (03 B4.1): `days`, `summaries` und `records`. Liest nur über den exportierten
@@ -17,6 +18,6 @@ import { AggregationService } from './aggregation.service';
 @Module({
   imports: [CommonModule, ObservationsModule],
   controllers: [DaysController, SummariesController, RecordsController],
-  providers: [AggregationService, DaysService, SummariesService, RecordsService],
+  providers: [AggregationService, RevisionCache, DaysService, SummariesService, RecordsService],
 })
 export class StatsModule {}
