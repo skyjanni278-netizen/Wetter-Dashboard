@@ -6,13 +6,14 @@ import { Clock } from '../common/clock';
 import { formatUtc } from '../common/utc';
 import { HEUBACH } from '../locations/location';
 import type { ImportCreateDto } from './dto/import-create.schema';
-import { emptyCounts } from './import';
-import type { ImportKind, ImportRecord } from './import';
+import type { ImportsQuery } from './dto/imports-query.schema';
+import { emptyCounts, toImportResource } from './import';
+import type { ImportKind, ImportList, ImportRecord } from './import';
 import { ImportRunner } from './import-runner';
 import { IMPORT_STORE, ImportAlreadyRunningError } from './import.store';
 import type { ImportStore } from './import.store';
 
-/** US10-3, US11-1: Importaufträge anlegen und abfragen; R19 (höchstens ein laufender Import). */
+/** US10-3, US11-1/-2: Importaufträge anlegen und abfragen; R19 (höchstens ein laufender Import). */
 @Injectable()
 export class ImportsService {
   constructor(
@@ -63,6 +64,22 @@ export class ImportsService {
     });
     this.runner.schedule(record.id);
     return record;
+  }
+
+  /**
+   * US11-2 (R24): eine Seite des Protokolls, nach `requestedAt` absteigend. Grenzen und Standardwerte von
+   * `page`/`limit` setzt vorher `ImportsQuerySchema`; eine Seite hinter dem Ende ergibt `items = []`.
+   */
+  async findPage(query: ImportsQuery): Promise<ImportList> {
+    const { page, limit, status, kind } = query;
+    const result = await this.store.findPage({
+      locationId: HEUBACH.id,
+      status,
+      kind,
+      offset: (page - 1) * limit,
+      limit,
+    });
+    return { items: result.items.map(toImportResource), meta: { page, limit, total: result.total } };
   }
 
   async findOne(id: number): Promise<ImportRecord> {

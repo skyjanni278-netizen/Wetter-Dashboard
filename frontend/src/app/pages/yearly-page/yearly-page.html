@@ -3,13 +3,22 @@
     <div class="page-title">
       <p class="kicker">Jahr</p>
       <h1>{{ invalid() ? 'Jahr' : selectedYear() }}</h1>
+      <!-- R13 (F28): laufendes oder lückenhaftes Jahr, Zahlen aus der Zusammenfassung -->
+      @if (summary(); as s) {
+        @if (!s.complete) {
+          <p class="period-chips">
+            <app-chip>Unvollständig</app-chip>
+            <app-chip>{{ s.daysComplete }} von {{ s.daysExpected }} Tagen</app-chip>
+          </p>
+        }
+      }
     </div>
 
     <div class="page-controls">
       <app-form-field label="Jahr" fieldId="year-select">
         <select id="year-select" (change)="onYearChange($event)">
           @if (invalid()) { <option value="" disabled selected>–</option> }
-          @for (y of years; track y) {
+          @for (y of years(); track y) {
             <option [value]="y" [selected]="y === selectedYear()">{{ y }}</option>
           }
         </select>
@@ -26,7 +35,7 @@
     }
 
     @if (state() === 'error') {
-      <app-error [message]="error() ?? 'Fehler beim Laden der Jahresdaten.'" (retry)="retry()" />
+      <app-error [message]="error() ?? 'Fehler beim Laden der Jahresdaten.'" [retryable]="retryable()" (retry)="retry()" />
     }
     @if (state() === 'empty') {
       <app-empty [message]="error() ?? 'Keine gespeicherten Daten für dieses Jahr.'" />
@@ -46,22 +55,24 @@
       </app-loading>
     }
 
-    @if (chartData()) {
+    @if (summary(); as s) {
       <div class="card-stack">
         <div class="kpi-grid">
-          <app-kpi-card kicker="Ø Jahrestemperatur" [value]="avgTemp()" unit="°C"
+          <app-kpi-card kicker="Ø Jahrestemperatur" [value]="s.temperature.mean" unit="°C"
                         [busy]="loading()" [reveal]="true" />
           <app-kpi-card kicker="Wärmster Monat (Ø)" [value]="maxTemp()" unit="°C" [meta]="warmestMonthName()"
                         [busy]="loading()" [reveal]="true" [revealIndex]="1" />
           <app-kpi-card kicker="Kältester Monat (Ø)" [value]="minTemp()" unit="°C" [meta]="coldestMonthName()"
                         [busy]="loading()" [reveal]="true" [revealIndex]="2" />
-          <app-kpi-card kicker="Jahresniederschlag" [value]="totalPrecip()" unit="mm" [digits]="0"
+          <app-kpi-card kicker="Jahresniederschlag" [value]="s.precipitationSum" unit="mm" [digits]="0"
                         [busy]="loading()" [reveal]="true" [revealIndex]="3" />
         </div>
 
-        <app-card class="chart-card" [busy]="loading()" [reveal]="true" [revealIndex]="4">
-          <app-climate-chart [title]="'Klimadiagramm ' + selectedYear()" [data]="chartData()" labelHeading="Monat" />
-        </app-card>
+        @if (chartData(); as chart) {
+          <app-card class="chart-card" [busy]="loading()" [reveal]="true" [revealIndex]="4">
+            <app-climate-chart [title]="'Klimadiagramm ' + selectedYear()" [data]="chart" labelHeading="Monat" />
+          </app-card>
+        }
       </div>
     }
   </div>

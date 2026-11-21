@@ -58,3 +58,27 @@ export interface Day {
   };
   hours: DayHour[];
 }
+
+/**
+ * Listeneintrag von `GET /api/days?from&to` (03 B2.2 „day (Listeneintrag)“): schlanker als `Day`, ohne
+ * Stunden. Werte wie `Day.observed` (nur vergangene Stunden, R08), gerundet (R11).
+ */
+export interface DayListItem {
+  id: string;
+  date: string;
+  locationId: number;
+  hoursExpected: number;
+  hoursObserved: number;
+  complete: boolean;
+  temperature: { mean: number | null; min: number | null; max: number | null };
+  precipitationSum: number | null;
+  isDryDay: boolean | null;
+  /** Korrekturen gibt es ab Schritt 12a; bis dahin immer `false`. */
+  hasCorrections: boolean;
+}
+
+/** `GET /api/days?from&to`: Tage mit Daten aufsteigend; `meta.count` = Zahl der Einträge (B2.2). */
+export interface DayList {
+  items: DayListItem[];
+  meta: { from: string; to: string; count: number };
+}

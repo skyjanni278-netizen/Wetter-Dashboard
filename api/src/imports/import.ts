@@ -2,8 +2,10 @@
  * Import nach 03 B2.2 (Ressource `import`). `requestedBy` bleibt bis zur Anmeldung (Schritt 10) `null`,
  * `overwriteCorrections` bis zu den Korrekturen (Schritt 12a) `false`.
  */
-export type ImportKind = 'legacy' | 'range' | 'gaps' | 'scheduled';
-export type ImportStatus = 'queued' | 'running' | 'succeeded' | 'partial' | 'failed';
+export const IMPORT_KINDS = ['legacy', 'range', 'gaps', 'scheduled'] as const;
+export const IMPORT_STATUSES = ['queued', 'running', 'succeeded', 'partial', 'failed'] as const;
+export type ImportKind = (typeof IMPORT_KINDS)[number];
+export type ImportStatus = (typeof IMPORT_STATUSES)[number];
 
 /** Status, in denen ein Import noch nicht abgeschlossen ist (R19). */
 export const ACTIVE_IMPORT_STATUSES: readonly ImportStatus[] = ['queued', 'running'];
@@ -48,6 +50,20 @@ export interface ImportRecord {
 /** Antwort von `GET /api/imports/:id` und `POST /api/imports` (B2.2). */
 export interface ImportResource extends ImportRecord {
   links: { self: string };
+}
+
+/** Seitenangaben einer Liste mit Pagination (R24, B2.2: `meta = { page, limit, total }`). */
+export interface PageMeta {
+  page: number;
+  limit: number;
+  /** Zahl aller Einträge, die zum Filter passen (über alle Seiten). */
+  total: number;
+}
+
+/** `GET /api/imports`: nach `requestedAt` absteigend (US11-2). */
+export interface ImportList {
+  items: ImportResource[];
+  meta: PageMeta;
 }
 
 export function importPath(id: number): string {

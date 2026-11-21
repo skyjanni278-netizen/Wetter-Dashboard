@@ -1,0 +1,1581 @@
+{
+  "info": {
+    "name": "Wetter-Dashboard Heubach",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "API-Tests je Akzeptanzkriterium (03-zielbild.md B3.7). Voraussetzung: Nest mit FAKE_NOW=2026-11-19T13:30:00Z und dem Altbestand (Daten ab 2025-01-01). Die Umgebung local nutzt http://localhost:3001/api; ab Schritt 9 wird es http://localhost:3000/api. Die Reihenfolge der Ordner ist wichtig (US07-2 vor US10, US11 nach US10). Auth-Requests kommen in Schritt 10; die Variable token und Bearer-Auth sind vorbereitet."
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "importId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "US01 Heute",
+      "item": [
+        {
+          "name": "US01-1 heute → 200 mit Content-Location",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200',()=>pm.response.to.have.status(200));",
+                  "const b=pm.response.json();",
+                  "pm.test('date = 2026-11-19',()=>pm.expect(b.date).to.eql('2026-11-19'));",
+                  "pm.test('Content-Location',()=>pm.expect(pm.response.headers.get('Content-Location')).to.eql('/api/days/2026-11-19'));",
+                  "pm.test('Pflichtfelder',()=>pm.expect(b).to.include.keys('id','date','locationId','timezone','isToday','hoursExpected','hoursObserved','hoursPredicted','complete','current','observed','predicted','hours'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/days/today",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "days",
+                "today"
+              ]
+            }
+          }
+        },
+        {
+          "name": "US01-3 Vorhersagestunden ab 15:00 getrennt → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200',()=>pm.response.to.have.status(200));",
+                  "const b=pm.response.json();",
+                  "pm.test('Stunden ab 15:00 sind Vorhersage',()=>{b.hours.forEach(h=>{const hr=parseInt(h.timeLocal.substr(11,2),10);pm.expect(h.isPrediction).to.eql(hr>=15);});});",
+                  "pm.test('hoursPredicted = 9',()=>pm.expect(b.hoursPredicted).to.eql(9));",
+                  "pm.test('predicted getrennt von observed',()=>{pm.expect(b.predicted).to.be.an('object');pm.expect(b.observed).to.have.property('precipitationSum');});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/days/today",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "days",
+                "today"
+              ]
+            }
+          }
+        },
+        {
+          "name": "US01-4 Accept text/html → 406",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 406',()=>pm.response.to.have.status(406));",
+                  "const b=pm.response.json();",
+                  "pm.test('code = NOT_ACCEPTABLE',()=>pm.expect(b.code).to.eql('NOT_ACCEPTABLE'));",
+                  "pm.test('Fehlerformat',()=>{pm.expect(b).to.include.keys('statusCode','error','code','message','errors','path','timestamp','requestId','details');pm.expect(b.errors).to.be.an('array');});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "text/html"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/days/today",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "days",
+                "today"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "US02 Tag",
+      "item": [
+        {
+          "name": "US02-1 vollständiger Tag → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200',()=>pm.response.to.have.status(200));",
+                  "const b=pm.response.json();",
+                  "pm.test('24 Stunden',()=>pm.expect(b.hours.length).to.eql(24));",
+                  "pm.test('complete, nicht heute, current null',()=>{pm.expect(b.complete).to.eql(true);pm.expect(b.isToday).to.eql(false);pm.expect(b.current).to.eql(null);});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/days/2026-11-10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "days",
+                "2026-11-10"
+              ]
+            }
+          }
+        },
+        {
+          "name": "US02-2 ungültiges Datum → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400',()=>pm.response.to.have.status(400));",
+                  "const b=pm.response.json();",
+                  "pm.test('errors[0].field = date',()=>pm.expect(b.errors[0].field).to.eql('date'));",
+                  "pm.test('errors[0].code = invalid_date',()=>pm.expect(b.errors[0].code).to.eql('invalid_date'));",
+                  "pm.test('Fehlerformat',()=>{pm.expect(b).to.include.keys('statusCode','error','code','message','errors','path','timestamp','requestId','details');pm.expect(b.errors).to.be.an('array');});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/days/2026-02-30",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "days",
+                "2026-02-30"
+              ]
+            }
+          }
+        },
+        {
+          "name": "US02-3 Format → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400',()=>pm.response.to.have.status(400));",
+                  "const b=pm.response.json();",
+                  "pm.test('errors[0].field = date',()=>pm.expect(b.errors[0].field).to.eql('date'));",
+                  "pm.test('Fehlerformat',()=>{pm.expect(b).to.include.keys('statusCode','error','code','message','errors','path','timestamp','requestId','details');pm.expect(b.errors).to.be.an('array');});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/days/2026-11-1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "days",
+                "2026-11-1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "US02-4 Zukunft → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400',()=>pm.response.to.have.status(400));",
+                  "const b=pm.response.json();",
+                  "pm.test('code = DATE_IN_FUTURE',()=>pm.expect(b.code).to.eql('DATE_IN_FUTURE'));",
+                  "pm.test('errors[0].field = date',()=>pm.expect(b.errors[0].field).to.eql('date'));",
+                  "pm.test('Fehlerformat',()=>{pm.expect(b).to.include.keys('statusCode','error','code','message','errors','path','timestamp','requestId','details');pm.expect(b.errors).to.be.an('array');});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/days/2026-11-20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "days",
+                "2026-11-20"
+              ]
+            }
+          }
+        },
+        {
+          "name": "US02-5 vor Datenbeginn → 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404',()=>pm.response.to.have.status(404));",
+                  "const b=pm.response.json();",
+                  "pm.test('code = NO_DATA',()=>pm.expect(b.code).to.eql('NO_DATA'));",
+                  "pm.test('Fehlerformat',()=>{pm.expect(b).to.include.keys('statusCode','error','code','message','errors','path','timestamp','requestId','details');pm.expect(b.errors).to.be.an('array');});",
+                  "pm.test('Meldung nennt 01.01.2025',()=>pm.expect(b.message).to.include('01.01.2025'));",
+                  "pm.test('details.dataFrom',()=>pm.expect(b.details.dataFrom).to.eql('2025-01-01'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/days/2024-12-31",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "days",
+                "2024-12-31"
+              ]
+            }
+          }
+        },
+        {
+          "name": "US02-6 Sommerzeitbeginn → 200 hoursExpected 23",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200',()=>pm.response.to.have.status(200));",
+                  "const b=pm.response.json();",
+                  "pm.test('hoursExpected = 23',()=>pm.expect(b.hoursExpected).to.eql(23));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/days/2026-03-29",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "days",
+                "2026-03-29"
+              ]
+            }
+          }
+        },
+        {
+          "name": "US02-7 Sommerzeitende → 200 hoursExpected 25",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200',()=>pm.response.to.have.status(200));",
+                  "const b=pm.response.json();",
+                  "pm.test('hoursExpected = 25',()=>pm.expect(b.hoursExpected).to.eql(25));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/days/2026-10-25",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "days",
+                "2026-10-25"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "US03 Vorhersage",
+      "item": [
+        {
+          "name": "US03-1 Vorhersage → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200',()=>pm.response.to.have.status(200));",
+                  "const b=pm.response.json();",
+                  "pm.test('items und fetchedAt',()=>{pm.expect(b.items).to.be.an('array');pm.expect(b).to.have.property('fetchedAt');});",
+                  "pm.test('7 Einträge, aufsteigende Tage (Altbestand-forecast.json ist nicht auf FAKE_NOW abgestimmt)',()=>{pm.expect(b.items.length).to.eql(7);pm.expect(b.items[0].date).to.match(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/);for(let i=1;i<7;i++)pm.expect(b.items[i].date>b.items[i-1].date).to.eql(true);});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/forecasts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "forecasts"
+              ]
+            }
+          }
+        },
+        {
+          "name": "US03-3 unbekannter Parameter → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400',()=>pm.response.to.have.status(400));",
+                  "const b=pm.response.json();",
+                  "pm.test('code = VALIDATION_FAILED',()=>pm.expect(b.code).to.eql('VALIDATION_FAILED'));",
+                  "pm.test('errors[0].field = days',()=>pm.expect(b.errors[0].field).to.eql('days'));",
+                  "pm.test('errors[0].code = unrecognized_keys',()=>pm.expect(b.errors[0].code).to.eql('unrecognized_keys'));",
+                  "pm.test('Fehlerformat',()=>{pm.expect(b).to.include.keys('statusCode','error','code','message','errors','path','timestamp','requestId','details');pm.expect(b.errors).to.be.an('array');});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/forecasts?days=14",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "forecasts"
+              ],
+              "query": [
+                {
+                  "key": "days",
+                  "value": "14"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "US04 Monat",
+      "item": [
+        {
+          "name": "US04-1 Monat 2025-03 → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200',()=>pm.response.to.have.status(200));",
+                  "const b=pm.response.json();",
+                  "pm.test('31/31 vollständig',()=>{pm.expect(b.daysExpected).to.eql(31);pm.expect(b.daysComplete).to.eql(31);pm.expect(b.complete).to.eql(true);});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/summaries/months/2025-03",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "summaries",
+                "months",
+                "2025-03"
+              ]
+            }
+          }
+        },
+        {
+          "name": "US04-2 Tage 2025-03 → 200, 31 aufsteigend",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200',()=>pm.response.to.have.status(200));",
+                  "const b=pm.response.json();",
+                  "pm.test('31 Einträge',()=>pm.expect(b.items.length).to.eql(31));",
+                  "pm.test('aufsteigend',()=>{for(let i=1;i<b.items.length;i++)pm.expect(b.items[i].date>b.items[i-1].date).to.eql(true);});",
+                  "pm.test('meta',()=>pm.expect(b.meta).to.include.keys('from','to','count'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/days?from=2025-03-01&to=2025-03-31",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "days"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "2025-03-01"
+                },
+                {
+                  "key": "to",
+                  "value": "2025-03-31"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "US04-3 Monat 2026-13 → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400',()=>pm.response.to.have.status(400));",
+                  "const b=pm.response.json();",
+                  "pm.test('errors[0].field = yearMonth',()=>pm.expect(b.errors[0].field).to.eql('yearMonth'));",
+                  "pm.test('Fehlerformat',()=>{pm.expect(b).to.include.keys('statusCode','error','code','message','errors','path','timestamp','requestId','details');pm.expect(b.errors).to.be.an('array');});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/summaries/months/2026-13",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "summaries",
+                "months",
+                "2026-13"
+              ]
+            }
+          }
+        },
+        {
+          "name": "US04-4 laufender Monat → 200 unvollständig",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200',()=>pm.response.to.have.status(200));",
+                  "const b=pm.response.json();",
+                  "pm.test('18 von 30, unvollständig',()=>{pm.expect(b.complete).to.eql(false);pm.expect(b.daysComplete).to.eql(18);pm.expect(b.daysExpected).to.eql(30);});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/summaries/months/2026-11",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "summaries",
+                "months",
+                "2026-11"
+              ]
+            }
+          }
+        },
+        {
+          "name": "US04-5 Monat ohne Daten → 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404',()=>pm.response.to.have.status(404));",
+                  "const b=pm.response.json();",
+                  "pm.test('code = NO_DATA',()=>pm.expect(b.code).to.eql('NO_DATA'));",
+                  "pm.test('Fehlerformat',()=>{pm.expect(b).to.include.keys('statusCode','error','code','message','errors','path','timestamp','requestId','details');pm.expect(b.errors).to.be.an('array');});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/summaries/months/2024-12",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "summaries",
+                "months",
+                "2024-12"
+              ]
+            }
+          }
+        },
+        {
+          "name": "US04-6 Zukunftsmonat → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400',()=>pm.response.to.have.status(400));",
+                  "const b=pm.response.json();",
+                  "pm.test('code = DATE_IN_FUTURE',()=>pm.expect(b.code).to.eql('DATE_IN_FUTURE'));",
+                  "pm.test('Fehlerformat',()=>{pm.expect(b).to.include.keys('statusCode','error','code','message','errors','path','timestamp','requestId','details');pm.expect(b.errors).to.be.an('array');});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/summaries/months/2026-12",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "summaries",
+                "months",
+                "2026-12"
+              ]
+            }
+          }
+        },
+        {
+          "name": "US04-7 Zeitraum zu lang → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400',()=>pm.response.to.have.status(400));",
+                  "const b=pm.response.json();",
+                  "pm.test('code = VALIDATION_FAILED',()=>pm.expect(b.code).to.eql('VALIDATION_FAILED'));",
+                  "pm.test('errors[0].field = to',()=>pm.expect(b.errors[0].field).to.eql('to'));",
+                  "pm.test('errors[0].code = range_too_long',()=>pm.expect(b.errors[0].code).to.eql('range_too_long'));",
+                  "pm.test('Fehlerformat',()=>{pm.expect(b).to.include.keys('statusCode','error','code','message','errors','path','timestamp','requestId','details');pm.expect(b.errors).to.be.an('array');});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/days?from=2025-01-01&to=2026-11-19",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "days"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "2025-01-01"
+                },
+                {
+                  "key": "to",
+                  "value": "2026-11-19"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "US04-8 Jahresliste → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200',()=>pm.response.to.have.status(200));",
+                  "const b=pm.response.json();",
+                  "pm.test('Jahre 2025 und 2026',()=>pm.expect(b.items.map(i=>i.year)).to.eql([2025,2026]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/summaries/years",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "summaries",
+                "years"
+              ]
+            }
+          }
+        },
+        {
+          "name": "US04-9a Monatsende in der Zukunft → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400',()=>pm.response.to.have.status(400));",
+                  "const b=pm.response.json();",
+                  "pm.test('code = DATE_IN_FUTURE',()=>pm.expect(b.code).to.eql('DATE_IN_FUTURE'));",
+                  "pm.test('errors[0].field = to',()=>pm.expect(b.errors[0].field).to.eql('to'));",
+                  "pm.test('Fehlerformat',()=>{pm.expect(b).to.include.keys('statusCode','error','code','message','errors','path','timestamp','requestId','details');pm.expect(b.errors).to.be.an('array');});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/days?from=2026-11-01&to=2026-11-30",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "days"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "2026-11-01"
+                },
+                {
+                  "key": "to",
+                  "value": "2026-11-30"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "US04-9b bis heute → 200, 19 Einträge",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200',()=>pm.response.to.have.status(200));",
+                  "const b=pm.response.json();",
+                  "pm.test('19 Einträge',()=>pm.expect(b.items.length).to.eql(19));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/days?from=2026-11-01&to=2026-11-19",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "days"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "2026-11-01"
+                },
+                {
+                  "key": "to",
+                  "value": "2026-11-19"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "US05 Jahr",
+      "item": [
+        {
+          "name": "US05-1 Jahr 2025 → 200 vollständig",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200',()=>pm.response.to.have.status(200));",
+                  "const b=pm.response.json();",
+                  "pm.test('complete, Temperatur',()=>{pm.expect(b.complete).to.eql(true);pm.expect(b.temperature.mean).to.be.a('number');pm.expect(b.meanMethod).to.eql('mean_of_daily_means');});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/summaries/years/2025",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "summaries",
+                "years",
+                "2025"
+              ]
+            }
+          }
+        },
+        {
+          "name": "US05-2 Monate 2025 → 200, 12 Einträge",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200',()=>pm.response.to.have.status(200));",
+                  "const b=pm.response.json();",
+                  "pm.test('12 Einträge',()=>pm.expect(b.items.length).to.eql(12));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/summaries/months?year=2025",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "summaries",
+                "months"
+              ],
+              "query": [
+                {
+                  "key": "year",
+                  "value": "2025"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "US05-3 Jahr 2026 → 200 unvollständig",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200',()=>pm.response.to.have.status(200));",
+                  "const b=pm.response.json();",
+                  "pm.test('322 von 365',()=>{pm.expect(b.complete).to.eql(false);pm.expect(b.daysComplete).to.eql(322);pm.expect(b.daysExpected).to.eql(365);});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/summaries/years/2026",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "summaries",
+                "years",
+                "2026"
+              ]
+            }
+          }
+        },
+        {
+          "name": "US05-4 Jahr vor Archiv → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400',()=>pm.response.to.have.status(400));",
+                  "const b=pm.response.json();",
+                  "pm.test('errors[0].field = year',()=>pm.expect(b.errors[0].field).to.eql('year'));",
+                  "pm.test('Fehlerformat',()=>{pm.expect(b).to.include.keys('statusCode','error','code','message','errors','path','timestamp','requestId','details');pm.expect(b.errors).to.be.an('array');});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/summaries/years/1939",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "summaries",
+                "years",
+                "1939"
+              ]
+            }
+          }
+        },
+        {
+          "name": "US05-5 Jahr ohne Daten → 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404',()=>pm.response.to.have.status(404));",
+                  "const b=pm.response.json();",
+                  "pm.test('code = NO_DATA',()=>pm.expect(b.code).to.eql('NO_DATA'));",
+                  "pm.test('Fehlerformat',()=>{pm.expect(b).to.include.keys('statusCode','error','code','message','errors','path','timestamp','requestId','details');pm.expect(b.errors).to.be.an('array');});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/summaries/years/2024",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "summaries",
+                "years",
+                "2024"
+              ]
+            }
+          }
+        },
+        {
+          "name": "US05-6 year=abc → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400',()=>pm.response.to.have.status(400));",
+                  "const b=pm.response.json();",
+                  "pm.test('errors[0].field = year',()=>pm.expect(b.errors[0].field).to.eql('year'));",
+                  "pm.test('Fehlerformat',()=>{pm.expect(b).to.include.keys('statusCode','error','code','message','errors','path','timestamp','requestId','details');pm.expect(b.errors).to.be.an('array');});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/summaries/months?year=abc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "summaries",
+                "months"
+              ],
+              "query": [
+                {
+                  "key": "year",
+                  "value": "abc"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "US06 Rekorde",
+      "item": [
+        {
+          "name": "US06-1 Rekorde → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200',()=>pm.response.to.have.status(200));",
+                  "const b=pm.response.json();",
+                  "pm.test('Pflichtfelder',()=>pm.expect(b).to.include.keys('hottest','coldest','wettestDay','longestDryPeriod','daysCounted'));",
+                  "pm.test('ohne Vorhersage',()=>pm.expect(b.excludesPredictions).to.eql(true));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/records",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "records"
+              ]
+            }
+          }
+        },
+        {
+          "name": "US06-6 Filter year → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400',()=>pm.response.to.have.status(400));",
+                  "const b=pm.response.json();",
+                  "pm.test('code = VALIDATION_FAILED',()=>pm.expect(b.code).to.eql('VALIDATION_FAILED'));",
+                  "pm.test('errors[0].field = year',()=>pm.expect(b.errors[0].field).to.eql('year'));",
+                  "pm.test('errors[0].code = unrecognized_keys',()=>pm.expect(b.errors[0].code).to.eql('unrecognized_keys'));",
+                  "pm.test('Fehlerformat',()=>{pm.expect(b).to.include.keys('statusCode','error','code','message','errors','path','timestamp','requestId','details');pm.expect(b.errors).to.be.an('array');});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/records?year=2025",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "records"
+              ],
+              "query": [
+                {
+                  "key": "year",
+                  "value": "2025"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "US07 Status",
+      "item": [
+        {
+          "name": "US07-1 Status → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200',()=>pm.response.to.have.status(200));",
+                  "const b=pm.response.json();",
+                  "pm.test('Pflichtfelder',()=>pm.expect(b).to.include.keys('today','timezone','dataFrom','dataTo','lastSuccessfulUpdateAt','updateState'));",
+                  "pm.test('ohne Fehlertext',()=>pm.expect(b).to.not.have.any.keys('error','message','lastError'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "status"
+              ]
+            }
+          }
+        },
+        {
+          "name": "US07-2 ohne Import: never → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200',()=>pm.response.to.have.status(200));",
+                  "const b=pm.response.json();",
+                  "pm.test('never und null (läuft vor US10)',()=>{pm.expect(b.updateState).to.eql('never');pm.expect(b.lastSuccessfulUpdateAt).to.eql(null);});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "status"
+              ]
+            }
+          }
+        },
+        {
+          "name": "US07-3 Standorte → 200, Heubach",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200',()=>pm.response.to.have.status(200));",
+                  "const b=pm.response.json();",
+                  "pm.test('genau ein Eintrag heubach',()=>{pm.expect(b.items.length).to.eql(1);pm.expect(b.items[0].slug).to.eql('heubach');});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/locations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "locations"
+              ]
+            }
+          }
+        },
+        {
+          "name": "US07-4 unbekannter Standort → 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404',()=>pm.response.to.have.status(404));",
+                  "const b=pm.response.json();",
+                  "pm.test('code = NOT_FOUND',()=>pm.expect(b.code).to.eql('NOT_FOUND'));",
+                  "pm.test('Fehlerformat',()=>{pm.expect(b).to.include.keys('statusCode','error','code','message','errors','path','timestamp','requestId','details');pm.expect(b.errors).to.be.an('array');});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/locations/99",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "locations",
+                "99"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "US10 Import anstoßen",
+      "item": [
+        {
+          "name": "US10-4 to vor from → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400',()=>pm.response.to.have.status(400));",
+                  "const b=pm.response.json();",
+                  "pm.test('errors[0].field = to',()=>pm.expect(b.errors[0].field).to.eql('to'));",
+                  "pm.test('Fehlerformat',()=>{pm.expect(b).to.include.keys('statusCode','error','code','message','errors','path','timestamp','requestId','details');pm.expect(b.errors).to.be.an('array');});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"kind\": \"range\",\n  \"from\": \"2026-10-31\",\n  \"to\": \"2026-10-01\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/imports",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "imports"
+              ]
+            }
+          }
+        },
+        {
+          "name": "US10-5 to in der Zukunft → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400',()=>pm.response.to.have.status(400));",
+                  "const b=pm.response.json();",
+                  "pm.test('code = DATE_IN_FUTURE',()=>pm.expect(b.code).to.eql('DATE_IN_FUTURE'));",
+                  "pm.test('errors[0].field = to',()=>pm.expect(b.errors[0].field).to.eql('to'));",
+                  "pm.test('Fehlerformat',()=>{pm.expect(b).to.include.keys('statusCode','error','code','message','errors','path','timestamp','requestId','details');pm.expect(b.errors).to.be.an('array');});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"kind\": \"range\",\n  \"from\": \"2026-10-01\",\n  \"to\": \"2026-11-20\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/imports",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "imports"
+              ]
+            }
+          }
+        },
+        {
+          "name": "US10-6 Zeitraum zu lang → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400',()=>pm.response.to.have.status(400));",
+                  "const b=pm.response.json();",
+                  "pm.test('code = VALIDATION_FAILED',()=>pm.expect(b.code).to.eql('VALIDATION_FAILED'));",
+                  "pm.test('errors[0].field = to',()=>pm.expect(b.errors[0].field).to.eql('to'));",
+                  "pm.test('errors[0].code = range_too_long',()=>pm.expect(b.errors[0].code).to.eql('range_too_long'));",
+                  "pm.test('Fehlerformat',()=>{pm.expect(b).to.include.keys('statusCode','error','code','message','errors','path','timestamp','requestId','details');pm.expect(b.errors).to.be.an('array');});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"kind\": \"range\",\n  \"from\": \"2023-01-01\",\n  \"to\": \"2026-01-01\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/imports",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "imports"
+              ]
+            }
+          }
+        },
+        {
+          "name": "US10-8 kind scheduled → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400',()=>pm.response.to.have.status(400));",
+                  "const b=pm.response.json();",
+                  "pm.test('errors[0].field = kind',()=>pm.expect(b.errors[0].field).to.eql('kind'));",
+                  "pm.test('Fehlerformat',()=>{pm.expect(b).to.include.keys('statusCode','error','code','message','errors','path','timestamp','requestId','details');pm.expect(b.errors).to.be.an('array');});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"kind\": \"scheduled\",\n  \"from\": \"2026-10-01\",\n  \"to\": \"2026-10-31\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/imports",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "imports"
+              ]
+            }
+          }
+        },
+        {
+          "name": "US10-3 Import anstoßen → 202 mit Location",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 202',()=>pm.response.to.have.status(202));",
+                  "const b=pm.response.json();",
+                  "pm.test('status = queued',()=>pm.expect(b.status).to.eql('queued'));",
+                  "pm.test('Location',()=>pm.expect(pm.response.headers.get('Location')).to.eql('/api/imports/'+b.id));",
+                  "pm.collectionVariables.set('importId',String(b.id));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"kind\": \"range\",\n  \"from\": \"2026-10-01\",\n  \"to\": \"2026-10-31\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/imports",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "imports"
+              ]
+            }
+          }
+        },
+        {
+          "name": "US10-7 zweiter Import während Lauf → 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 409',()=>pm.response.to.have.status(409));",
+                  "const b=pm.response.json();",
+                  "pm.test('code = IMPORT_RUNNING',()=>pm.expect(b.code).to.eql('IMPORT_RUNNING'));",
+                  "pm.test('Fehlerformat',()=>{pm.expect(b).to.include.keys('statusCode','error','code','message','errors','path','timestamp','requestId','details');pm.expect(b.errors).to.be.an('array');});",
+                  "pm.test('details.runningImportId',()=>pm.expect(b.details.runningImportId).to.eql(Number(pm.collectionVariables.get('importId'))));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"kind\": \"range\",\n  \"from\": \"2026-10-01\",\n  \"to\": \"2026-10-31\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/imports",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "imports"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "US11 Importe",
+      "item": [
+        {
+          "name": "US11-1 Import abrufen → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200',()=>pm.response.to.have.status(200));",
+                  "const b=pm.response.json();",
+                  "pm.test('Status bekannt',()=>pm.expect(['queued','running','succeeded','partial','failed']).to.include(b.status));",
+                  "pm.test('counts bei Abschluss',()=>{if(b.status!=='queued'&&b.status!=='running')pm.expect(b.counts).to.include.keys('inserted','updated','unchanged');});",
+                  "pm.test('id',()=>pm.expect(String(b.id)).to.eql(pm.collectionVariables.get('importId')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/imports/{{importId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "imports",
+                "{{importId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "US11-2 Importliste → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200',()=>pm.response.to.have.status(200));",
+                  "const b=pm.response.json();",
+                  "pm.test('items und meta',()=>{pm.expect(b.items).to.be.an('array');pm.expect(b.meta).to.include.keys('page','limit','total');pm.expect(b.meta.page).to.eql(1);pm.expect(b.meta.limit).to.eql(20);});",
+                  "pm.test('nur failed',()=>b.items.forEach(i=>pm.expect(i.status).to.eql('failed')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/imports?status=failed&page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "imports"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "failed"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "US11-3 unbekannter Import → 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404',()=>pm.response.to.have.status(404));",
+                  "const b=pm.response.json();",
+                  "pm.test('code = NOT_FOUND',()=>pm.expect(b.code).to.eql('NOT_FOUND'));",
+                  "pm.test('Fehlerformat',()=>{pm.expect(b).to.include.keys('statusCode','error','code','message','errors','path','timestamp','requestId','details');pm.expect(b.errors).to.be.an('array');});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/imports/999",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "imports",
+                "999"
+              ]
+            }
+          }
+        },
+        {
+          "name": "US11-4 limit 500 → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400',()=>pm.response.to.have.status(400));",
+                  "const b=pm.response.json();",
+                  "pm.test('code = VALIDATION_FAILED',()=>pm.expect(b.code).to.eql('VALIDATION_FAILED'));",
+                  "pm.test('errors[0].field = limit',()=>pm.expect(b.errors[0].field).to.eql('limit'));",
+                  "pm.test('Fehlerformat',()=>{pm.expect(b).to.include.keys('statusCode','error','code','message','errors','path','timestamp','requestId','details');pm.expect(b.errors).to.be.an('array');});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/imports?limit=500",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "imports"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "500"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -69,6 +69,22 @@ describe('ImportsService (US10-3, US11, R19)', () => {
     const { service } = setup();
     await expect(service.findOne(999)).rejects.toMatchObject({ response: { statusCode: 404, code: 'NOT_FOUND' } });
   });
+
+  it('US11-2: findPage liefert Ressourcen mit links.self und meta = { page, limit, total }', async () => {
+    const { service, store } = setup();
+    await service.create({ kind: 'range', from: '2026-10-01', to: '2026-10-03' });
+    await store.update(1, { status: 'failed', finishedAt: '2026-11-19T13:10:05Z' });
+    await service.create({ kind: 'gaps', from: '2026-10-01', to: '2026-10-03' });
+
+    const page = await service.findPage({ page: 2, limit: 1 });
+    expect(page.meta).toEqual({ page: 2, limit: 1, total: 2 });
+    expect(page.items).toHaveLength(1);
+    expect(page.items[0]).toMatchObject({ id: 1, links: { self: '/api/imports/1' } }); // gleiche Zeit → höhere id zuerst
+
+    const failed = await service.findPage({ page: 1, limit: 20, status: 'failed' });
+    expect(failed.items.map(i => i.id)).toEqual([1]);
+    expect(failed.meta).toEqual({ page: 1, limit: 20, total: 1 });
+  });
 });
 
 describe('ImportsService: R02 / US10-5 (to nicht nach heute, Clock über Mitternacht MEZ)', () => {

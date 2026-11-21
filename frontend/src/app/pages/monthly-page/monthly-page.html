@@ -3,6 +3,15 @@
     <div class="page-title">
       <p class="kicker">Monat</p>
       <h1>{{ headline() }}</h1>
+      <!-- R13 (F28): laufender oder lückenhafter Monat, Zahlen aus der Zusammenfassung -->
+      @if (summary(); as s) {
+        @if (!s.complete) {
+          <p class="period-chips">
+            <app-chip>Unvollständig</app-chip>
+            <app-chip>{{ s.daysComplete }} von {{ s.daysExpected }} Tagen</app-chip>
+          </p>
+        }
+      }
     </div>
 
     <!-- Gruppe „Zeitraum“ (E3.7.3): Jahr und Monat, ohne Button „Laden“ -->
@@ -10,7 +19,7 @@
       <app-form-field label="Jahr" fieldId="year-select">
         <select id="year-select" (change)="onYearChange($event)">
           @if (!yearValid()) { <option value="" disabled selected>–</option> }
-          @for (y of years; track y) {
+          @for (y of years(); track y) {
             <option [value]="y" [selected]="y === selectedYear()">{{ y }}</option>
           }
         </select>
@@ -35,7 +44,7 @@
     }
 
     @if (state() === 'error') {
-      <app-error [message]="error() ?? 'Fehler beim Laden der Monatsdaten.'" (retry)="retry()" />
+      <app-error [message]="error() ?? 'Fehler beim Laden der Monatsdaten.'" [retryable]="retryable()" (retry)="retry()" />
     }
     @if (state() === 'empty') {
       <app-empty [message]="error() ?? 'Keine gespeicherten Daten für diesen Monat.'" />
@@ -55,21 +64,23 @@
       </app-loading>
     }
 
-    @if (chartData()) {
+    @if (summary(); as s) {
       <div class="card-stack">
         <div class="kpi-grid">
-          <app-kpi-card kicker="Ø Temperatur" [value]="avgTemp()" unit="°C"
+          <app-kpi-card kicker="Ø Temperatur" [value]="s.temperature.mean" unit="°C"
                         [busy]="loading()" [reveal]="true" />
-          <app-kpi-card kicker="Gesamtniederschlag" [value]="totalPrecip()" unit="mm"
+          <app-kpi-card kicker="Gesamtniederschlag" [value]="s.precipitationSum" unit="mm"
                         [busy]="loading()" [reveal]="true" [revealIndex]="1" />
-          <app-kpi-card kicker="Gespeicherte Tage" [value]="monthData()?.length" [digits]="0"
-                        [meta]="'von ' + daysInMonth() + ' Tagen'"
+          <app-kpi-card kicker="Vollständige Tage" [value]="s.daysComplete" [digits]="0"
+                        [meta]="'von ' + s.daysExpected + ' Tagen'"
                         [busy]="loading()" [reveal]="true" [revealIndex]="2" />
         </div>
 
-        <app-card class="chart-card" [busy]="loading()" [reveal]="true" [revealIndex]="3">
-          <app-climate-chart [title]="'Klimadiagramm ' + headline()" [data]="chartData()" labelHeading="Tag" />
-        </app-card>
+        @if (chartData(); as chart) {
+          <app-card class="chart-card" [busy]="loading()" [reveal]="true" [revealIndex]="3">
+            <app-climate-chart [title]="'Klimadiagramm ' + headline()" [data]="chart" labelHeading="Tag" />
+          </app-card>
+        }
       </div>
     }
   </div>

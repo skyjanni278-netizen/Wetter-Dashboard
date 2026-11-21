@@ -5,7 +5,7 @@ import { HEUBACH } from '../locations/location';
 import { ACTIVE_IMPORT_STATUSES, emptyCounts } from './import';
 import type { ImportKind, ImportRecord, ImportStatus } from './import';
 import { ImportAlreadyRunningError } from './import.store';
-import type { ImportStore, ImportUpdate, NewImport } from './import.store';
+import type { ImportPage, ImportPageQuery, ImportStore, ImportUpdate, NewImport } from './import.store';
 
 /**
  * `ImportStore` im Arbeitsspeicher (Schritt 3, bis Schritt 9). IDs beginnen nach jedem Start bei 1.
@@ -62,6 +62,21 @@ export class InMemoryImportStore implements ImportStore {
     const next = clone({ ...record, ...changes });
     this.records.set(id, next);
     return clone(next);
+  }
+
+  async findPage(query: ImportPageQuery): Promise<ImportPage> {
+    const matches = [...this.records.values()]
+      .filter(
+        record =>
+          record.locationId === query.locationId &&
+          (query.status === undefined || record.status === query.status) &&
+          (query.kind === undefined || record.kind === query.kind),
+      )
+      .sort((a, b) => Date.parse(b.requestedAt) - Date.parse(a.requestedAt) || b.id - a.id);
+    return {
+      items: matches.slice(query.offset, query.offset + query.limit).map(clone),
+      total: matches.length,
+    };
   }
 
   async findLastFinished(filter: {

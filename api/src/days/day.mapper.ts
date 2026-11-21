@@ -2,7 +2,7 @@ import { BERLIN_TIMEZONE } from '../common/berlin-time';
 import { round1 } from '../common/round';
 import { HEUBACH } from '../locations/location';
 import type { DayAggregate, TemperatureStats } from '../stats/aggregation.service';
-import type { Day, DayTemperature } from './day';
+import type { Day, DayListItem, DayTemperature } from './day';
 
 /** Response-Mapper: berechnete Werte auf eine Nachkommastelle (R11, einzige Stelle mit `round1`). */
 export function toDayTemperature(t: TemperatureStats): DayTemperature {
@@ -43,5 +43,22 @@ export function toDay(day: DayAggregate): Day {
       isPrediction,
       correctedAt: null,
     })),
+  };
+}
+
+/** Tagesaggregat → Listeneintrag `GET /api/days?from&to` (03 B2.2), Werte aus `observed`. */
+export function toDayListItem(day: DayAggregate): DayListItem {
+  const t = day.observed.temperature;
+  return {
+    id: day.date,
+    date: day.date,
+    locationId: HEUBACH.id,
+    hoursExpected: day.hoursExpected,
+    hoursObserved: day.hoursObserved,
+    complete: day.complete,
+    temperature: { mean: round1(t.mean), min: round1(t.min), max: round1(t.max) },
+    precipitationSum: round1(day.observed.precipitationSum),
+    isDryDay: day.observed.isDryDay,
+    hasCorrections: false,
   };
 }

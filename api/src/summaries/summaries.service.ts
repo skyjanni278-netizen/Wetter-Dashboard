@@ -9,8 +9,8 @@ import { HEUBACH } from '../locations/location';
 import { OBSERVATION_STORE } from '../observations/observation.store';
 import type { ObservationStore } from '../observations/observation.store';
 import { AggregationService, daysInMonth, daysInYear, MEAN_METHOD } from '../stats/aggregation.service';
-import type { PeriodAggregate } from '../stats/aggregation.service';
-import type { MonthSummary, YearSummary } from './summary';
+import type { DayAggregate, PeriodAggregate } from '../stats/aggregation.service';
+import type { MonthSummary, MonthSummaryList, YearList, YearSummary } from './summary';
 
 const MONTH_NAMES = [
   'Januar',
@@ -37,7 +37,8 @@ function summaryValues(period: PeriodAggregate) {
 }
 
 /**
- * US04-1/-3/-4/-5/-6, US05-1/-3/-4/-5: Monats- und Jahreszusammenfassung aus Tagesaggregaten (R12, R13).
+ * US04-1/-3/-4/-5/-6/-8, US05-1 bis -6: Monats- und Jahreszusammenfassungen und ihre Listen aus
+ * Tagesaggregaten (R12, R13).
  * Format (R04, R05) prüft die Pipe; Zukunft (R02) und „keine Daten“ (R03) prüft dieser Service.
  */
 @Injectable()
@@ -61,17 +62,24 @@ export class SummariesService {
       daysInMonth(yearMonth),
       `${MONTH_NAMES[month - 1]} ${year}`,
     );
-    return {
-      id: yearMonth,
-      year,
-      month,
-      ...summaryValues(period),
-      complete: period.complete,
-      temperature: toDayTemperature(period.temperature),
-      precipitationSum: round1(period.precipitationSum),
-      dryDays: period.dryDays,
-      meanMethod: MEAN_METHOD,
-    };
+    return toMonthSummary(yearMonth, period);
+  }
+
+  /**
+   * US05-2/-6: Zusammenfassungen aller Monate des Jahres mit mindestens einer Stunde, aufsteigend; je Monat
+   * dieselben Werte wie `findMonth`. R05: Jahr nach dem laufenden → 400 `DATE_IN_FUTURE` an `year`;
+   * Jahr ohne einzige Stunde → 404 `NO_DATA` (R03).
+   */
+  async findMonths(year: number): Promise<MonthSummaryList> {
+    const now = this.clock.now();
+    const today = localDate(now);
+    if (year > Number(today.slice(0, 4))) throw ApiValidationException.dateInFuture('year', today);
+
+    const days = await this.daysUntilToday(`${year}-01-01`, `${year}-12-31`, `das Jahr ${year}`);
+    const items = [...groupBy(days, day => day.date.slice(0, 7))].map(([yearMonth, monthDays]) =>
+      toMonthSummary(yearMonth, this.aggregation.summarize(monthDays, daysInMonth(yearMonth))),
+    );
+    return { items };
   }
 
   /** R05: Jahr nach dem laufenden → 400 `DATE_IN_FUTURE` an `year`; das Jahresmittel kommt direkt aus den Tagesmitteln (R12). */
@@ -94,8 +102,27 @@ export class SummariesService {
     };
   }
 
-  /** Tage bis höchstens heute; ohne eine einzige Stunde → 404 `NO_DATA` (R03). */
-  private async summarize(from: string, to: string, daysExpected: number, label: string): Promise<PeriodAggregate> {
+  /**
+   * US04-8 (F20): Jahre mit mindestens einer Stunde vom Datenbeginn bis heute, aufsteigend, in der Form
+   * „year list“ aus B2.2 (`complete`, `daysComplete` wie `findYear`). Ohne Daten `items = []`.
+   */
+  async findYears(): Promise<YearList> {
+    const now = this.clock.now();
+    const today = localDate(now);
+    const { from, to } = await this.store.getDataRange();
+    if (from === null || to === null || from > today) return { items: [] };
+
+    const days = this.aggregation.aggregateDays(await this.store.getRange(from, to < today ? to : today), now);
+    const items = [...groupBy(days, day => day.date.slice(0, 4))].map(([id, yearDays]) => {
+      const year = Number(id);
+      const period = this.aggregation.summarize(yearDays, daysInYear(year));
+      return { id, year, complete: period.complete, daysComplete: period.daysComplete };
+    });
+    return { items };
+  }
+
+  /** Tagesaggregate bis höchstens heute; ohne eine einzige Stunde → 404 `NO_DATA` (R03). */
+  private async daysUntilToday(from: string, to: string, label: string): Promise<DayAggregate[]> {
     const now = this.clock.now();
     const today = localDate(now);
     const days = await this.store.getRange(from, to < today ? to : today);
@@ -103,6 +130,38 @@ export class SummariesService {
       const range = await this.store.getDataRange();
       throw ApiException.noDataFor(label, range.from);
     }
-    return this.aggregation.summarize(this.aggregation.aggregateDays(days, now), daysExpected);
+    return this.aggregation.aggregateDays(days, now);
   }
+
+  private async summarize(from: string, to: string, daysExpected: number, label: string): Promise<PeriodAggregate> {
+    return this.aggregation.summarize(await this.daysUntilToday(from, to, label), daysExpected);
+  }
+}
+
+/** Response-Mapper einer Monatszusammenfassung (R11: gerundet erst hier). */
+function toMonthSummary(yearMonth: string, period: PeriodAggregate): MonthSummary {
+  const [year, month] = yearMonth.split('-').map(Number);
+  return {
+    id: yearMonth,
+    year,
+    month,
+    ...summaryValues(period),
+    complete: period.complete,
+    temperature: toDayTemperature(period.temperature),
+    precipitationSum: round1(period.precipitationSum),
+    dryDays: period.dryDays,
+    meanMethod: MEAN_METHOD,
+  };
+}
+
+/** Gruppiert eine aufsteigende Tagesliste; die Reihenfolge der Gruppen bleibt aufsteigend. */
+function groupBy(days: readonly DayAggregate[], key: (day: DayAggregate) => string): Map<string, DayAggregate[]> {
+  const groups = new Map<string, DayAggregate[]>();
+  for (const day of days) {
+    const k = key(day);
+    const list = groups.get(k);
+    if (list) list.push(day);
+    else groups.set(k, [day]);
+  }
+  return groups;
 }

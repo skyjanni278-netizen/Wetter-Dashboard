@@ -6,8 +6,8 @@ import { Clock } from '../common/clock';
 import { OBSERVATION_STORE } from '../observations/observation.store';
 import type { ObservationStore } from '../observations/observation.store';
 import { AggregationService } from '../stats/aggregation.service';
-import type { Day } from './day';
-import { toDay } from './day.mapper';
+import type { Day, DayList } from './day';
+import { toDay, toDayListItem } from './day.mapper';
 
 /**
  * US01 und US02: Tage aus dem `ObservationStore` mit den berechneten Feldern (Schritt 7, R06–R14).
@@ -44,5 +44,18 @@ export class DaysService {
       throw ApiException.noData(date, from);
     }
     return toDay(this.aggregation.aggregateDay(date, hours, now));
+  }
+
+  /**
+   * US04-2/-9 (R23): Tage `from`–`to` mit mindestens einer Stunde, aufsteigend nach Datum. Form und
+   * Spanne prüft vorher `DaysQuerySchema`; hier R02: `to` nach dem Berliner Heute → 400 `DATE_IN_FUTURE`
+   * am Feld `to`. Tage ohne Daten fehlen in der Liste; ein Zeitraum ganz ohne Daten ergibt `items = []` (R03).
+   */
+  async findRange(from: string, to: string): Promise<DayList> {
+    const now = this.clock.now();
+    assertNotInFuture('to', to, localDate(now));
+    const days = await this.store.getRange(from, to);
+    const items = this.aggregation.aggregateDays(days, now).map(toDayListItem);
+    return { items, meta: { from, to, count: items.length } };
   }
 }

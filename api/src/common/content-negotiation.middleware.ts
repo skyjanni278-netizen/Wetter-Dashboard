@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { NestMiddleware } from '@nestjs/common';
 import type { IncomingHttpHeaders } from 'node:http';
 import type { NextFunction, Request, Response } from 'express';
+import { isDocsPath } from '../openapi/docs-path';
 import { defaultMessage } from './api-error';
 import { ApiException } from './api.exception';
 
@@ -61,10 +62,15 @@ export function contentNegotiationError(method: string, headers: IncomingHttpHea
  * 03 B4.3: läuft vor dem Body-Parser und vor allen Guards (in `configureApp` registriert).
  * `Accept` ohne `application/json`, `application/*` oder `*\/*` → 406 `NOT_ACCEPTABLE`;
  * POST/PATCH mit Body im falschen Typ → 415 `UNSUPPORTED_MEDIA_TYPE`. Die Antwort baut der Filter.
+ * Ausgenommen sind die Pfade der Doku (`/api/docs*`), weil die Swagger UI HTML ist (B3.1).
  */
 @Injectable()
 export class ContentNegotiationMiddleware implements NestMiddleware<Request, Response> {
   use(req: Request, _res: Response, next: NextFunction): void {
+    if (isDocsPath(req.path)) {
+      next();
+      return;
+    }
     const error = contentNegotiationError(req.method, req.headers);
     if (error) {
       next(error);

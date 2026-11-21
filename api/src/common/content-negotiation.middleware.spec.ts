@@ -65,4 +65,18 @@ describe('ContentNegotiationMiddleware (B3.2: 406 und 415)', () => {
     middleware.use({ method: 'GET', headers: {} } as Request, {} as Response, next);
     expect(next.mock.calls[1]).toEqual([]);
   });
+
+  it('B3.1: /api/docs* ist von der 406-Prüfung ausgenommen (Swagger UI ist HTML), andere Pfade nicht', () => {
+    const middleware = new ContentNegotiationMiddleware();
+    const next = jest.fn() as unknown as NextFunction & jest.Mock;
+    const html = { accept: 'text/html' };
+    for (const path of ['/api/docs', '/api/docs/', '/api/docs/swagger-ui.css', '/api/docs-json']) {
+      middleware.use({ method: 'GET', path, headers: html } as Request, {} as Response, next);
+    }
+    expect(next.mock.calls).toEqual([[], [], [], []]);
+    middleware.use({ method: 'GET', path: '/api/days', headers: html } as Request, {} as Response, next);
+    middleware.use({ method: 'GET', path: '/api/docsx', headers: html } as Request, {} as Response, next);
+    expect(next.mock.calls[4][0]).toBeInstanceOf(ApiException);
+    expect(next.mock.calls[5][0]).toBeInstanceOf(ApiException);
+  });
 });

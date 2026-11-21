@@ -1,5 +1,5 @@
 /**
- * Typen der neuen NestJS-API (`api/`, Zielbild B2.2), Stand Schritt 7 (berechnete Felder).
+ * Typen der neuen NestJS-API (`api/`, Zielbild B2.2), Stand Schritt 8 (Listen und Zusammenfassungen).
  * Messwerte sind `number | null`: fehlende Werte kommen als `null`, nie als 0 (F15).
  */
 
@@ -99,6 +99,78 @@ export interface Day {
     precipitationSum: number | null;
   };
   hours: DayHour[];
+}
+
+/**
+ * Eintrag aus `GET /api/days?from&to` (B2.2 „day (Listeneintrag)“): ohne Stunden, Werte wie
+ * `Day.observed` (ohne Vorhersagestunden), gerundet.
+ */
+export interface DayListItem {
+  id: string;
+  date: string;
+  locationId: number;
+  hoursExpected: number;
+  hoursObserved: number;
+  complete: boolean;
+  temperature: { mean: number | null; min: number | null; max: number | null };
+  precipitationSum: number | null;
+  isDryDay: boolean | null;
+  /** Korrekturen ab Schritt 12a; bis dahin `false`. */
+  hasCorrections: boolean;
+}
+
+/** `GET /api/days?from&to`: nur Tage mit Daten, aufsteigend; Zeitraum ohne Daten → `items = []`. */
+export interface DayList {
+  items: DayListItem[];
+  meta: { from: string; to: string; count: number };
+}
+
+/** R12: Monats- und Jahresmittel = Mittel der Tagesmittel vollständiger Tage. */
+export type MeanMethod = 'mean_of_daily_means';
+
+/** Gemeinsame Felder der Zusammenfassungen (B2.2), Werte gerundet, nur vollständige Tage. */
+interface SummaryBase {
+  locationId: number;
+  daysExpected: number;
+  daysComplete: number;
+  /** R13: `daysComplete = daysExpected`; laufender Monat und laufendes Jahr sind `false`. */
+  complete: boolean;
+  temperature: DayTemperature;
+  precipitationSum: number | null;
+  dryDays: number;
+  meanMethod: MeanMethod;
+}
+
+/** `GET /api/summaries/months/:yearMonth`, z. B. `id = "2026-11"`. */
+export interface MonthSummary extends SummaryBase {
+  id: string;
+  year: number;
+  month: number;
+}
+
+/** `GET /api/summaries/years/:year` */
+export interface YearSummary extends SummaryBase {
+  id: string;
+  year: number;
+  monthsWithData: number;
+}
+
+/** `GET /api/summaries/months?year=`: Monate des Jahres mit Daten, aufsteigend. */
+export interface MonthSummaryList {
+  items: MonthSummary[];
+}
+
+/** Eintrag aus `GET /api/summaries/years` (Jahresauswahl, F20). */
+export interface YearListItem {
+  id: string;
+  year: number;
+  complete: boolean;
+  daysComplete: number;
+}
+
+/** `GET /api/summaries/years`: Jahre mit Daten, aufsteigend; ohne Daten `items = []`. */
+export interface YearList {
+  items: YearListItem[];
 }
 
 /** Eintrag aus `GET /api/forecasts` */

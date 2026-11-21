@@ -24,14 +24,43 @@ describe('WeatherService', () => {
     ['getDay', () => service.getDay('2026-11-10'), '/api/days/2026-11-10'],
     ['getForecasts', () => service.getForecasts(), '/api/forecasts'],
     ['getRecords', () => service.getRecords(), '/api/records'],
-    ['getMonth', () => service.getMonth('2026', '11'), '/api/data/month/2026/11'],
-    ['getYear', () => service.getYear('2025'), '/api/data/year/2025'],
+    ['getDays', () => service.getDays('2026-11-01', '2026-11-19'), '/api/days?from=2026-11-01&to=2026-11-19'],
+    ['getMonthSummary', () => service.getMonthSummary('2026-11'), '/api/summaries/months/2026-11'],
+    ['getMonthSummaries', () => service.getMonthSummaries('2025'), '/api/summaries/months?year=2025'],
+    ['getYearSummary', () => service.getYearSummary('2026'), '/api/summaries/years/2026'],
+    ['getYearList', () => service.getYearList(), '/api/summaries/years'],
   ];
 
   it('keine Express-Pfade mehr für Tag, Vorschau und Rekorde (Schritt 7)', () => {
     const methods = Object.getOwnPropertyNames(WeatherService.prototype);
     expect(methods).not.toContain('getForecast');
     expect(methods).not.toContain('getStats');
+  });
+
+  it('keine Express-Pfade mehr für Monat und Jahr (Schritt 8)', () => {
+    const methods = Object.getOwnPropertyNames(WeatherService.prototype);
+    expect(methods).not.toContain('getMonth');
+    expect(methods).not.toContain('getYear');
+  });
+
+  it('getDays liefert items und meta unverändert; Zeitraum ohne Daten bleibt eine leere Liste', () => {
+    let result: unknown;
+    service.getDays('2024-12-01', '2024-12-31').subscribe(d => (result = d));
+    const req = http.expectOne('/api/days?from=2024-12-01&to=2024-12-31');
+    expect(req.request.params.get('from')).toBe('2024-12-01');
+    expect(req.request.params.get('to')).toBe('2024-12-31');
+    req.flush({ items: [], meta: { from: '2024-12-01', to: '2024-12-31', count: 0 } });
+    expect(result).toEqual({ items: [], meta: { from: '2024-12-01', to: '2024-12-31', count: 0 } });
+  });
+
+  it('getMonthSummary gibt 404 NO_DATA an den Aufrufer weiter', () => {
+    let status = 0;
+    service.getMonthSummary('2024-12').subscribe({ error: (e: { status: number }) => (status = e.status) });
+    http.expectOne('/api/summaries/months/2024-12').flush(
+      { statusCode: 404, error: 'Not Found', code: 'NO_DATA', message: 'x', errors: [], details: { dataFrom: '2025-01-01' } },
+      { status: 404, statusText: 'Not Found' },
+    );
+    expect(status).toBe(404);
   });
 
   it('getToday liefert den Tag der neuen API unverändert (current, observed, predicted, isPrediction)', () => {

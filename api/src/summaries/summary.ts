@@ -28,3 +28,21 @@ export interface YearSummary extends SummaryBase {
   year: number;
   monthsWithData: number;
 }
+
+/** `GET /api/summaries/months?year=`: Monate des Jahres mit Daten, aufsteigend (US05-2). */
+export interface MonthSummaryList {
+  items: MonthSummary[];
+}
+
+/** Eintrag der Jahresliste (03 B2.2 „year list“, für die Jahresauswahl, US04-8). */
+export interface YearListItem {
+  id: string;
+  year: number;
+  complete: boolean;
+  daysComplete: number;
+}
+
+/** `GET /api/summaries/years`: Jahre mit Daten, aufsteigend (F20). */
+export interface YearList {
+  items: YearListItem[];
+}

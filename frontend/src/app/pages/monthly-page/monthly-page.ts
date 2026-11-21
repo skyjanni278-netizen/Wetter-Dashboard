@@ -2,15 +2,17 @@ import { Component, signal, computed, effect, inject, input } from '@angular/cor
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { Title } from '@angular/platform-browser';
 import { Router, RouterLink } from '@angular/router';
-import { Observable, of, catchError, distinctUntilChanged, map, startWith, switchMap } from 'rxjs';
+import { Observable, of, catchError, distinctUntilChanged, forkJoin, map, startWith, switchMap } from 'rxjs';
 import { WeatherService } from '../../services/weather.service';
-import { MonthSummary } from '../../models/weather';
+import { DayListItem, MonthSummary, YearList } from '../../models/api';
 import { LoadResult, LoadState } from '../../models/load-state';
+import { apiErrorOf } from '../../interceptors/api-error.interceptor';
 import { ClimateChartComponent, ClimateChartDataset } from '../../components/climate-chart/climate-chart';
 import { berlinToday } from '../../utils/berlin-date';
 import { DATA_START } from '../../config/data-range';
 import { CardComponent } from '../../components/card/card';
 import { KpiCardComponent } from '../../components/kpi-card/kpi-card';
+import { ChipComponent } from '../../components/chip/chip';
 import { NoticeComponent } from '../../components/notice/notice';
 import { FormFieldComponent } from '../../components/form-field/form-field';
 import { SkeletonComponent } from '../../components/skeleton/skeleton';
@@ -19,15 +21,33 @@ import { EmptyComponent } from '../../components/state/empty';
 import { ErrorComponent } from '../../components/state/error';
 import { monthLabel, monthViewTitle, setPageTitle } from '../../utils/page-title';
 import { isValidMonthParam, isValidYearParam } from '../../utils/route-params';
+import { yearOptions } from '../../utils/year-options';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
-const EMPTY_MESSAGE = 'Keine gespeicherten Daten für diesen Monat.';
+export const MONTH_EMPTY_MESSAGE = 'Keine gespeicherten Daten für diesen Monat.';
+export const MONTH_ERROR_MESSAGE = 'Fehler beim Laden der Monatsdaten.';
+
+/** Daten eines Monats: Zusammenfassung (Kennzahlen) und Tagesliste (Diagramm), beide aus der API (S8). */
+export interface MonthData {
+  summary: MonthSummary;
+  days: DayListItem[];
+}
+
+interface MonthResult extends LoadResult<MonthData> {
+  /** „Erneut versuchen“ anbieten; nicht bei 400 (dieselbe Anfrage scheitert wieder). */
+  retryable: boolean;
+}
+
+/** Anzahl der Tage eines Monats (Kalenderrechnung in UTC). */
+function daysIn(year: string, month: string): number {
+  return new Date(Date.UTC(Number(year), Number(month), 0)).getUTCDate();
+}
 
 @Component({
   selector: 'app-monthly-page',
   standalone: true,
   imports: [
-    ClimateChartComponent, RouterLink, CardComponent, KpiCardComponent, NoticeComponent, FormFieldComponent,
+    ClimateChartComponent, RouterLink, CardComponent, KpiCardComponent, ChipComponent, NoticeComponent, FormFieldComponent,
     SkeletonComponent, LoadingComponent, EmptyComponent, ErrorComponent,
   ],
   templateUrl: './monthly-page.html',
@@ -51,10 +71,11 @@ export class MonthlyPageComponent {
   monthValid = computed(() => isValidMonthParam(this.selectedMonth()));
   invalid = computed(() => !this.yearValid() || !this.monthValid());
 
-  monthData = signal<MonthSummary[] | null>(null);
+  monthData = signal<MonthData | null>(null);
   state = signal<LoadState>('idle');
   loading = computed(() => this.state() === 'loading');
   error = signal<string | null>(null);
+  retryable = signal(true);
 
   /** „Erneut versuchen“ erhöht den Zähler und lädt dieselbe Auswahl neu (B5.2). */
   private reloadCount = signal(0);
@@ -70,45 +91,45 @@ export class MonthlyPageComponent {
   dataPeriod = signal<{ year: string; month: string } | null>(null);
   daysInMonth = computed(() => {
     const period = this.dataPeriod();
-    return period ? new Date(Date.UTC(Number(period.year), Number(period.month), 0)).getUTCDate() : 0;
+    return period ? daysIn(period.year, period.month) : 0;
   });
 
-  /** Jahre von DATA_START bis zum aktuellen Berliner Jahr, neuestes zuerst (V18, F20). */
-  years = Array.from(
-    { length: parseInt(this.today.slice(0, 4), 10) - parseInt(DATA_START.slice(0, 4), 10) + 1 },
-    (_, i) => (parseInt(this.today.slice(0, 4), 10) - i).toString(),
-  );
+  /** Jahre aus `GET /api/summaries/years` (F20), einmal je Seitenaufruf geladen; neuestes zuerst. */
+  private yearList = signal<YearList | null>(null);
+  years = computed(() => yearOptions(this.yearList(), this.yearValid() ? this.selectedYear() : null, this.today));
   months = Array.from({ length: 12 }, (_, i) => ({
     value: String(i + 1).padStart(2, '0'),
     label: MONTH_NAMES[i]
   }));
 
-  /** Volle Monatsachse 1. bis letzter Tag; Tage ohne Daten sind `null` und zeigen eine Lücke (V21). */
+  /** Kennzahlen aus der Zusammenfassung; das Frontend rechnet kein Mittel und keine Summe (S8). */
+  summary = computed(() => this.monthData()?.summary ?? null);
+
+  /** Volle Monatsachse 1. bis letzter Tag; Tage ohne Eintrag in `/api/days` sind `null` (Lücke, V21). */
   chartData = computed<ClimateChartDataset | null>(() => {
     const data = this.monthData();
     const days = this.daysInMonth();
-    if (!data || data.length === 0 || days === 0) return null;
-    const byDay = new Map(data.map(d => [d.day, d]));
+    if (!data || days === 0) return null;
+    const byDay = new Map(data.days.map(d => [Number(d.date.slice(8, 10)), d]));
     const axis = Array.from({ length: days }, (_, i) => i + 1);
     return {
       labels: axis.map(day => `${day}.`),
-      temperatures: axis.map(day => byDay.get(day)?.avgTemp ?? null),
-      precipitations: axis.map(day => byDay.get(day)?.totalPrecip ?? null),
+      temperatures: axis.map(day => byDay.get(day)?.temperature.mean ?? null),
+      precipitations: axis.map(day => byDay.get(day)?.precipitationSum ?? null),
     };
-  });
-
-  totalPrecip = computed(() => (this.monthData() ?? []).reduce((s, d) => s + d.totalPrecip, 0));
-  avgTemp = computed(() => {
-    const data = this.monthData();
-    if (!data || data.length === 0) return null;
-    return data.reduce((s, d) => s + d.avgTemp, 0) / data.length;
   });
 
   constructor() {
     effect(() => setPageTitle(this.title, monthViewTitle(this.selectedYear(), this.selectedMonth())));
 
-    // distinctUntilChanged: genau 1 Request je Wechsel, auch wenn Router und Signal gleichzeitig melden.
-    // switchMap bricht den Request für eine überholte Auswahl ab (V03, F04).
+    // Jahresauswahl: ein Request je Seitenaufruf, nicht je Monatswechsel. Bei Fehler bleibt der Übergang (yearOptions).
+    this.weather.getYearList().pipe(
+      catchError(() => of(null)),
+      takeUntilDestroyed(),
+    ).subscribe(list => this.yearList.set(list));
+
+    // distinctUntilChanged: genau 1 Request-Satz je Wechsel, auch wenn Router und Signal gleichzeitig melden.
+    // switchMap bricht die Requests für eine überholte Auswahl ab (V03, F04).
     toObservable(this.request).pipe(
       distinctUntilChanged((a, b) => a.year === b.year && a.month === b.month && a.reload === b.reload),
       switchMap(({ year, month }) => this.loadMonth(year, month).pipe(map(result => ({ result, year, month })))),
@@ -131,25 +152,45 @@ export class MonthlyPageComponent {
     this.router.navigate(['/monat', year, (event.target as HTMLSelectElement).value]);
   }
 
-  private loadMonth(year: string, month: string): Observable<LoadResult<MonthSummary[]>> {
+  /**
+   * Zwei parallele Requests (US04-10): Zusammenfassung und Tagesliste. Im laufenden Monat endet die
+   * Tagesliste heute (`to = min(Monatsende, heute)`, US04-9), sonst gäbe die API 400 `DATE_IN_FUTURE`.
+   */
+  private loadMonth(year: string, month: string): Observable<MonthResult> {
     // Ungültige Parameter lösen keinen Request aus
     if (!isValidYearParam(year, this.today) || !isValidMonthParam(month)) {
-      return of<LoadResult<MonthSummary[]>>({ state: 'idle', data: null, message: null });
+      return of<MonthResult>({ state: 'idle', data: null, message: null, retryable: true });
     }
-    return this.weather.getMonth(year, month).pipe(
-      map((res): LoadResult<MonthSummary[]> => res.data.length > 0
-        ? { state: 'success', data: res.data, message: null }
-        : { state: 'empty', data: null, message: EMPTY_MESSAGE }),
-      catchError(err => of<LoadResult<MonthSummary[]>>(err?.status === 404
-        ? { state: 'empty', data: null, message: EMPTY_MESSAGE }
-        : { state: 'error', data: null, message: 'Fehler beim Laden der Monatsdaten.' })),
-      startWith<LoadResult<MonthSummary[]>>({ state: 'loading', data: null, message: null }),
+    const yearMonth = `${year}-${month}`;
+    // Monat nach dem laufenden (nur per URL erreichbar): kein Request, Leerzustand
+    if (yearMonth > this.today.slice(0, 7)) {
+      return of<MonthResult>({
+        state: 'empty', data: null, message: `Für ${monthLabel(year, month)} liegen noch keine Daten vor.`, retryable: true,
+      });
+    }
+    const monthEnd = `${yearMonth}-${String(daysIn(year, month)).padStart(2, '0')}`;
+    const to = monthEnd < this.today ? monthEnd : this.today;
+    return forkJoin({
+      summary: this.weather.getMonthSummary(yearMonth),
+      days: this.weather.getDays(`${yearMonth}-01`, to),
+    }).pipe(
+      map(({ summary, days }): MonthResult => ({ state: 'success', data: { summary, days: days.items }, message: null, retryable: true })),
+      catchError(err => of<MonthResult>(this.failure(err))),
+      startWith<MonthResult>({ state: 'loading', data: null, message: null, retryable: true }),
     );
   }
 
-  private applyResult(result: LoadResult<MonthSummary[]>, year: string, month: string): void {
+  /** 404 `NO_DATA` → Leerzustand; 400 → Meldung der API ohne „Erneut versuchen“; sonst Fehler mit Retry. */
+  private failure(err: { status?: number } | null): MonthResult {
+    if (err?.status === 404) return { state: 'empty', data: null, message: MONTH_EMPTY_MESSAGE, retryable: true };
+    if (err?.status === 400) return { state: 'error', data: null, message: apiErrorOf(err).message, retryable: false };
+    return { state: 'error', data: null, message: MONTH_ERROR_MESSAGE, retryable: true };
+  }
+
+  private applyResult(result: MonthResult, year: string, month: string): void {
     this.state.set(result.state);
     this.error.set(result.message);
+    this.retryable.set(result.retryable);
     // Bei loading bleiben vorhandene Daten sichtbar; bei empty/error werden sie null (V02, F12)
     if (result.state !== 'loading') {
       this.monthData.set(result.data);

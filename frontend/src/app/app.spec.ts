@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Router, provideRouter, withComponentInputBinding } from '@angular/router';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { App } from './app';
 import { routes } from './app.routes';
 import { Day, Location, Records, Status } from './models/api';
@@ -46,8 +46,11 @@ describe('App Navigation (V08)', () => {
         provideRouter(routes, withComponentInputBinding()),
         { provide: WeatherService, useValue: {
           ...footerApi,
-          getMonth: (year: string, month: string) => of({ year, month, data: [] }),
-          getYear: (year: string) => of({ year, data: [] }),
+          getYearList: () => of({ items: [] }),
+          getMonthSummary: () => throwError(() => ({ status: 404 })),
+          getDays: (from: string, to: string) => of({ items: [], meta: { from, to, count: 0 } }),
+          getYearSummary: () => throwError(() => ({ status: 404 })),
+          getMonthSummaries: () => throwError(() => ({ status: 404 })),
           getToday: () => of(emptyDay('2026-11-19')),
           getDay: (date: string) => of(emptyDay(date)),
           getForecasts: () => of({ items: [], fetchedAt: null }),
