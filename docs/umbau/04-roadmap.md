@@ -31,7 +31,7 @@ Stand: 19.11.2026 · Grundlage: `01-analyse.md` (F01–F34, S1–S12, Abschnitt 
 | 4 | Zod-DTOs und Validierung, Feldfehler im Frontend | M | 3 | ✅ erledigt (`f2108f9`) |
 | 5 | Einheitliche Fehlerbehandlung und Statuscodes | S | 4 | ✅ erledigt (`08c3711`) |
 | 6 | Module je Ressource, Regeln zwischen Modulen | M | 5 | ✅ erledigt (`4b1955d`) |
-| 7 | Fachregeln und berechnete Felder; Heute und Rekorde auf die neue API | L | 6, 1 | offen |
+| 7 | Fachregeln und berechnete Felder; Heute und Rekorde auf die neue API | L | 6, 1 | ✅ erledigt (`ed8d361`) |
 | 8 | Filter, Sortierung, OpenAPI; Monat und Jahr auf die neue API | M | 7 | offen |
 | 9 | Datenbank, Migrationen, Altdatenimport, Übergabe des Schedulers, Express aus | L | 8 | offen |
 | 10 | Login, JWT, AuthGuard, Login-Seite (keine Registrierung) | M | 9, 1 | offen |
@@ -409,6 +409,8 @@ Der Strang über 0.2 bis 1 (Frontend) und der Strang über 2 bis 6 (Backend) kö
 **Frontend/Design:** keine Änderung.
 
 ## Schritt 7 – Fachliche Regeln und berechnete Felder; Heute und Rekorde umstellen
+
+> **Status:** ✅ Erledigt am 21.11.2026, Commit `ed8d361` (Teil 7a Backend, Teil 7b Frontend). 337 Unit- und 72 e2e-Tests in `api/` (inkl. Charakterisierung), 273 Frontend-Tests, axe ohne Verstöße auf `/`, `/tag/…` und `/statistiken`. Entscheidungen: Stunden nach dem Abrufzeitpunkt bleiben Vorhersage, bis ein Messwert sie ersetzt (R08, Z3). Im Altbestand gilt das ab der Änderungszeit der Datei, deshalb ist der 19.11.2026 unvollständig. Übergang Z1: Tage aus dem Altbestand sind mit `min(hoursExpected, 24)` Stunden vollständig. Heute hat 3 Kennzahlen, der Wind steht im Hero (US01-6 und V16). NO_DATA erscheint als Fehlerbox mit Link zum Datenbeginn. Rekorde zeigen die Hinweisbox „Datenbasis“ statt einer 5. Karte. V26 ist offen, die Kicker bleiben. **Offen:** Mit `FAKE_NOW` zeigt der Seitenkopf das Browser-Datum, der Inhalt folgt dem Server. Fixtures liegen bis Schritt 9 unter `api/test/fixtures/` (danach `db:seed --fixture`). `timeLocal` hat noch kein Offset, `indicators` fehlen (12c). Beim Wechsel `/` ↔ `/tag/…` wird die Vorschau weiter neu geladen.
 
 **Ziel:** Alle Regeln aus B1.3, die Tage und Rekorde betreffen, sind im Service umgesetzt und getestet. Die Seiten Heute und Rekorde lesen von der neuen API.
 **Bezug:** US01-1 bis -6, US02-1 bis -11, US03, US06-2 bis -5, US05-1 (Mittelregel) · F06 (Backend), F13, F14, F15, F27, F28 (Regel) · V28, V29, V30, V32 (Regel) · N01 (API-Teil) · R02, R03, R06–R14
