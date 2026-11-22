@@ -8,6 +8,8 @@ import { dataSourceOptions } from './database-options';
 import { isMemoryDatabase } from './db-path';
 import { applySeed } from './seeds/apply-seed';
 import type { SeedSummary } from './seeds/apply-seed';
+import { devAdminPasswordFromEnv, seedDevAdmin } from './seeds/dev-admin';
+import type { DevAdminResult } from './seeds/dev-admin';
 import { DEV_SEED } from './seeds/dev.seed';
 
 export interface MaintenanceOptions {
@@ -20,9 +22,14 @@ export interface MaintenanceOptions {
   now?: Date;
 }
 
+/** Ergebnis eines Seeds: Daten plus Dev-Admin (Schritt 10, `DEV_ADMIN_PASSWORD`). */
+export interface SeedResult extends SeedSummary {
+  devAdmin: DevAdminResult;
+}
+
 export interface ResetResult {
   backupPath: string | null;
-  seed: SeedSummary;
+  seed: SeedResult;
 }
 
 /** Sicherung vor dem Löschen (03 B4.4): `VACUUM INTO '<DB_PATH>-before-reset.db'`. */
@@ -52,11 +59,14 @@ function stamp(now: Date): string {
 /**
  * `npm run db:seed [-- --fixture <name>]` (03 B4.4): verweigert in Produktion und bei gesammelten Daten
  * (außer mit `--force-delete-collected-data`), verlangt ein aktuelles Schema (`migration:run`) und ersetzt dann
- * alle Daten durch den Seed. Bei Abbruch bleibt die Datenbank unverändert.
+ * alle Daten durch den Seed. Bei Abbruch bleibt die Datenbank unverändert. Mit `DEV_ADMIN_PASSWORD` legt er
+ * danach den Dev-Admin `admin` an bzw. setzt dessen Passwort (Schritt 10); ohne die Variable kein Admin.
  */
-export async function runSeed(options: MaintenanceOptions): Promise<SeedSummary> {
+export async function runSeed(options: MaintenanceOptions): Promise<SeedResult> {
   assertNotProduction(options.env, 'db:seed');
   const seed = seedOf(options.fixture);
+  const adminPassword = devAdminPasswordFromEnv(options.env);
+  const now = options.now ?? new Date();
   if (!isMemoryDatabase(options.dbPath) && !existsSync(options.dbPath)) {
     throw new Error(`${options.dbPath} gibt es nicht. Zuerst npm run migration:run (oder npm run db:reset).`);
   }
@@ -66,7 +76,8 @@ export async function runSeed(options: MaintenanceOptions): Promise<SeedSummary>
       throw new Error('Es gibt offene Migrationen. Zuerst npm run migration:run.');
     }
     await assertMayDeleteData(dataSource, { ...options, action: 'db:seed' });
-    return await applySeed(dataSource, seed, options.now ?? new Date());
+    const summary = await applySeed(dataSource, seed, now);
+    return { ...summary, devAdmin: await seedDevAdmin(dataSource, adminPassword, now) };
   } finally {
     await dataSource.destroy();
   }
@@ -76,12 +87,13 @@ export async function runSeed(options: MaintenanceOptions): Promise<SeedSummary>
  * `npm run db:reset [-- --fixture <name>]` (03 B4.4), **ein** Befehl: verweigert in Produktion und bei
  * gesammelten Daten (außer mit `--force-delete-collected-data`), sichert per `VACUUM INTO`, löscht `DB_PATH`
  * sowie `-wal` und `-shm`, führt die Migrationen aus und spielt den Seed ein. Bei Abbruch bleibt die Datenbank
- * unverändert. Eine ältere Sicherung wird mit Zeitstempel umbenannt statt überschrieben.
+ * unverändert. Eine ältere Sicherung wird mit Zeitstempel umbenannt statt überschrieben. Dev-Admin wie `runSeed`.
  */
 export async function runReset(options: MaintenanceOptions): Promise<ResetResult> {
   assertNotProduction(options.env, 'db:reset');
   if (isMemoryDatabase(options.dbPath)) throw new Error('db:reset braucht eine Datei als DB_PATH.');
   const seed = seedOf(options.fixture);
+  const adminPassword = devAdminPasswordFromEnv(options.env);
   const now = options.now ?? new Date();
 
   let backupPath: string | null = null;
@@ -103,7 +115,8 @@ export async function runReset(options: MaintenanceOptions): Promise<ResetResult
   const fresh = await open(options.dbPath);
   try {
     await fresh.runMigrations({ transaction: 'each' });
-    return { backupPath, seed: await applySeed(fresh, seed, now) };
+    const summary = await applySeed(fresh, seed, now);
+    return { backupPath, seed: { ...summary, devAdmin: await seedDevAdmin(fresh, adminPassword, now) } };
   } finally {
     await fresh.destroy();
   }

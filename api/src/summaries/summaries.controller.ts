@@ -1,5 +1,6 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Public } from '../common/public.decorator';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import {
   MonthSummaryListSchema,
@@ -22,6 +23,7 @@ import type { MonthSummary, MonthSummaryList, YearList, YearSummary } from './su
  * R04/R05 (Format, ≥ 1940) und R22 prüft die Pipe, R02/R03 der Service.
  */
 @ApiTags('summaries')
+@Public()
 @Controller('summaries')
 export class SummariesController {
   constructor(private readonly service: SummariesService) {}

@@ -1,5 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Public } from '../common/public.decorator';
 import { HealthSchema } from '../openapi/response.schemas';
 import { ApiErrors, ApiZodResponse } from '../openapi/zod-openapi';
 import type { Health } from './health';
@@ -7,6 +8,7 @@ import { HealthService } from './health.service';
 
 /** US14-3: Betriebsprüfung (systemd, Monitoring); bleibt später ohne Anmeldung erreichbar. */
 @ApiTags('health')
+@Public()
 @Controller('health')
 export class HealthController {
   constructor(private readonly service: HealthService) {}

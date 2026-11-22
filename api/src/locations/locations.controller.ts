@@ -1,6 +1,7 @@
 import { Controller, Get, Param } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { IdParamSchema } from '../common/dto/id-param.schema';
+import { Public } from '../common/public.decorator';
 import type { IdParam } from '../common/dto/id-param.schema';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { LocationListSchema, LocationSchema } from '../openapi/response.schemas';
@@ -10,6 +11,7 @@ import { LocationsService } from './locations.service';
 
 /** US07-3/-4: Standorte. */
 @ApiTags('locations')
+@Public()
 @Controller('locations')
 export class LocationsController {
   constructor(private readonly service: LocationsService) {}

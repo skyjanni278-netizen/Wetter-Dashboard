@@ -1,5 +1,5 @@
 import { applyDecorators } from '@nestjs/common';
-import { ApiBody, ApiParam, ApiQuery, ApiResponse } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiParam, ApiQuery, ApiResponse } from '@nestjs/swagger';
 import type { SchemaObject } from '@nestjs/swagger';
 import { z } from 'zod';
 import { statusText } from '../common/api-error';
@@ -85,5 +85,20 @@ export function ApiErrors(errors: Record<number, string> = {}): MethodDecorator 
     ...Object.entries(all).map(([status, description]) =>
       ApiResponse({ status: Number(status), description: `${statusText(Number(status))}. ${description}`, schema: API_ERROR_REF }),
     ),
+  );
+}
+
+/**
+ * Geschützter Endpunkt (Schritt 10, 03 B4.7): Schloss in der Swagger UI (`security: [{ bearer: [] }]`, Schema
+ * aus `addBearerAuth()`) und die 401-Antwort. An Controller oder Handler ohne `@Public()`.
+ */
+export function ApiBearer(): MethodDecorator & ClassDecorator {
+  return applyDecorators(
+    ApiBearerAuth(),
+    ApiResponse({
+      status: 401,
+      description: `${statusText(401)}. UNAUTHENTICATED: Token fehlt, ist ungültig oder abgelaufen`,
+      schema: API_ERROR_REF,
+    }),
   );
 }

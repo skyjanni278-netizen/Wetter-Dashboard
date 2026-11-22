@@ -1,6 +1,7 @@
 import { CollectedDataError, FORCE_FLAG } from './collected-data';
 import { runReset, runSeed } from './db-maintenance';
 import { resolveDbPath } from './db-path';
+import type { DevAdminResult } from './seeds/dev-admin';
 
 /**
  * Wartung der Datenbank (03 B4.4), aufgerufen über `npm run db:seed` bzw. `npm run db:reset` (nach `build`):
@@ -8,8 +9,9 @@ import { resolveDbPath } from './db-path';
  *   node dist/database/db-cli.js seed  [--fixture <name>] [--force-delete-collected-data]
  *   node dist/database/db-cli.js reset [--fixture <name>] [--force-delete-collected-data]
  *
- * Ziel ist `DB_PATH`, ohne Angabe die Dev-DB. Exit-Code 0 bei Erfolg, 1 bei Abbruch oder Fehler (die DB ist
- * dann unverändert), 2 bei falschem Aufruf.
+ * Ziel ist `DB_PATH`, ohne Angabe die Dev-DB. Mit `DEV_ADMIN_PASSWORD` entsteht dabei der Dev-Admin `admin`
+ * (Schritt 10); ohne die Variable kein Admin, nur ein Hinweis. Exit-Code 0 bei Erfolg, 1 bei Abbruch oder
+ * Fehler (die DB ist dann unverändert), 2 bei falschem Aufruf.
  */
 interface CliArgs {
   command: 'seed' | 'reset';
@@ -33,6 +35,12 @@ function parseArgs(argv: readonly string[]): CliArgs {
   return args;
 }
 
+/** Zeile im Log zum Dev-Admin (03 B4.4). */
+function describeDevAdmin(result: DevAdminResult): string {
+  if (result.status === 'skipped') return `Hinweis: ${result.reason}`;
+  return `Dev-Admin "${result.username}" ${result.status === 'created' ? 'angelegt' : 'Passwort neu gesetzt'} (Passwort aus DEV_ADMIN_PASSWORD)`;
+}
+
 async function main(): Promise<number> {
   let args: CliArgs;
   try {
@@ -49,11 +57,13 @@ async function main(): Promise<number> {
       const seed = await runSeed({ dbPath, fixture: args.fixture, force: args.force, env: process.env });
       console.log(`db:seed: ${label} in ${dbPath}: ${seed.observations} Stunden, ${seed.imports} Import(e), ` +
         `${seed.forecastDays} Vorhersagetag(e); Tage ${seed.days[0] ?? '-'} bis ${seed.days[seed.days.length - 1] ?? '-'}`);
+      console.log(`db:seed: ${describeDevAdmin(seed.devAdmin)}`);
     } else {
       const result = await runReset({ dbPath, fixture: args.fixture, force: args.force, env: process.env });
       console.log(`db:reset: Sicherung ${result.backupPath ?? '(keine, Datei gab es nicht)'}`);
       console.log(`db:reset: ${dbPath} neu angelegt, Migrationen ausgeführt, ${label}: ${result.seed.observations} Stunden, ` +
         `Tage ${result.seed.days[0] ?? '-'} bis ${result.seed.days[result.seed.days.length - 1] ?? '-'}`);
+      console.log(`db:reset: ${describeDevAdmin(result.seed.devAdmin)}`);
     }
     return 0;
   } catch (error) {

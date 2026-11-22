@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { TokenResponse } from '../auth/token';
 import { API_ERROR_CODES } from '../common/api-error';
 import type { ApiErrorBody } from '../common/api-error';
 import type { Day, DayList } from '../days/day';
@@ -12,6 +13,7 @@ import type { GapList } from '../observations/gap';
 import type { Records } from '../records/record';
 import type { Status } from '../status/status';
 import type { MonthSummary, MonthSummaryList, YearList, YearSummary } from '../summaries/summary';
+import type { UserResource } from '../users/user';
 
 /**
  * Antwortschemas für die OpenAPI-Dokumentation (03 B3.7). Die Antworttypen sind TypeScript-Interfaces
@@ -238,6 +240,24 @@ export const GapListSchema = z.object({ items: z.array(GapSchema) });
 
 export const HealthSchema = z.object({ status: z.literal('ok'), database: z.literal('ok') });
 
+/** Antwort von `POST /api/auth/tokens` (B2.2 „token“, B4.6). */
+export const TokenResponseSchema = z.object({
+  accessToken: z.string().describe('JWT (HS256); bei geschützten Endpunkten als `Authorization: Bearer <token>` senden'),
+  tokenType: z.literal('Bearer'),
+  expiresIn: z.number().int().describe('Laufzeit in Sekunden (Standard 3600)'),
+  user: z.object({ id: z.number().int(), username: z.string(), roles: z.array(z.string()) }),
+});
+
+/** Antwort von `GET /api/auth/me` (B2.2 „user“), ohne Passwort-Hash. */
+export const UserResourceSchema = z.object({
+  id: z.number().int(),
+  username: z.string(),
+  roles: z.array(z.string()),
+  isActive: z.boolean(),
+  createdAt: utc(),
+  lastLoginAt: utc().nullable(),
+});
+
 /** Genau gleiche Typen (auch Optionalität und `null`), sonst `false`. */
 type Equals<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
 type Assert<T extends true> = T;
@@ -259,4 +279,6 @@ export type ResponseSchemaChecks = [
   Assert<Equals<z.infer<typeof ImportListSchema>, ImportList>>,
   Assert<Equals<z.infer<typeof GapListSchema>, GapList>>,
   Assert<Equals<z.infer<typeof HealthSchema>, Health>>,
+  Assert<Equals<z.infer<typeof TokenResponseSchema>, TokenResponse>>,
+  Assert<Equals<z.infer<typeof UserResourceSchema>, UserResource>>,
 ];

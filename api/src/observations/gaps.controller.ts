@@ -2,17 +2,18 @@ import { Controller, Get, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { GapListSchema } from '../openapi/response.schemas';
-import { ApiErrors, ApiZodQuery, ApiZodResponse } from '../openapi/zod-openapi';
+import { ApiBearer, ApiErrors, ApiZodQuery, ApiZodResponse } from '../openapi/zod-openapi';
 import { GapsQuerySchema, MAX_GAP_DAYS } from './dto/gaps-query.schema';
 import type { GapsQuery } from './dto/gaps-query.schema';
 import type { GapList } from './gap';
 import { GapsService } from './gaps.service';
 
 /**
- * US12, US14-1: Lücken im Datenbestand. Bis zur Anmeldung (Schritt 10/11) ohne Token, deshalb wie alle
- * Endpunkte nur auf `127.0.0.1`. Form und Spanne prüft die Pipe, R02 der Service.
+ * US12, US14-1: Lücken im Datenbestand. Ohne `@Public()`: Seit Schritt 10 nur mit gültigem Token (sonst 401,
+ * US12-4); `@Roles('admin')` folgt in Schritt 11. Form und Spanne prüft die Pipe, R02 der Service.
  */
 @ApiTags('gaps')
+@ApiBearer()
 @Controller('gaps')
 export class GapsController {
   constructor(private readonly service: GapsService) {}

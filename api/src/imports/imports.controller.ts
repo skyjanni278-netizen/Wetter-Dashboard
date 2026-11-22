@@ -5,7 +5,7 @@ import { IdParamSchema } from '../common/dto/id-param.schema';
 import type { IdParam } from '../common/dto/id-param.schema';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { ImportListSchema, ImportResourceSchema } from '../openapi/response.schemas';
-import { ApiErrors, ApiZodBody, ApiZodParams, ApiZodQuery, ApiZodResponse } from '../openapi/zod-openapi';
+import { ApiBearer, ApiErrors, ApiZodBody, ApiZodParams, ApiZodQuery, ApiZodResponse } from '../openapi/zod-openapi';
 import { ImportCreateSchema } from './dto/import-create.schema';
 import type { ImportCreateDto } from './dto/import-create.schema';
 import { ImportsQuerySchema } from './dto/imports-query.schema';
@@ -14,8 +14,12 @@ import { importPath, toImportResource } from './import';
 import type { ImportList, ImportResource } from './import';
 import { ImportsService } from './imports.service';
 
-/** US10-3, US11-1/-2/-3/-4: Importaufträge (asynchron, 03 B3.5). Schutz per Login/Rolle folgt in Schritt 10/11. */
+/**
+ * US10-3, US11-1/-2/-3/-4: Importaufträge (asynchron, 03 B3.5). Ohne `@Public()`: Seit Schritt 10 verlangt der
+ * globale `JwtAuthGuard` ein gültiges Token (sonst 401, US10-1, US11-5); `@Roles('admin')` folgt in Schritt 11.
+ */
 @ApiTags('imports')
+@ApiBearer()
 @Controller('imports')
 export class ImportsController {
   constructor(private readonly service: ImportsService) {}

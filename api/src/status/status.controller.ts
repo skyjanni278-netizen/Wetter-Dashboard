@@ -1,5 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Public } from '../common/public.decorator';
 import { StatusSchema } from '../openapi/response.schemas';
 import { ApiErrors, ApiZodResponse } from '../openapi/zod-openapi';
 import type { Status } from './status';
@@ -7,6 +8,7 @@ import { StatusService } from './status.service';
 
 /** US07-1/-2: Datenstand. */
 @ApiTags('status')
+@Public()
 @Controller('status')
 export class StatusController {
   constructor(private readonly service: StatusService) {}

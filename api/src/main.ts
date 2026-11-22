@@ -3,6 +3,7 @@ import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { APP_OPTIONS, configureApp } from './app.setup';
+import { jwtConfigFromEnv } from './auth/jwt-config';
 import { fakeNowFromEnv } from './common/fake-now';
 import { DB_PATH } from './database/db-path';
 
@@ -31,6 +32,8 @@ async function bootstrap(): Promise<void> {
   try {
     fakeNowFromEnv(process.env);
     assertNoFixtureEnv(process.env);
+    // Schritt 10: JWT_SECRET Pflicht (mind. 32 Zeichen), JWT_EXPIRES_IN gültig; Schritt 11: EnvSchema.
+    jwtConfigFromEnv(process.env);
   } catch (error) {
     logger.error(`Start abgebrochen: ${(error as Error).message}`);
     process.exitCode = 1;

@@ -1,5 +1,6 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Public } from '../common/public.decorator';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { RecordsSchema } from '../openapi/response.schemas';
 import { ApiErrors, ApiZodQuery, ApiZodResponse } from '../openapi/zod-openapi';
@@ -10,6 +11,7 @@ import { RecordsService } from './records.service';
 
 /** US06: Rekorde. Der Controller kennt nur HTTP, die Regeln liegen im `AggregationService`. */
 @ApiTags('records')
+@Public()
 @Controller('records')
 export class RecordsController {
   constructor(private readonly service: RecordsService) {}

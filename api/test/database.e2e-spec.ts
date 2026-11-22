@@ -13,6 +13,7 @@ import { ImportRunner } from '../src/imports/import-runner';
 import { OpenMeteoClient } from '../src/weather-provider/open-meteo.client';
 import type { HourlyRequest, ProviderHour } from '../src/weather-provider/open-meteo.client';
 import { createTestApp } from './support/app';
+import { adminToken, authHeader } from './support/auth';
 import { insertImport, openTestDatabase, storedRow } from './support/database';
 import { forecastDays, providerHours } from './support/fakes';
 
@@ -44,6 +45,8 @@ interface Harness {
   /** Startet einen Import über HTTP und wartet, bis er fertig ist. */
   runImport(kind: 'range' | 'gaps', from: string, to: string): Promise<Record<string, any>>;
   get(url: string): request.Test;
+  /** GET mit Admin-Token (geschützte Endpunkte `/api/imports`, `/api/gaps`, Schritt 10). */
+  adminGet(url: string): request.Test;
 }
 
 async function start(clock: FixedClock, provider: object, dbPath?: string): Promise<Harness> {
@@ -56,14 +59,17 @@ async function start(clock: FixedClock, provider: object, dbPath?: string): Prom
   const app = await createTestApp(await builder.compile());
   const runner = app.get(ImportRunner);
   const get = (url: string) => request(app.getHttpServer()).get(url);
+  const auth = authHeader(await adminToken(app));
+  const adminGet = (url: string) => get(url).set(auth);
   return {
     app,
     dataSource: app.get(DataSource),
     get,
+    adminGet,
     async runImport(kind, from, to) {
-      const created = await request(app.getHttpServer()).post('/api/imports').send({ kind, from, to }).expect(202);
+      const created = await request(app.getHttpServer()).post('/api/imports').set(auth).send({ kind, from, to }).expect(202);
       await runner.whenIdle();
-      return (await get(`/api/imports/${created.body.id}`).expect(200)).body;
+      return (await adminGet(`/api/imports/${created.body.id}`).expect(200)).body;
     },
   };
 }
@@ -176,9 +182,9 @@ describe('F32, R19: Importe überleben einen Neustart (Datei-DB im Temp-Ordner);
     clock.set('2026-11-20T11:00:00Z');
     const second = await start(clock, fakeProvider().provider, dbPath);
     try {
-      const again = await second.get('/api/imports/1').expect(200);
+      const again = await second.adminGet('/api/imports/1').expect(200);
       expect(again.body).toEqual(done);
-      const interrupted = await second.get(`/api/imports/${running}`).expect(200);
+      const interrupted = await second.adminGet(`/api/imports/${running}`).expect(200);
       expect(interrupted.body).toMatchObject({
         status: 'failed',
         finishedAt: '2026-11-20T11:00:00Z',
@@ -230,7 +236,7 @@ describe('US12: GET /api/gaps (gemockter Provider)', () => {
   afterAll(() => h.app.close());
 
   it('US12-1: 200 mit Lücken missing / null_values / stale_prediction', async () => {
-    const res = await h.get('/api/gaps?from=2026-11-01&to=2026-11-19').expect(200);
+    const res = await h.adminGet('/api/gaps?from=2026-11-01&to=2026-11-19').expect(200);
     expect(res.headers['cache-control']).toBe('no-cache');
     expect(res.body.items).toEqual([
       { id: '2026-11-12T03:00:00Z', from: '2026-11-12T04:00:00+01:00', to: '2026-11-12T06:00:00+01:00', hours: 3, reason: 'missing' },
@@ -240,10 +246,10 @@ describe('US12: GET /api/gaps (gemockter Provider)', () => {
   });
 
   it('US12-2: from > to → 400 VALIDATION_FAILED, errors[0] = { field: "to", code: "to_before_from" }', async () => {
-    const res = await h.get('/api/gaps?from=2026-11-19&to=2026-11-01').expect(400);
+    const res = await h.adminGet('/api/gaps?from=2026-11-19&to=2026-11-01').expect(400);
     expect(res.body).toMatchObject({ code: 'VALIDATION_FAILED', errors: [{ field: 'to', code: 'to_before_from' }] });
-    expect((await h.get('/api/gaps?from=2026-11-19&to=2026-11-20').expect(400)).body.code).toBe('DATE_IN_FUTURE');
-    expect((await h.get('/api/gaps?from=2026-11-19&to=2026-11-19&sort=asc').expect(400)).body.errors[0]).toMatchObject({
+    expect((await h.adminGet('/api/gaps?from=2026-11-19&to=2026-11-20').expect(400)).body.code).toBe('DATE_IN_FUTURE');
+    expect((await h.adminGet('/api/gaps?from=2026-11-19&to=2026-11-19&sort=asc').expect(400)).body.errors[0]).toMatchObject({
       field: 'sort',
       code: 'unrecognized_keys',
     });
@@ -253,6 +259,6 @@ describe('US12: GET /api/gaps (gemockter Provider)', () => {
     const result = await h.runImport('gaps', '2026-11-01', '2026-11-19');
     expect(result.status).toBe('succeeded');
     expect(result.counts).toMatchObject({ inserted: 3, updated: 13 });
-    expect((await h.get('/api/gaps?from=2026-11-01&to=2026-11-19').expect(200)).body).toEqual({ items: [] });
+    expect((await h.adminGet('/api/gaps?from=2026-11-01&to=2026-11-19').expect(200)).body).toEqual({ items: [] });
   });
 });

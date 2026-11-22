@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { APP_FILTER } from '@nestjs/core';
+import { AuthModule } from './auth/auth.module';
 import { ApiExceptionFilter } from './common/api-exception.filter';
 import { CommonModule } from './common/common.module';
 import { DatabaseModule } from './database/database.module';
@@ -19,11 +20,14 @@ import { WeatherProviderModule } from './weather-provider/weather-provider.modul
  * globalen `ApiExceptionFilter` (Fehlerformat B3.3); Middleware und Body-Parser richtet `configureApp`
  * ein (`app.setup.ts`). `SCHEDULER_ENABLED` liest `SchedulerModule.forRoot()` beim Laden dieser Datei.
  * Schritt 9: `DatabaseModule` (SQLite über TypeORM, `DB_PATH`) steht zuerst; `HealthModule` für `GET /api/health`.
+ * Schritt 10: `AuthModule` (Login, JWT; importiert `UsersModule`) registriert die globalen Guards `ThrottlerGuard`
+ * und `JwtAuthGuard`; Gast-Endpunkte tragen `@Public()`.
  */
 @Module({
   imports: [
     DatabaseModule,
     CommonModule,
+    AuthModule,
     LocationsModule,
     ObservationsModule,
     ForecastsModule,

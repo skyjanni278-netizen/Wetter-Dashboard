@@ -5,7 +5,9 @@ import path from 'node:path';
 import { insertImport, openTestDatabase } from '../../test/support/database';
 import { CollectedDataError } from './collected-data';
 import { backupPathOf, runReset, runSeed } from './db-maintenance';
+import { DEV_ADMIN_SKIPPED } from './seeds/dev-admin';
 import { DEV_SEED, DEV_SEED_DST_DAY, DEV_SEED_FROM, DEV_SEED_TO } from './seeds/dev.seed';
+import { verifyPassword } from '../users/password';
 
 const NOW = new Date('2026-11-21T10:00:00Z');
 
@@ -114,5 +116,55 @@ describe('db:seed und db:reset (03 B4.4, Schutz der gesammelten Daten)', () => {
     await expect(runSeed({ dbPath, force: false, env: {}, now: NOW })).rejects.toThrow(/migration:run/);
     expect(existsSync(dbPath)).toBe(false);
     await expect(runSeed({ dbPath, fixture: 'gibtsnicht', force: false, env: {}, now: NOW })).rejects.toThrow(/nicht gefunden/);
+  });
+
+  describe('Dev-Seed-Admin (Schritt 10, DEV_ADMIN_PASSWORD)', () => {
+    const env = { DEV_ADMIN_PASSWORD: 'dev-passwort-1234' };
+
+    async function adminHash(): Promise<string | undefined> {
+      const ds = await openTestDatabase(dbPath);
+      try {
+        const rows: { password_hash: string }[] = await ds.query(
+          `SELECT u."password_hash" FROM "user" u JOIN "user_role" ur ON ur."user_id" = u."id" JOIN "role" r ON r."id" = ur."role_id" WHERE u."username" = 'admin' AND r."name" = 'admin'`,
+        );
+        return rows[0]?.password_hash;
+      } finally {
+        await ds.destroy();
+      }
+    }
+
+    it('ohne DEV_ADMIN_PASSWORD: kein Admin, Hinweis im Ergebnis', async () => {
+      const result = await runReset({ dbPath, force: false, env: {}, now: NOW });
+      expect(result.seed.devAdmin).toEqual({ status: 'skipped', reason: DEV_ADMIN_SKIPPED });
+      expect(await count(dbPath, 'user')).toBe(0);
+    });
+
+    it('db:reset und db:seed mit DEV_ADMIN_PASSWORD: admin angelegt, beim nächsten Seed Passwort neu gesetzt', async () => {
+      const reset = await runReset({ dbPath, force: false, env, now: NOW });
+      expect(reset.seed.devAdmin).toEqual({ status: 'created', username: 'admin' });
+      await expect(verifyPassword('dev-passwort-1234', (await adminHash())!)).resolves.toBe(true);
+
+      const seed = await runSeed({ dbPath, force: false, env: { DEV_ADMIN_PASSWORD: 'anderes-dev-passwort' }, now: NOW });
+      expect(seed.devAdmin).toEqual({ status: 'updated', username: 'admin' });
+      await expect(verifyPassword('anderes-dev-passwort', (await adminHash())!)).resolves.toBe(true);
+      expect(await count(dbPath, 'user')).toBe(1);
+    });
+
+    it('DEV_ADMIN_PASSWORD kürzer als 12 Zeichen → Abbruch vor jeder Änderung', async () => {
+      await createDb(dbPath, 'range');
+      await expect(runSeed({ dbPath, force: false, env: { DEV_ADMIN_PASSWORD: 'kurz' }, now: NOW })).rejects.toThrow(/DEV_ADMIN_PASSWORD.*12 Zeichen/);
+      await expect(runReset({ dbPath, force: false, env: { DEV_ADMIN_PASSWORD: 'kurz' }, now: NOW })).rejects.toThrow(/DEV_ADMIN_PASSWORD/);
+      expect(await count(dbPath, 'observation')).toBe(1);
+      expect(await count(dbPath, 'user')).toBe(0);
+      expect(existsSync(backupPathOf(dbPath))).toBe(false);
+    });
+
+    it('Schutzregeln gelten unverändert: gesammelte Daten oder Produktion → Abbruch, kein Admin', async () => {
+      await createDb(dbPath, 'legacy');
+      await expect(runSeed({ dbPath, force: false, env, now: NOW })).rejects.toThrow(CollectedDataError);
+      await expect(runSeed({ dbPath, force: true, env: { ...env, NODE_ENV: 'production' }, now: NOW })).rejects.toThrow(/NODE_ENV=production/);
+      expect(await count(dbPath, 'user')).toBe(0);
+      expect(await count(dbPath, 'observation')).toBe(1);
+    });
   });
 });

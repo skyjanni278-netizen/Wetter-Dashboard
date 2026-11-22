@@ -5,6 +5,7 @@
   "testTimeout": 60000,
   "testRegex": ".e2e-spec.ts$",
   "setupFiles": ["<rootDir>/support/test-env.ts"],
+  "setupFilesAfterEnv": ["<rootDir>/support/no-password-leaks.ts"],
   "transform": {
     "^.+\\.(t|j)s$": "ts-jest"
   }

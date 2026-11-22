@@ -2,6 +2,7 @@ import { Logger } from '@nestjs/common';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { Test } from '@nestjs/testing';
 import { AppModule } from './app.module';
+import { AuthService } from './auth/auth.service';
 import { Clock, SystemClock } from './common/clock';
 import { DB_PATH } from './database/db-path';
 import { DaysService } from './days/days.service';
@@ -19,6 +20,7 @@ import { SchedulerService } from './scheduler/scheduler.service';
 import { AggregationService } from './stats/aggregation.service';
 import { StatusService } from './status/status.service';
 import { SummariesService } from './summaries/summaries.service';
+import { UsersService } from './users/users.service';
 import { OpenMeteoClient } from './weather-provider/open-meteo.client';
 
 /**
@@ -45,6 +47,8 @@ describe('AppModule (Boot, Module nach B4.1)', () => {
       StatusService,
       GapsService,
       HealthService,
+      AuthService,
+      UsersService,
       SchedulerService,
       OpenMeteoClient,
       OBSERVATION_STORE,

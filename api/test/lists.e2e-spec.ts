@@ -14,6 +14,7 @@ import type { ImportKind, ImportStatus } from '../src/imports/import';
 import { IMPORT_STORE } from '../src/imports/import.store';
 import type { ImportStore } from '../src/imports/import.store';
 import { createTestApp } from './support/app';
+import { adminToken, authHeader } from './support/auth';
 import { copyLegacySubset, importLegacy } from './support/legacy-files';
 import { seedApp } from './support/seed';
 
@@ -37,6 +38,8 @@ async function start(options: { dataDir?: string; fixture?: Fixture | null }) {
   if (options.fixture) await seedApp(app, options.fixture, clock.now());
   return {
     app,
+    /** Header mit Admin-Token für `/api/imports` (seit Schritt 10 geschützt); Gast-Routen ohne Token. */
+    auth: authHeader(await adminToken(app)),
     close: async () => {
       await app.close();
       if (subset) await rm(subset, { recursive: true, force: true });
@@ -47,10 +50,12 @@ async function start(options: { dataDir?: string; fixture?: Fixture | null }) {
 runWithData('Schritt 8: Listen und Zusammenfassungen mit backend/data (Fertig-Kriterien der Roadmap)', () => {
   let app: INestApplication<App>;
   let close: () => Promise<void>;
+  let auth: Record<string, string>;
   const get = (url: string) => request(app.getHttpServer()).get(url);
+  const adminGet = (url: string) => get(url).set(auth);
 
   beforeAll(async () => {
-    ({ app, close } = await start({ dataDir: DATA_DIR }));
+    ({ app, close, auth } = await start({ dataDir: DATA_DIR }));
   });
   afterAll(() => close());
 
@@ -167,15 +172,15 @@ runWithData('Schritt 8: Listen und Zusammenfassungen mit backend/data (Fertig-Kr
   });
 
   it('US11-4: GET /api/imports?limit=500 / ?limit=0 / ?page=0 → 400 an limit / limit / page', async () => {
-    expect((await get('/api/imports?limit=500').expect(400)).body.errors).toEqual([
+    expect((await adminGet('/api/imports?limit=500').expect(400)).body.errors).toEqual([
       { field: 'limit', code: 'too_big', message: expect.any(String) },
     ]);
-    expect((await get('/api/imports?limit=0').expect(400)).body.errors[0]).toMatchObject({ field: 'limit', code: 'too_small' });
-    expect((await get('/api/imports?page=0').expect(400)).body.errors[0]).toMatchObject({ field: 'page', code: 'too_small' });
+    expect((await adminGet('/api/imports?limit=0').expect(400)).body.errors[0]).toMatchObject({ field: 'limit', code: 'too_small' });
+    expect((await adminGet('/api/imports?page=0').expect(400)).body.errors[0]).toMatchObject({ field: 'page', code: 'too_small' });
   });
 
   it('US15-2: GET /api/imports?kind=legacy → 200, genau der Altdatenimport (688 Dateien bis 19.11.2026)', async () => {
-    const res = await get('/api/imports?kind=legacy').expect(200);
+    const res = await adminGet('/api/imports?kind=legacy').expect(200);
     expect(res.body.meta).toEqual({ page: 1, limit: 20, total: 1 });
     expect(res.body.items[0]).toMatchObject({
       id: 1,
@@ -185,7 +190,7 @@ runWithData('Schritt 8: Listen und Zusammenfassungen mit backend/data (Fertig-Kr
       to: '2026-11-19',
       counts: { inserted: 688 * 24, updated: 0, unchanged: 0, skippedCorrected: 0 },
     });
-    expect((await get('/api/imports?kind=range').expect(200)).body).toEqual({ items: [], meta: { page: 1, limit: 20, total: 0 } });
+    expect((await adminGet('/api/imports?kind=range').expect(200)).body).toEqual({ items: [], meta: { page: 1, limit: 20, total: 0 } });
   });
 
   it('V35: GET /api/status → dataFrom/dataTo aus dem Observation-Store', async () => {
@@ -260,47 +265,47 @@ describe('Schritt 8: Listen ohne Altbestand (Fixture bzw. leerer Store)', () => 
     });
     afterAll(() => h.close());
 
-    const get = (url: string) => request(h.app.getHttpServer()).get(url);
+    const adminGet = (url: string) => request(h.app.getHttpServer()).get(url).set(h.auth);
 
     it('ohne Filter: requestedAt absteigend, meta = { page: 1, limit: 20, total: 4 }', async () => {
-      const res = await get('/api/imports').expect(200);
+      const res = await adminGet('/api/imports').expect(200);
       expect(res.body.items.map((i: { id: number }) => i.id)).toEqual([2, 4, 1, 3]);
       expect(res.body.meta).toEqual({ page: 1, limit: 20, total: 4 });
       expect(res.body.items[0]).toMatchObject({ id: 2, kind: 'range', status: 'failed', links: { self: '/api/imports/2' } });
     });
 
     it('status=failed&page=1&limit=20 (US11-2) → nur fehlgeschlagene, absteigend', async () => {
-      const res = await get('/api/imports?status=failed&page=1&limit=20').expect(200);
+      const res = await adminGet('/api/imports?status=failed&page=1&limit=20').expect(200);
       expect(res.body.items.map((i: { id: number }) => i.id)).toEqual([2, 3]);
       expect(res.body.meta).toEqual({ page: 1, limit: 20, total: 2 });
     });
 
     it('kind=scheduled → nur geplante', async () => {
-      const res = await get('/api/imports?kind=scheduled').expect(200);
+      const res = await adminGet('/api/imports?kind=scheduled').expect(200);
       expect(res.body.items.map((i: { id: number }) => i.id)).toEqual([1, 3]);
     });
 
     it('page=2&limit=3 → letzter Eintrag; page=3 → items = [], total bleibt', async () => {
-      const second = await get('/api/imports?page=2&limit=3').expect(200);
+      const second = await adminGet('/api/imports?page=2&limit=3').expect(200);
       expect(second.body.items.map((i: { id: number }) => i.id)).toEqual([3]);
       expect(second.body.meta).toEqual({ page: 2, limit: 3, total: 4 });
-      const third = await get('/api/imports?page=3&limit=3').expect(200);
+      const third = await adminGet('/api/imports?page=3&limit=3').expect(200);
       expect(third.body).toEqual({ items: [], meta: { page: 3, limit: 3, total: 4 } });
     });
 
     it('ungültige Werte → 400 am Feld (status, kind, limit=101, unbekannter Parameter)', async () => {
-      expect((await get('/api/imports?status=done').expect(400)).body.errors[0]).toMatchObject({ field: 'status' });
-      expect((await get('/api/imports?kind=all').expect(400)).body.errors[0]).toMatchObject({ field: 'kind' });
-      expect((await get('/api/imports?limit=101').expect(400)).body.errors[0]).toMatchObject({ field: 'limit', code: 'too_big' });
-      expect((await get('/api/imports?sort=asc').expect(400)).body.errors[0]).toMatchObject({
+      expect((await adminGet('/api/imports?status=done').expect(400)).body.errors[0]).toMatchObject({ field: 'status' });
+      expect((await adminGet('/api/imports?kind=all').expect(400)).body.errors[0]).toMatchObject({ field: 'kind' });
+      expect((await adminGet('/api/imports?limit=101').expect(400)).body.errors[0]).toMatchObject({ field: 'limit', code: 'too_big' });
+      expect((await adminGet('/api/imports?sort=asc').expect(400)).body.errors[0]).toMatchObject({
         field: 'sort',
         code: 'unrecognized_keys',
       });
     });
 
     it('GET /api/imports/:id bleibt unberührt', async () => {
-      await get('/api/imports/4').expect(200);
-      await get('/api/imports/99').expect(404);
+      await adminGet('/api/imports/4').expect(200);
+      await adminGet('/api/imports/99').expect(404);
     });
   });
 });

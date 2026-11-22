@@ -6,7 +6,7 @@ import { AppModule } from '../src/app.module';
 import { Clock, FixedClock } from '../src/common/clock';
 import { createTestApp } from './support/app';
 
-/** Alle Nest-Pfade aus 03 B3.1, die es bis Schritt 9 gibt (OpenAPI-Schreibweise), mit ihren Methoden. */
+/** Alle Nest-Pfade aus 03 B3.1, die es bis Schritt 10 gibt (OpenAPI-Schreibweise), mit ihren Methoden. */
 const EXPECTED_PATHS: Record<string, string[]> = {
   '/api/days': ['get'],
   '/api/days/today': ['get'],
@@ -24,7 +24,12 @@ const EXPECTED_PATHS: Record<string, string[]> = {
   '/api/imports/{id}': ['get'],
   '/api/gaps': ['get'],
   '/api/health': ['get'],
+  '/api/auth/tokens': ['post'],
+  '/api/auth/me': ['get'],
 };
+
+/** Geschützte Operationen (ohne `@Public()`, Schritt 10): Schloss `bearer` und 401 in der Doku. */
+const PROTECTED = ['get /api/imports', 'post /api/imports', 'get /api/imports/{id}', 'get /api/gaps', 'get /api/auth/me'];
 
 /** App wie `main.ts` mit leerer Datenbank (`:memory:`, Schema über die Migrationen). */
 async function start(env: NodeJS.ProcessEnv) {
@@ -82,6 +87,25 @@ describe('OpenAPI (B3.7) mit SWAGGER_ENABLED=true', () => {
     );
   });
 
+  it('Schritt 10: geschützte Routen mit security bearer und 401, Gast-Routen ohne', () => {
+    const secured: string[] = [];
+    for (const [p, ops] of Object.entries(doc.paths as Record<string, Record<string, any>>)) {
+      for (const [method, op] of Object.entries(ops)) {
+        const key = `${method} ${p}`;
+        if (op.security) {
+          secured.push(key);
+          expect([key, op.security]).toEqual([key, [{ bearer: [] }]]);
+          expect([key, Object.keys(op.responses)]).toEqual([key, expect.arrayContaining(['401'])]);
+        } else if (key !== 'post /api/auth/tokens') {
+          expect([key, Object.keys(op.responses)]).toEqual([key, expect.not.arrayContaining(['401'])]);
+        }
+      }
+    }
+    expect(secured.sort()).toEqual([...PROTECTED].sort());
+    // Login: 401 nur als INVALID_CREDENTIALS (öffentlich), 429 dokumentiert.
+    expect(Object.keys(doc.paths['/api/auth/tokens'].post.responses)).toEqual(expect.arrayContaining(['200', '400', '401', '415', '429']));
+  });
+
   it('Parameter und Body kommen aus den Zod-Schemas', () => {
     const days = doc.paths['/api/days'].get.parameters;
     expect(days.map((p: any) => [p.in, p.name, p.required])).toEqual([
@@ -95,6 +119,11 @@ describe('OpenAPI (B3.7) mit SWAGGER_ENABLED=true', () => {
     const body = doc.paths['/api/imports'].post.requestBody.content['application/json'].schema;
     expect(body).toMatchObject({ type: 'object', required: ['kind', 'from', 'to'], additionalProperties: false });
     expect(doc.paths['/api/imports'].post.responses['202']).toBeDefined();
+    const login = doc.paths['/api/auth/tokens'].post.requestBody.content['application/json'].schema;
+    expect(login).toMatchObject({ type: 'object', required: ['username', 'password'], additionalProperties: false });
+    expect(login.properties.username).toMatchObject({ type: 'string', minLength: 3, maxLength: 50 });
+    const token = doc.paths['/api/auth/tokens'].post.responses['200'].content['application/json'].schema;
+    expect(Object.keys(token.properties)).toEqual(['accessToken', 'tokenType', 'expiresIn', 'user']);
   });
 
   it('GET /api/docs/ mit Accept: text/html → 200 HTML, kein 406 (B3.1)', async () => {

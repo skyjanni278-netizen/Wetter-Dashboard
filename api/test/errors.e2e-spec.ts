@@ -7,6 +7,7 @@ import { Clock, FixedClock } from '../src/common/clock';
 import { LocationsService } from '../src/locations/locations.service';
 import { OpenMeteoClient } from '../src/weather-provider/open-meteo.client';
 import { createTestApp } from './support/app';
+import { adminToken, authHeader } from './support/auth';
 import { dayObservations, fixtureOf, seedApp } from './support/seed';
 
 const REQUEST_ID = /^[0-9a-f]{8}$/;
@@ -23,6 +24,8 @@ const offlineProvider = {
 
 describe('Fehlerformat und Statuscodes (Schritt 5, B3.2/B3.3)', () => {
   let app: INestApplication<App>;
+  /** `POST /api/imports` ist seit Schritt 10 geschützt; 413/415/kaputtes JSON kommen schon aus der Middleware. */
+  let auth: Record<string, string>;
   // 20.11.2026, 11:00 Berlin: heute gibt es keine Stunde, morgen ist der 21.11.
   const clock = new FixedClock('2026-11-20T10:00:00Z');
 
@@ -34,6 +37,7 @@ describe('Fehlerformat und Statuscodes (Schritt 5, B3.2/B3.3)', () => {
       .useValue(offlineProvider)
       .compile();
     app = await createTestApp(moduleRef);
+    auth = authHeader(await adminToken(app));
     // Zwei Tage in der `:memory:`-Datenbank (applySeed wie `db:seed --fixture`).
     await seedApp(app, fixtureOf([...dayObservations('2025-01-01'), ...dayObservations('2026-11-19')]), clock.now());
   });
@@ -107,6 +111,7 @@ describe('Fehlerformat und Statuscodes (Schritt 5, B3.2/B3.3)', () => {
   it('POST /api/imports mit Content-Type text/plain → 415 UNSUPPORTED_MEDIA_TYPE', async () => {
     const res = await request(app.getHttpServer())
       .post('/api/imports')
+      .set(auth)
       .set('Content-Type', 'text/plain')
       .send('x')
       .expect(415);
@@ -121,7 +126,7 @@ describe('Fehlerformat und Statuscodes (Schritt 5, B3.2/B3.3)', () => {
 
   it('POST /api/imports mit JSON über 64 KB → 413 PAYLOAD_TOO_LARGE', async () => {
     const body = { kind: 'range', from: '2026-10-01', to: '2026-10-03', pad: 'x'.repeat(70 * 1024) };
-    const res = await request(app.getHttpServer()).post('/api/imports').send(body).expect(413);
+    const res = await request(app.getHttpServer()).post('/api/imports').set(auth).send(body).expect(413);
     expect(res.body).toMatchObject({
       statusCode: 413,
       error: 'Payload Too Large',
@@ -134,13 +139,14 @@ describe('Fehlerformat und Statuscodes (Schritt 5, B3.2/B3.3)', () => {
 
   it('knapp unter 64 KB wird gelesen und von der Pipe geprüft (400 am Zusatzfeld, nicht 413)', async () => {
     const body = { kind: 'range', from: '2026-10-01', to: '2026-10-03', pad: 'x'.repeat(60 * 1024) };
-    const res = await request(app.getHttpServer()).post('/api/imports').send(body).expect(400);
+    const res = await request(app.getHttpServer()).post('/api/imports').set(auth).send(body).expect(400);
     expect(res.body.errors).toEqual([expect.objectContaining({ field: 'pad', code: 'unrecognized_keys' })]);
   });
 
   it('kaputtes JSON → 400 VALIDATION_FAILED ohne Text des Parsers', async () => {
     const res = await request(app.getHttpServer())
       .post('/api/imports')
+      .set(auth)
       .set('Content-Type', 'application/json')
       .send('{"kind": ')
       .expect(400);

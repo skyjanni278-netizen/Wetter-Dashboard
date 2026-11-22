@@ -14,33 +14,57 @@ import { checkLegacyArchive, LegacyImporter } from './legacy/legacy-import';
 import type { LegacyImportReport } from './legacy/legacy-import';
 import { Observation } from './observations/observation.entity';
 import { TypeOrmObservationStore } from './observations/typeorm-observation.store';
+import { AdminCommandError, createAdmin, setAdminPassword } from './users/admin-commands';
+import { PasswordInputAborted, promptNewPassword } from './users/password-input';
+import { User } from './users/user.entity';
+import { UsernameSchema } from './users/username.schema';
+import { UsersService } from './users/users.service';
 import { OpenMeteoClient } from './weather-provider/open-meteo.client';
 
 /**
- * Befehle für den Betrieb (03 B2.7, US15), aufgerufen über `npm run cli -- <befehl>` (nach `build`):
+ * Befehle für den Betrieb (03 B2.7, US15, B4.6), aufgerufen über `npm run cli -- <befehl>` (nach `build`):
  *
  *   node dist/cli.js import:legacy --dir <pfad> [--dry-run]
  *   node dist/cli.js legacy:dst-check --dir <pfad>
+ *   node dist/cli.js admin:create --username <name>        (Passwort aus ADMIN_INITIAL_PASSWORD oder verdeckt von stdin)
+ *   node dist/cli.js admin:set-password --username <name>  (Passwort verdeckt von stdin)
  *
- * Ziel des Imports ist `DB_PATH` (ohne Angabe die Dev-DB); die Datei muss migriert sein (`npm run migration:run`).
+ * Ziel ist `DB_PATH` (ohne Angabe die Dev-DB); die Datei muss migriert sein (`npm run migration:run`).
  * Kein Nest-Kontext: Es laufen weder Scheduler (`SCHEDULER_ENABLED` spielt keine Rolle) noch der Start-Hook,
- * der laufende Importe auf `INTERRUPTED` setzt; die Stores sind dieselben wie in der App.
- * Exit-Code 0 bei Erfolg, 1 bei Fehlern in den Daten oder beim Schreiben, 2 bei falschem Aufruf.
+ * der laufende Importe auf `INTERRUPTED` setzt, und kein HTTP (kein Token nötig); die Stores sind dieselben
+ * wie in der App. Exit-Code 0 bei Erfolg, 1 bei Fehlern in den Daten, beim Schreiben oder Abbruch (z. B. es
+ * gibt schon einen Admin, Passwort zu kurz), 2 bei falschem Aufruf.
  */
-type Command = 'import:legacy' | 'legacy:dst-check';
+type ArchiveCommand = 'import:legacy' | 'legacy:dst-check';
+type AdminCommand = 'admin:create' | 'admin:set-password';
 
-interface CliArgs {
-  command: Command;
-  dir: string;
-  dryRun: boolean;
-}
+type CliArgs =
+  | { command: ArchiveCommand; dir: string; dryRun: boolean }
+  | { command: AdminCommand; username: string };
 
-const USAGE = 'Aufruf: cli import:legacy --dir <pfad> [--dry-run] | cli legacy:dst-check --dir <pfad>';
+const USAGE =
+  'Aufruf: cli import:legacy --dir <pfad> [--dry-run] | cli legacy:dst-check --dir <pfad> | ' +
+  'cli admin:create --username <name> | cli admin:set-password --username <name>';
 
 class UsageError extends Error {}
 
+function parseAdminArgs(command: AdminCommand, rest: readonly string[]): CliArgs {
+  let raw: string | null = null;
+  for (let i = 0; i < rest.length; i++) {
+    const arg = rest[i];
+    if (arg === '--username' && rest[i + 1]) raw = rest[++i];
+    else if (arg.startsWith('--username=')) raw = arg.slice('--username='.length);
+    else throw new UsageError(`Unbekanntes Argument "${arg}". ${USAGE}`);
+  }
+  if (raw === null) throw new UsageError(`--username fehlt. ${USAGE}`);
+  const username = UsernameSchema.safeParse(raw);
+  if (!username.success) throw new UsageError(`--username: ${username.error.issues[0]?.message ?? 'ungültig'}`);
+  return { command, username: username.data };
+}
+
 function parseArgs(argv: readonly string[]): CliArgs {
   const [command, ...rest] = argv;
+  if (command === 'admin:create' || command === 'admin:set-password') return parseAdminArgs(command, rest);
   if (command !== 'import:legacy' && command !== 'legacy:dst-check') throw new UsageError(USAGE);
   let dir: string | null = null;
   let dryRun = false;
@@ -98,8 +122,11 @@ async function printVerification(dataSource: DataSource): Promise<void> {
   if (dst.length > 0) console.log(`DST-Tage: ${dst.map(d => `${d.local_date} ${d.n} Stunden`).join(', ')}`);
 }
 
-async function openTarget(dbPath: string): Promise<DataSource> {
-  if (isMemoryDatabase(dbPath)) throw new Error('import:legacy braucht eine Datei als DB_PATH.');
+type ArchiveArgs = Extract<CliArgs, { command: ArchiveCommand }>;
+type AdminArgs = Extract<CliArgs, { command: AdminCommand }>;
+
+async function openTarget(dbPath: string, command: CliArgs['command']): Promise<DataSource> {
+  if (isMemoryDatabase(dbPath)) throw new Error(`${command} braucht eine Datei als DB_PATH.`);
   if (!existsSync(dbPath)) throw new Error(`${dbPath} gibt es nicht. Zuerst npm run migration:run.`);
   const dataSource = new DataSource({ ...dataSourceOptions(dbPath), migrationsRun: false });
   await dataSource.initialize();
@@ -110,7 +137,7 @@ async function openTarget(dbPath: string): Promise<DataSource> {
   return dataSource;
 }
 
-async function importLegacy(args: CliArgs): Promise<number> {
+async function importLegacy(args: ArchiveArgs): Promise<number> {
   if (!existsSync(args.dir)) throw new Error(`Ordner ${args.dir} gibt es nicht.`);
   if (args.dryRun) {
     // Probelauf ohne Datenbank: weder Datei noch Import-Eintrag entstehen (US15-1).
@@ -121,7 +148,7 @@ async function importLegacy(args: CliArgs): Promise<number> {
 
   const clock = new SystemClock();
   const dbPath = resolveDbPath();
-  const dataSource = await openTarget(dbPath);
+  const dataSource = await openTarget(dbPath, args.command);
   try {
     console.log(`Datenbank: ${dbPath}`);
     const report = await new LegacyImporter({
@@ -138,10 +165,36 @@ async function importLegacy(args: CliArgs): Promise<number> {
   }
 }
 
-async function dstCheck(args: CliArgs): Promise<number> {
+async function dstCheck(args: ArchiveArgs): Promise<number> {
   const result = await runDstCheck(args.dir, new OpenMeteoClient());
   for (const line of formatDstCheck(result)) console.log(line);
   return result.rule ? 0 : 1;
+}
+
+/**
+ * `admin:create` / `admin:set-password` (03 B4.6) gegen `DB_PATH`. Das Passwort kommt verdeckt von stdin (im
+ * Terminal zweimal) oder bei `admin:create` einmalig aus `ADMIN_INITIAL_PASSWORD`; Abfragen gehen nach stderr.
+ */
+async function adminCommand(args: AdminArgs): Promise<number> {
+  const dbPath = resolveDbPath();
+  const dataSource = await openTarget(dbPath, args.command);
+  try {
+    console.log(`Datenbank: ${dbPath}`);
+    const deps = {
+      users: new UsersService(dataSource.getRepository(User)),
+      env: process.env,
+      prompt: () => promptNewPassword({ input: process.stdin, output: process.stderr }),
+      now: () => new Date(),
+      log: (line: string) => console.log(line),
+    };
+    if (args.command === 'admin:create') await createAdmin(args.username, deps);
+    else await setAdminPassword(args.username, deps);
+    return 0;
+  } finally {
+    await dataSource.destroy();
+    // Eine Umleitung auf stdin hielte den Prozess sonst am Leben.
+    process.stdin.destroy();
+  }
 }
 
 async function main(): Promise<number> {
@@ -153,9 +206,15 @@ async function main(): Promise<number> {
     return 2;
   }
   try {
+    if ('username' in args) return await adminCommand(args);
     return args.command === 'import:legacy' ? await importLegacy(args) : await dstCheck(args);
   } catch (error) {
-    const prefix = error instanceof ImportAlreadyRunningError ? 'Abbruch (R19)' : 'Fehler';
+    const prefix =
+      error instanceof ImportAlreadyRunningError
+        ? 'Abbruch (R19)'
+        : error instanceof AdminCommandError || error instanceof PasswordInputAborted
+          ? 'Abbruch'
+          : 'Fehler';
     console.error(`${prefix}: ${(error as Error).message}`);
     return 1;
   }

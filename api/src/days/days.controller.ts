@@ -1,6 +1,7 @@
 import { Controller, Get, Param, Query, Res } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
+import { Public } from '../common/public.decorator';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { DayListSchema, DaySchema } from '../openapi/response.schemas';
 import { ApiErrors, ApiZodParams, ApiZodQuery, ApiZodResponse } from '../openapi/zod-openapi';
@@ -13,6 +14,7 @@ import type { DaysQuery } from './dto/days-query.schema';
 
 /** US01 (Grundform), US02 und US04: Tage. Der Controller kennt nur HTTP, die Daten liefert der Service. */
 @ApiTags('days')
+@Public()
 @Controller('days')
 export class DaysController {
   constructor(private readonly service: DaysService) {}
