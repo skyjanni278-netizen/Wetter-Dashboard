@@ -7,6 +7,7 @@ import { App } from './app';
 import { routes } from './app.routes';
 import { Day, Location, Records, Status } from './models/api';
 import { WeatherService } from './services/weather.service';
+import { AUTH_STORAGE_KEY, AuthService } from './services/auth.service';
 
 const STATUS: Status = {
   locationId: 1, today: '2026-11-20', timezone: 'Europe/Berlin', dataFrom: '2025-01-01', dataTo: '2026-11-20',
@@ -239,5 +240,74 @@ describe('Footer „Datenstand“ aus der neuen API (Schritt 2, US07)', () => {
 
     expect(range().dataset['state']).toBe('error');
     expect(range().textContent?.trim()).toBe('');
+  });
+});
+
+describe('Header: „Admin“ und „Abmelden“ nur nach der Anmeldung (US09, E3.7.1)', () => {
+  const weather = {
+    ...footerApi,
+    getToday: () => of(emptyDay('2026-11-19')),
+    getForecasts: () => of({ items: [], fetchedAt: null }),
+    getRecords: () => of(NO_RECORDS),
+  };
+
+  async function render(loggedIn: boolean) {
+    sessionStorage.clear();
+    if (loggedIn) {
+      sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({
+        accessToken: 'tok', tokenType: 'Bearer', expiresIn: 3600, expiresAt: Date.now() + 3_600_000,
+        user: { id: 1, username: 'admin', roles: ['admin'] },
+      }));
+    }
+    TestBed.configureTestingModule({
+      providers: [provideRouter(routes, withComponentInputBinding()), { provide: WeatherService, useValue: weather }],
+    });
+    const fixture = TestBed.createComponent(App);
+    const router = TestBed.inject(Router);
+    await router.navigateByUrl('/statistiken');
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const header = () => (fixture.nativeElement as HTMLElement).querySelector('header')!;
+    return { fixture, router, header };
+  }
+
+  afterEach(() => sessionStorage.clear());
+
+  it('Gast: nur die vier Punkte, kein Hinweis auf den Admin-Bereich', async () => {
+    const { header } = await render(false);
+    const items = Array.from(header().querySelectorAll('.main-nav a, .main-nav button')).map(e => e.textContent?.trim());
+    expect(items).toEqual(['Heute', 'Monat', 'Jahr', 'Rekorde']);
+    expect(header().querySelector('a[href^="/admin"]')).toBeNull();
+    expect(header().textContent).not.toMatch(/Admin|Abmelden|Anmeld/);
+  });
+
+  it('angemeldet: Link „Admin“ auf /admin und Button „Abmelden“ in der Navigation', async () => {
+    const { header } = await render(true);
+    const nav = header().querySelector('.main-nav')!;
+    const admin = Array.from(nav.querySelectorAll('a')).find(a => a.textContent?.trim() === 'Admin')!;
+    expect(admin.getAttribute('href')).toBe('/admin');
+    const logout = nav.querySelector('button')!;
+    expect(logout.textContent?.trim()).toBe('Abmelden');
+    expect(logout.getAttribute('type')).toBe('button');
+  });
+
+  it('„Abmelden“: sessionStorage leer, Links weg, Startseite', async () => {
+    const { fixture, router, header } = await render(true);
+    (header().querySelector('.main-nav button') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(sessionStorage.getItem(AUTH_STORAGE_KEY)).toBeNull();
+    expect(TestBed.inject(AuthService).isLoggedIn()).toBe(false);
+    expect(router.url).toBe('/');
+    expect(header().querySelector('.main-nav button')).toBeNull();
+    expect(header().textContent).not.toContain('Admin');
+  });
+
+  it('nach dem Abmelden führt /admin zur Anmeldung (US09-9)', async () => {
+    const { fixture, router, header } = await render(true);
+    (header().querySelector('.main-nav button') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    await router.navigateByUrl('/admin');
+    expect(router.url).toBe('/admin/anmeldung?returnUrl=%2Fadmin');
   });
 });

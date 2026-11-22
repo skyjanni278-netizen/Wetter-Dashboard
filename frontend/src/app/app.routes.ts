@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { adminGuard } from './guards/admin.guard';
 import { berlinToday } from './utils/berlin-date';
 import { dayViewTitle, monthViewTitle, yearViewTitle } from './utils/page-title';
 
@@ -45,6 +46,25 @@ export const routes: Routes = [
     path: 'statistiken',
     title: 'Rekorde',
     loadComponent: () => import('./pages/stats-page/stats-page').then(m => m.StatsPageComponent),
+  },
+  // Anmeldung (US09): nur über die URL erreichbar, Gäste sehen keinen Link darauf (E3.7.1).
+  // Steht vor `admin`, damit der Guard die Login-Seite nicht sperrt.
+  {
+    path: 'admin/anmeldung',
+    title: 'Anmeldung',
+    loadComponent: () => import('./pages/admin/login-page/login-page').then(m => m.LoginPageComponent),
+  },
+  // Admin-Bereich: nur mit gültigem Token, sonst Umleitung auf die Anmeldung mit returnUrl (adminGuard).
+  {
+    path: 'admin',
+    canMatch: [adminGuard],
+    children: [
+      {
+        path: '',
+        title: 'Admin',
+        loadComponent: () => import('./pages/admin/admin-page/admin-page').then(m => m.AdminPageComponent),
+      },
+    ],
   },
   { path: '**', redirectTo: '' },
 ];

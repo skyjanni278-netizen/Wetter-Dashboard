@@ -3,6 +3,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
 import { Observable, catchError, filter, map, of, startWith, switchMap } from 'rxjs';
 import { SkeletonComponent } from './components/skeleton/skeleton';
+import { AuthService } from './services/auth.service';
 import { WeatherService } from './services/weather.service';
 import { formatDateDe } from './utils/berlin-date';
 
@@ -51,6 +52,10 @@ export class App {
   private router = inject(Router);
   private document = inject(DOCUMENT);
   private weather = inject(WeatherService);
+  private auth = inject(AuthService);
+
+  /** Header: „Admin“ und „Abmelden“ nur nach der Anmeldung (E3.7.1); Gäste sehen keinen Hinweis. */
+  readonly loggedIn = this.auth.isLoggedIn;
 
   /** Footer „Datenstand“; ein Request je App-Start, kein Neuladen bei Navigation. */
   readonly footer = toSignal(footerData(this.weather), { requireSync: true });
@@ -84,6 +89,12 @@ export class App {
     ),
     { initialValue: false },
   );
+
+  /** „Abmelden“ (US09-9): Token verwerfen (`sessionStorage`), dann zur Startseite. */
+  logout(): void {
+    this.auth.logout();
+    void this.router.navigateByUrl('/');
+  }
 
   /**
    * Skip-Link: `href="#main"` würde wegen `<base href="/">` nach `/#main` navigieren.

@@ -60,7 +60,7 @@
   gap: calc(var(--space-1) / 2);
 }
 
-.main-nav a {
+.main-nav :is(a, button) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -76,9 +76,19 @@
   transition: background-color var(--motion-fast), color var(--motion-fast), border-color var(--motion-fast);
 }
 
-.main-nav a:hover {
+.main-nav :is(a, button):hover {
   background-color: var(--color-surface-muted);
   color: var(--color-text);
+}
+
+/* „Abmelden“ (nur angemeldet): Textbutton in der Navigation, unterstrichen als Aktion statt Seite */
+.main-nav button {
+  background: transparent;
+  font: inherit;
+  font-weight: var(--fw-medium);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
 }
 
 /* Aktiv: Rand und Gewicht, nicht nur Farbe (F30) */
@@ -108,7 +118,16 @@
     gap: var(--space-2);
   }
 
-  .main-nav a { padding: 0 var(--space-3); }
+  .main-nav :is(a, button) { padding: 0 var(--space-3); }
+
+  /* Angemeldet (6 Punkte): Logo bleibt einzeilig, der Header bleibt 64 px hoch */
+  .header-admin .logo-text { white-space: nowrap; }
+}
+
+/* Angemeldet von 768 bis 1023 px: schmalere Pillen, damit 6 Punkte neben das Logo passen.
+   Der Gast-Header bleibt unverändert. */
+@media (min-width: 48em) and (max-width: 63.99em) {
+  .header-admin .main-nav :is(a, button) { padding: 0 var(--space-2); }
 }
 
 /* ---------- Inhalt ---------- */

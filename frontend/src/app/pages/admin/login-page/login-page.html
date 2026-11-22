@@ -1,0 +1,37 @@
+<div class="page">
+  <div class="page-header">
+    <div class="page-title">
+      <p class="kicker">Admin</p>
+      <h1>Anmelden</h1>
+      <p>Nur für die Verwaltung der Wetterdaten.</p>
+    </div>
+  </div>
+
+  <app-card class="login-card">
+    <form class="login-form" [formGroup]="form" (ngSubmit)="submit()">
+      <!-- Allgemeiner Fehler oben im Formular (B5.2): 401, 429, Server nicht erreichbar -->
+      @if (generalError(); as message) {
+        <app-notice class="login-error" variant="error" [announce]="true">
+          <p>{{ message }}</p>
+        </app-notice>
+      }
+
+      <app-form-field label="Benutzername" fieldId="login-username"
+                      [error]="fieldError('username')" [control]="form.controls.username">
+        <input id="login-username" name="username" type="text" formControlName="username"
+               autocomplete="username" autocapitalize="none" spellcheck="false" required>
+      </app-form-field>
+
+      <app-form-field label="Passwort" fieldId="login-password"
+                      [error]="fieldError('password')" [control]="form.controls.password">
+        <input id="login-password" name="password" type="password" formControlName="password"
+               autocomplete="current-password" required>
+      </app-form-field>
+
+      <button type="submit" class="btn btn-primary login-submit"
+              [attr.aria-disabled]="pending() ? 'true' : null" [attr.aria-busy]="pending() ? 'true' : null">
+        {{ pending() ? 'Wird angemeldet …' : 'Anmelden' }}
+      </button>
+    </form>
+  </app-card>
+</div>

@@ -1,0 +1,18 @@
+/* Anmeldeformular (02 „Neu: Admin“): heller Bereich, Felder wie E3.7.3 */
+.login-card {
+  max-width: 28rem;
+}
+
+.login-form {
+  display: grid;
+  gap: var(--space-4);
+}
+
+/* Felder in voller Kartenbreite; 44 px Höhe kommt aus form-field.css */
+.login-form input {
+  width: 100%;
+}
+
+.login-submit {
+  justify-self: start;
+}

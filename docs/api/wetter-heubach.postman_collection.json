@@ -2,7 +2,7 @@
   "info": {
     "name": "Wetter-Dashboard Heubach",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "API-Tests je Akzeptanzkriterium (03-zielbild.md B3.7). Voraussetzung: Nest mit FAKE_NOW=2026-11-19T13:30:00Z auf einer eigenen Temp-DB (nicht auf der Sammel-DB): in api/ npm run migration:run und npm run cli -- import:legacy --dir <Kopie des Altbestands bis 19.11.2026 mit erhaltenen Zeitstempeln> (DB_PATH, PORT und SCHEDULER_ENABLED=false setzen). Die Umgebung local nutzt http://localhost:3000/api; ein anderer Port wird mit --env-var baseUrl=... gesetzt. Die Reihenfolge der Ordner ist wichtig (US07-2 vor US10, US11 nach US10). Auth-Requests kommen in Schritt 10; die Variable token und Bearer-Auth sind vorbereitet."
+    "description": "API-Tests je Akzeptanzkriterium (03-zielbild.md B3.7). Voraussetzung: Nest mit FAKE_NOW=2026-11-19T13:30:00Z auf einer eigenen Temp-DB (nicht auf der Sammel-DB): in api/ npm run migration:run und npm run cli -- import:legacy --dir <Kopie des Altbestands bis 19.11.2026 mit erhaltenen Zeitstempeln> (DB_PATH, PORT und SCHEDULER_ENABLED=false setzen). Die Umgebung local nutzt http://localhost:3000/api; ein anderer Port wird mit --env-var baseUrl=... gesetzt. Die Reihenfolge der Ordner ist wichtig (US07-2 vor US10, US11 nach US10). Auth ab Schritt 10: Nest braucht JWT_SECRET (mindestens 32 Zeichen). Weil die Temp-DB einen legacy-Import enthält und db:seed solche DBs verweigert, den Admin dort mit ADMIN_INITIAL_PASSWORD=<mindestens 12 Zeichen> npm run cli -- admin:create --username admin anlegen (auf einer leeren DB genügt db:seed mit DEV_ADMIN_PASSWORD). Das Passwort kommt per --env-var adminPassword=... (Umgebung local: adminUser = admin, adminPassword leer; kein Passwort im Repo). Die Collection hat Bearer-Auth mit {{token}}; der Ordner US09 Anmelden speichert das Token, die Gast-Ordner US01-US07 haben noauth. Das Login-Limit (5 Versuche je 60 s und IP) zählt jede Anfrage an /auth/tokens, deshalb Nest für jeden Lauf frisch starten; der Ordner US09-7 mit den Fehlversuchen läuft zuletzt."
   },
   "auth": {
     "type": "bearer",
@@ -22,9 +22,301 @@
     {
       "key": "importId",
       "value": ""
+    },
+    {
+      "key": "invalidMessage",
+      "value": ""
     }
   ],
   "item": [
+    {
+      "name": "US09 Anmelden",
+      "item": [
+        {
+          "name": "US09-1 Anmelden → 200 mit Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 (nicht 201)',()=>pm.response.to.have.status(200));",
+                  "const b=pm.response.json();",
+                  "pm.test('accessToken, tokenType, expiresIn',()=>{pm.expect(b.accessToken).to.be.a('string').and.not.empty;pm.expect(b.tokenType).to.eql('Bearer');pm.expect(b.expiresIn).to.eql(3600);});",
+                  "pm.test('kein Passwort(-Hash) im Body',()=>pm.expect(pm.response.text()).to.not.match(/password/i));",
+                  "pm.collectionVariables.set('token',b.accessToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{adminUser}}\",\n  \"password\": \"{{adminPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/tokens",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "tokens"
+              ]
+            }
+          }
+        },
+        {
+          "name": "US09-2 falsches Passwort → 401 INVALID_CREDENTIALS",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401',()=>pm.response.to.have.status(401));",
+                  "const b=pm.response.json();",
+                  "pm.test('code = INVALID_CREDENTIALS',()=>pm.expect(b.code).to.eql('INVALID_CREDENTIALS'));",
+                  "pm.collectionVariables.set('invalidMessage',b.message);",
+                  "pm.test('kein Passwort im Body',()=>pm.expect(pm.response.text()).to.not.match(/falsches-Passwort/));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{adminUser}}\",\n  \"password\": \"falsches-Passwort-123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/tokens",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "tokens"
+              ]
+            }
+          }
+        },
+        {
+          "name": "US09-3 unbekannter Name → 401 gleiche Meldung",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401',()=>pm.response.to.have.status(401));",
+                  "const b=pm.response.json();",
+                  "pm.test('code = INVALID_CREDENTIALS',()=>pm.expect(b.code).to.eql('INVALID_CREDENTIALS'));",
+                  "pm.test('gleiche Meldung wie bei falschem Passwort',()=>pm.expect(b.message).to.eql(pm.collectionVariables.get('invalidMessage')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"gibt-es-nicht\",\n  \"password\": \"falsches-Passwort-123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/tokens",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "tokens"
+              ]
+            }
+          }
+        },
+        {
+          "name": "US09-5 Zusatzfeld roles → 400 unrecognized_keys",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400',()=>pm.response.to.have.status(400));",
+                  "const b=pm.response.json();",
+                  "pm.test('code = VALIDATION_FAILED',()=>pm.expect(b.code).to.eql('VALIDATION_FAILED'));",
+                  "pm.test('errors[0] = roles / unrecognized_keys',()=>{pm.expect(b.errors[0].field).to.eql('roles');pm.expect(b.errors[0].code).to.eql('unrecognized_keys');});",
+                  "pm.test('Fehlerformat',()=>{const b=pm.response.json();pm.expect(b).to.include.keys('statusCode','error','code','message','errors','path','timestamp','requestId','details');});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{adminUser}}\",\n  \"password\": \"{{adminPassword}}\",\n  \"roles\": [\n    \"admin\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/tokens",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "tokens"
+              ]
+            }
+          }
+        },
+        {
+          "name": "US09-6 text/plain → 415",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 415',()=>pm.response.to.have.status(415));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "text/plain"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "x",
+              "options": {
+                "raw": {
+                  "language": "text"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/tokens",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "tokens"
+              ]
+            }
+          }
+        },
+        {
+          "name": "US09-8a me ohne Token → 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401',()=>pm.response.to.have.status(401));",
+                  "pm.test('code = UNAUTHENTICATED',()=>pm.expect(pm.response.json().code).to.eql('UNAUTHENTICATED'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            }
+          }
+        },
+        {
+          "name": "US09-8b me mit Token → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200',()=>pm.response.to.have.status(200));",
+                  "const b=pm.response.json();",
+                  "pm.test('Konto mit Rolle admin',()=>{pm.expect(b.username).to.eql(pm.environment.get('adminUser'));pm.expect(JSON.stringify(b.roles)).to.include('admin');});",
+                  "pm.test('kein Passwort(-Hash) im Body',()=>pm.expect(pm.response.text()).to.not.match(/password/i));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            }
+          }
+        }
+      ]
+    },
     {
       "name": "US01 Heute",
       "item": [
@@ -128,7 +420,10 @@
             }
           }
         }
-      ]
+      ],
+      "auth": {
+        "type": "noauth"
+      }
     },
     {
       "name": "US02 Tag",
@@ -352,7 +647,10 @@
             }
           }
         }
-      ]
+      ],
+      "auth": {
+        "type": "noauth"
+      }
     },
     {
       "name": "US03 Vorhersage",
@@ -425,7 +723,10 @@
             }
           }
         }
-      ]
+      ],
+      "auth": {
+        "type": "noauth"
+      }
     },
     {
       "name": "US04 Monat",
@@ -781,7 +1082,10 @@
             }
           }
         }
-      ]
+      ],
+      "auth": {
+        "type": "noauth"
+      }
     },
     {
       "name": "US05 Jahr",
@@ -985,7 +1289,10 @@
             }
           }
         }
-      ]
+      ],
+      "auth": {
+        "type": "noauth"
+      }
     },
     {
       "name": "US06 Rekorde",
@@ -1058,7 +1365,10 @@
             }
           }
         }
-      ]
+      ],
+      "auth": {
+        "type": "noauth"
+      }
     },
     {
       "name": "US07 Status",
@@ -1182,11 +1492,54 @@
             }
           }
         }
-      ]
+      ],
+      "auth": {
+        "type": "noauth"
+      }
     },
     {
       "name": "US10 Import anstoßen",
       "item": [
+        {
+          "name": "US10-1 ohne Token → 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401',()=>pm.response.to.have.status(401));",
+                  "pm.test('code = UNAUTHENTICATED',()=>pm.expect(pm.response.json().code).to.eql('UNAUTHENTICATED'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"kind\": \"range\",\n  \"from\": \"2026-10-01\",\n  \"to\": \"2026-10-31\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/imports",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "imports"
+              ]
+            }
+          }
+        },
         {
           "name": "US10-4 to vor from → 400",
           "event": [
@@ -1571,6 +1924,357 @@
                   "key": "limit",
                   "value": "500"
                 }
+              ]
+            }
+          }
+        },
+        {
+          "name": "US11-5 Importliste ohne Token → 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401',()=>pm.response.to.have.status(401));",
+                  "pm.test('code = UNAUTHENTICATED',()=>pm.expect(pm.response.json().code).to.eql('UNAUTHENTICATED'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/imports",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "imports"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "US12 Lücken",
+      "item": [
+        {
+          "name": "US12-1 Lücken mit Token → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200',()=>pm.response.to.have.status(200));",
+                  "pm.test('items ist eine Liste',()=>pm.expect(pm.response.json().items).to.be.an('array'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/gaps?from=2026-11-01&to=2026-11-19",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "gaps"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "2026-11-01"
+                },
+                {
+                  "key": "to",
+                  "value": "2026-11-19"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "US12-4 Lücken ohne Token → 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401',()=>pm.response.to.have.status(401));",
+                  "pm.test('code = UNAUTHENTICATED',()=>pm.expect(pm.response.json().code).to.eql('UNAUTHENTICATED'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/gaps",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "gaps"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "US09-7 Login-Limit (zuletzt)",
+      "item": [
+        {
+          "name": "US09-7 Fehlversuch 1",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401 oder 429 (Fenster kann durch frühere Logins schon voll sein)',()=>pm.expect(pm.response.code).to.be.oneOf([401,429]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{adminUser}}\",\n  \"password\": \"falsches-Passwort-123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/tokens",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "tokens"
+              ]
+            }
+          }
+        },
+        {
+          "name": "US09-7 Fehlversuch 2",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401 oder 429 (Fenster kann durch frühere Logins schon voll sein)',()=>pm.expect(pm.response.code).to.be.oneOf([401,429]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{adminUser}}\",\n  \"password\": \"falsches-Passwort-123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/tokens",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "tokens"
+              ]
+            }
+          }
+        },
+        {
+          "name": "US09-7 Fehlversuch 3",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401 oder 429 (Fenster kann durch frühere Logins schon voll sein)',()=>pm.expect(pm.response.code).to.be.oneOf([401,429]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{adminUser}}\",\n  \"password\": \"falsches-Passwort-123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/tokens",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "tokens"
+              ]
+            }
+          }
+        },
+        {
+          "name": "US09-7 Fehlversuch 4",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401 oder 429 (Fenster kann durch frühere Logins schon voll sein)',()=>pm.expect(pm.response.code).to.be.oneOf([401,429]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{adminUser}}\",\n  \"password\": \"falsches-Passwort-123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/tokens",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "tokens"
+              ]
+            }
+          }
+        },
+        {
+          "name": "US09-7 Fehlversuch 5",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401 oder 429 (Fenster kann durch frühere Logins schon voll sein)',()=>pm.expect(pm.response.code).to.be.oneOf([401,429]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{adminUser}}\",\n  \"password\": \"falsches-Passwort-123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/tokens",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "tokens"
+              ]
+            }
+          }
+        },
+        {
+          "name": "US09-7 Fehlversuch 6",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 429',()=>pm.response.to.have.status(429));",
+                  "pm.test('code = TOO_MANY_REQUESTS',()=>pm.expect(pm.response.json().code).to.eql('TOO_MANY_REQUESTS'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{adminUser}}\",\n  \"password\": \"falsches-Passwort-123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/tokens",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "tokens"
               ]
             }
           }

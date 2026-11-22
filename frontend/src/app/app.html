@@ -1,6 +1,6 @@
 <header class="site-header surface-dark">
   <a class="skip-link btn btn-primary" href="#main" (click)="skipToMain($event)">Zum Inhalt springen</a>
-  <div class="header-inner">
+  <div class="header-inner" [class.header-admin]="loggedIn()">
     <div class="logo">
       <span class="logo-text">Wetter Heubach</span>
       <span class="kicker logo-kicker">Ostalbkreis</span>
@@ -10,6 +10,11 @@
       <a routerLink="/monat" routerLinkActive="active" ariaCurrentWhenActive="page">Monat</a>
       <a routerLink="/jahr" routerLinkActive="active" ariaCurrentWhenActive="page">Jahr</a>
       <a routerLink="/statistiken" routerLinkActive="active" ariaCurrentWhenActive="page">Rekorde</a>
+      <!-- Nur nach der Anmeldung (E3.7.1, US09); Gäste sehen keinen Hinweis auf den Admin-Bereich -->
+      @if (loggedIn()) {
+        <a class="nav-admin" routerLink="/admin" routerLinkActive="active" ariaCurrentWhenActive="page">Admin</a>
+        <button type="button" class="nav-logout" (click)="logout()">Abmelden</button>
+      }
     </nav>
   </div>
 </header>

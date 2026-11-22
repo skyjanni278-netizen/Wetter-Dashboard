@@ -241,3 +241,29 @@ export interface ApiError {
   timestamp?: string;
   requestId?: string;
 }
+
+/** `user` in der Antwort von `POST /api/auth/tokens` (B4.6). */
+export interface TokenUser {
+  id: number;
+  username: string;
+  roles: string[];
+}
+
+/** Antwort von `POST /api/auth/tokens` (03 B2.2 „token“, B4.6). */
+export interface TokenResponse {
+  accessToken: string;
+  tokenType: 'Bearer';
+  /** Laufzeit in Sekunden (Standard 3600). */
+  expiresIn: number;
+  user: TokenUser;
+}
+
+/** Antwort von `GET /api/auth/me` (03 B2.2 „user“); `passwordHash` kommt nie vor. */
+export interface UserResource {
+  id: number;
+  username: string;
+  roles: string[];
+  isActive: boolean;
+  createdAt: string;
+  lastLoginAt: string | null;
+}
