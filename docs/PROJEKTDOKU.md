@@ -1,6 +1,6 @@
 # Projektdokumentation – Wetter-Dashboard Heubach
 
-> Stand: 22.11.2026 · Roadmap-Schritt 10 · Pflege: siehe Abschnitt „11. Pflege dieser Datei“
+> Stand: 22.11.2026 · Roadmap-Schritt 11 · Pflege: siehe Abschnitt „11. Pflege dieser Datei“
 
 Diese Datei ist eine Landkarte des **aktuellen** Systems: was es gibt, wo es liegt, wie es zusammenhängt. Sie enthält keinen Code und keine Planung (die steht in `docs/umbau/`).
 
@@ -836,6 +836,7 @@ Neueste oben.
 
 | Datum | Schritt | Commit | Änderung |
 |---|---|---|---|
+| 2026-11-22 | 11 | siehe `git log` (Merge Schritt 11) | `RolesGuard` als drittes `APP_GUARD` (ohne Dekorator 403, e2e prüft jede Route auf genau `@Public`/`@Roles`), `@Roles('admin')` an `imports`/`gaps`; `ConfigModule` mit `EnvSchema` (B4.8), `api/.env` + `.env.example`, Teilschemas für die CLI; Helmet (eigene CSP für Swagger), CORS nur mit `CORS_ORIGINS`, `trust proxy`, ohne `X-Powered-By`, Swagger nur bei `SWAGGER_ENABLED`; globales Limit 120/60 s je IP mit `Retry-After`; Log-Ereignisse nach A09 ohne IP/Token/Passwort; Frontend: Admin-Layout mit Status-, Import-, Importdetail- (Polling 2 s) und Lückenseite („Nachladen“); Postman-Ordner SEC, README auf `.env` |
 | 2026-11-22 | 10 | siehe `git log` (Merge Schritt 10) | Anmeldung: `POST /api/auth/tokens` (Zod-`LoginSchema`, bcrypt 12, Dummy-compare, 5 Versuche/min), `GET /api/auth/me`, JWT HS256 mit `iss`/`aud`, globaler `ThrottlerGuard` + `JwtAuthGuard`, `@Public()` auf den Gast-Endpunkten, `@Roles('admin')` vorbereitet; `user`/`role`/`user_role` mit Migrationen, CLI `admin:create`/`admin:set-password`, Dev-Admin per `db:seed` mit `DEV_ADMIN_PASSWORD`; `JWT_SECRET` Pflicht beim Start; Frontend: `AuthService` (`sessionStorage`, Ablauf-Timer), `authInterceptor`, `adminGuard`, Seiten `/admin/anmeldung` und `/admin`, Header mit „Admin“/„Abmelden“; Postman-Ordner US09/US12; Express-Reste in `backend/` gelöscht |
 | 2026-11-22 | 9 | siehe `git log` (Merge Schritt 9) | SQLite über TypeORM (Migrationen, CHECKs, FKs, WAL), TypeORM-Stores unter den bisherigen Tokens, Revisions-Cache, `Cache-Control`/ETag, `GET /api/health` und `/api/gaps`, Seeds/Fixtures per `db:seed`, `db:reset` mit Schutz der Sammel-DB, Start-Bereinigung `INTERRUPTED`; CLI `import:legacy` (Transaktion je Monat, Herkunft Z2, `fetchedAt` je Stunde) und `legacy:dst-check` (Regel `fixed+01:00`); Tests auf der DB; In-Memory-Observation-/Forecast-Store, `LegacyFileSource`, `LEGACY_DATA_DIR`, `FIXTURE` entfernt; Übergabe: Sammel-DB mit 16 560 Stunden plus gaps-Import, Nest auf Port 3000, Proxy nur `/api` → 3000, `backend/src` gelöscht, README neu |
 | 2026-11-21 | 8 | `2099d52` | `GET /api/days?from&to`, `/api/summaries/months?year=`, `/api/summaries/years`, `GET /api/imports` mit Filter und Pagination, alle Query-Schemas `.strict()`; OpenAPI unter `/api/docs` (`SWAGGER_ENABLED`, Schemas aus Zod); Postman-Collection `docs/api/`; Monat und Jahr lesen von Nest (je 2 parallele Requests, Jahresauswahl aus der API, Chips „Unvollständig“ und „N von M Tagen“), `models/weather.ts` entfernt |

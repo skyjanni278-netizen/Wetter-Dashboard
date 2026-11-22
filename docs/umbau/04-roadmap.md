@@ -608,6 +608,24 @@ Danach:
 
 ## Schritt 11 – Rollen, RolesGuard, `.env`, sichere Grundeinstellungen; Admin-Bereich
 
+> **Status:** ✅ Erledigt am 22.11.2026 (Teil 11a Backend, Teil 11b Frontend, dazu Postman und README). 592 Unit- und 175 e2e-Tests in `api/`, 497 Frontend-Tests, newman 67 Requests / 190 Assertions grün. axe findet auf den 4 Admin-Seiten keine Verstöße. `npm audit --omit=dev` meldet 0 Funde der Stufen high und critical (3 moderate in `typeorm` 0.3, behebbar erst mit 1.x). Pakete: `@nestjs/config` ^4.0.4, `helmet` ^8.3.0.
+>
+> **Entscheidungen:**
+> - Die CLI nutzt Teilschemas und braucht kein `JWT_SECRET`.
+> - Tests lesen keine `.env`.
+> - Der Platzhalter für `JWT_SECRET` in `.env.example` ist bewusst zu kurz, damit Nest nicht mit einem bekannten Secret startet. Das Gleiche gilt für die Passwort-Platzhalter.
+> - Schalter wie `SCHEDULER_ENABLED` akzeptieren nur `true` oder `false`.
+> - Das globale Limit gilt je IP für alle Routen zusammen, auch für `/api/health`.
+> - Den 401-Logout macht weiter der `authInterceptor` aus 10b.
+> - Der Admin-Bereich ist ein Layout mit Unternavigation. Das Polling bricht bei jedem Fehler ab.
+>
+> **Offen:**
+> - `requestedBy` bleibt bei Importen `null` (für Schritt 12).
+> - Rollen kommen nur aus dem Token. Ein gesperrter Admin behält bis `exp` (1 h) Zugriff.
+> - Auch manuelle `range`- und `gaps`-Importe setzen `lastSuccessfulUpdateAt` (R25 prüfen).
+> - Das Polling pausiert nicht im verdeckten Tab.
+> - HSTS wirkt erst hinter https (Schritt 14).
+
 **Ziel:** Standard ist „verboten“. Die Konfiguration wird beim Start geprüft. Die sicheren Voreinstellungen aus C1 sind gesetzt. Der Admin-Bereich bedient Importe, Lücken und Status. Damit ist N02 vollständig.
 **Bezug:** US09-8 (403 ohne Rolle), US10-1 bis -8, US11-1 bis -5, US12-1 bis -4, US14-1 bis -3 · N02, N04 (Admin-Teil) · S9 · C1 A01, A02, A03, A06 (globales Limit), A09
 
@@ -644,7 +662,7 @@ Danach:
 | `curl -I http://localhost:3000/api/status` | `X-Content-Type-Options: nosniff`, **kein** `X-Powered-By`, **kein** `Access-Control-Allow-Origin` |
 | `GET /api/docs` bei `SWAGGER_ENABLED=false` | **404** |
 | `cd api && npm audit --omit=dev` | 0 Funde der Stufen high und critical |
-| Browser `/admin/importe`, 1280 px | Ein Import mit `to` nach `from` zeigt den Fehler am Feld „Bis“. Ein gültiger Import zeigt die Box „ERFOLG – Import #… gestartet“, die Detailseite wechselt von „LÄUFT“ auf „OK“ |
+| Browser `/admin/importe`, 1280 px | Ein Import mit `to` vor `from` zeigt den Fehler am Feld „Bis“. Ein gültiger Import zeigt die Box „ERFOLG – Import #… gestartet“, die Detailseite wechselt von „LÄUFT“ auf „OK“ |
 | Browser `/admin/luecken`, 375 px | Tabelle ohne horizontales Scrollen der Seite. „Nachladen“ startet einen `gaps`-Import (US12-3) |
 | Browser: abgelaufenes Token, Klick auf „Importe“ | Weiterleitung auf `/admin/anmeldung?returnUrl=/admin/importe` |
 
