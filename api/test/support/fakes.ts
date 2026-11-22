@@ -2,8 +2,6 @@
  * Hilfen für Unit- und e2e-Tests (nicht Teil des Builds, `tsconfig.build.json` schließt `test/` aus).
  * Kein Test ruft Open-Meteo wirklich auf: Antworten entstehen hier.
  */
-import type { LegacyFileSource } from '../../src/legacy/legacy-file-source';
-import type { LegacyDayFile, LegacyForecast, LegacyHour } from '../../src/legacy/legacy-types';
 import type { FetchFn, ProviderForecastDay, ProviderHour } from '../../src/weather-provider/open-meteo.client';
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -105,47 +103,4 @@ export function fakeFetch(handlers: {
     if (url.searchParams.has('daily') && handlers.daily) return handlers.daily(url);
     throw new Error(`Unerwartete Abfrage: ${url.toString()}`);
   });
-}
-
-/** 24 Stunden eines Tages im Altformat (Ortszeit ohne Offset). */
-export function legacyDay(date: string, valueOf: (hour: number) => Partial<Values> = () => ({})): LegacyHour[] {
-  return Array.from({ length: 24 }, (_, hour) => ({
-    time: `${date}T${String(hour).padStart(2, '0')}:00`,
-    ...hourValues(hour, valueOf(hour)),
-  }));
-}
-
-/**
- * Ersatz für `LegacyFileSource` ohne Dateien; `days`, `modifiedAt` (Änderungszeit je Tag, wie bei der
- * heutigen Datei) und `forecast` lassen sich im Test ändern.
- */
-export class FakeLegacySource {
-  readonly modifiedAt = new Map<string, string>();
-
-  constructor(
-    readonly days = new Map<string, LegacyHour[]>(),
-    public forecast: LegacyForecast | null = null,
-  ) {}
-
-  async getDay(date: string): Promise<LegacyHour[] | null> {
-    return this.days.get(date) ?? null;
-  }
-
-  async getDayFile(date: string): Promise<LegacyDayFile | null> {
-    const hours = this.days.get(date);
-    return hours ? { hours, modifiedAt: this.modifiedAt.get(date) ?? null } : null;
-  }
-
-  async getDataRange(): Promise<{ from: string | null; to: string | null }> {
-    const dates = [...this.days.keys()].sort();
-    return { from: dates[0] ?? null, to: dates[dates.length - 1] ?? null };
-  }
-
-  async getForecast(): Promise<LegacyForecast | null> {
-    return this.forecast;
-  }
-
-  asSource(): LegacyFileSource {
-    return this as unknown as LegacyFileSource;
-  }
 }

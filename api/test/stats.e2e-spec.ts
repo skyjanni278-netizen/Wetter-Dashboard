@@ -1,6 +1,3 @@
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
@@ -10,7 +7,7 @@ import { Clock, FixedClock } from '../src/common/clock';
 import { loadFixture } from '../src/fixtures/fixture';
 import type { Fixture } from '../src/fixtures/fixture';
 import { createTestApp } from './support/app';
-import { useLegacyStores } from './support/legacy-stores';
+import { fixtureOf, seedApp } from './support/seed';
 
 /** 14:30 MEZ am 19.11.2026 (03 B1.2). */
 const NOW = '2026-11-19T13:30:00Z';
@@ -21,27 +18,17 @@ interface Harness {
   close(): Promise<void>;
 }
 
-/** App wie `main.ts` mit fester Uhr und Fixture; der Altbestand ist ein leerer Temp-Ordner. */
+/** App wie `main.ts` mit fester Uhr; die Fixture steht per `applySeed` in ihrer `:memory:`-Datenbank. */
 async function startWith(fixture: Fixture, now = NOW): Promise<Harness> {
-  const emptyDir = await mkdtemp(path.join(tmpdir(), 'wetter-stats-e2e-'));
   const clock = new FixedClock(now);
-  const moduleRef = await useLegacyStores(
-    Test.createTestingModule({ imports: [AppModule] }).overrideProvider(Clock).useValue(clock),
-    { clock, dataDir: emptyDir, fixture },
-  ).compile();
+  const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(Clock).useValue(clock).compile();
   const app = await createTestApp(moduleRef);
-  return {
-    app,
-    clock,
-    close: async () => {
-      await app.close();
-      await rm(emptyDir, { recursive: true, force: true });
-    },
-  };
+  await seedApp(app, fixture, clock.now());
+  return { app, clock, close: () => app.close() };
 }
 
 function emptyFixture(observations: Fixture['observations'] = []): Fixture {
-  return { name: 'leer', description: '', fakeNow: null, observations, imports: [], forecast: null };
+  return fixtureOf(observations);
 }
 
 describe('Fachregeln und berechnete Felder (Schritt 7, e2e mit Fixtures und FixedClock)', () => {

@@ -61,8 +61,7 @@ Wetter-Dashboard/
 │   │   ├── server.ts         # Express-Server + REST-Endpunkte
 │   │   ├── scheduler.ts      # Stündlicher Cron-Job (Datenabruf)
 │   │   ├── weather-api.ts    # Open-Meteo API-Integration
-│   │   ├── data-store.ts     # JSON-Dateien lesen/schreiben + Aggregation
-│   │   └── seed-data.ts      # Testdaten generieren
+│   │   └── data-store.ts     # JSON-Dateien lesen/schreiben + Aggregation
 │   ├── data/                 # Gespeicherte Wetterdaten (auto-generiert)
 │   │   └── YYYY-MM/
 │   │       └── YYYY-MM-DD.json

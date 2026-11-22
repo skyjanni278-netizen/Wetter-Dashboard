@@ -1,6 +1,5 @@
 import { existsSync } from 'node:fs';
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { rm } from 'node:fs/promises';
 import path from 'node:path';
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
@@ -15,7 +14,8 @@ import type { ImportKind, ImportStatus } from '../src/imports/import';
 import { IMPORT_STORE } from '../src/imports/import.store';
 import type { ImportStore } from '../src/imports/import.store';
 import { createTestApp } from './support/app';
-import { useLegacyStores } from './support/legacy-stores';
+import { copyLegacySubset, importLegacy } from './support/legacy-files';
+import { seedApp } from './support/seed';
 
 /** Prüfzeitpunkt der Roadmap: 14:30 MEZ am 19.11.2026 (`FAKE_NOW=2026-11-19T13:30:00Z`). */
 const NOW = '2026-11-19T13:30:00Z';
@@ -24,19 +24,22 @@ const DATA_DIR = path.resolve(__dirname, '../../backend/data');
 
 const runWithData = existsSync(DATA_DIR) ? describe : describe.skip;
 
+/**
+ * App mit fester Uhr auf `:memory:`: mit `dataDir` die Tagesdateien bis heute (19.11.2026, Kopie mit
+ * Änderungszeiten) per Altdatenimport, mit `fixture` per `applySeed`, sonst leer.
+ */
 async function start(options: { dataDir?: string; fixture?: Fixture | null }) {
-  const emptyDir = options.dataDir ? null : await mkdtemp(path.join(tmpdir(), 'wetter-lists-e2e-'));
   const clock = new FixedClock(NOW);
-  const moduleRef = await useLegacyStores(
-    Test.createTestingModule({ imports: [AppModule] }).overrideProvider(Clock).useValue(clock),
-    { clock, dataDir: options.dataDir ?? emptyDir!, fixture: options.fixture ?? null },
-  ).compile();
+  const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(Clock).useValue(clock).compile();
   const app = await createTestApp(moduleRef);
+  const subset = options.dataDir ? await copyLegacySubset(options.dataDir, '2026-11-19') : null;
+  if (subset) await importLegacy(app, subset, clock);
+  if (options.fixture) await seedApp(app, options.fixture, clock.now());
   return {
     app,
     close: async () => {
       await app.close();
-      if (emptyDir) await rm(emptyDir, { recursive: true, force: true });
+      if (subset) await rm(subset, { recursive: true, force: true });
     },
   };
 }
@@ -171,9 +174,18 @@ runWithData('Schritt 8: Listen und Zusammenfassungen mit backend/data (Fertig-Kr
     expect((await get('/api/imports?page=0').expect(400)).body.errors[0]).toMatchObject({ field: 'page', code: 'too_small' });
   });
 
-  it('GET /api/imports → 200 { items, meta } (ohne Nest-Importe leer)', async () => {
-    const res = await get('/api/imports').expect(200);
-    expect(res.body).toEqual({ items: [], meta: { page: 1, limit: 20, total: 0 } });
+  it('US15-2: GET /api/imports?kind=legacy → 200, genau der Altdatenimport (688 Dateien bis 19.11.2026)', async () => {
+    const res = await get('/api/imports?kind=legacy').expect(200);
+    expect(res.body.meta).toEqual({ page: 1, limit: 20, total: 1 });
+    expect(res.body.items[0]).toMatchObject({
+      id: 1,
+      kind: 'legacy',
+      status: 'succeeded',
+      from: '2025-01-01',
+      to: '2026-11-19',
+      counts: { inserted: 688 * 24, updated: 0, unchanged: 0, skippedCorrected: 0 },
+    });
+    expect((await get('/api/imports?kind=range').expect(200)).body).toEqual({ items: [], meta: { page: 1, limit: 20, total: 0 } });
   });
 
   it('V35: GET /api/status → dataFrom/dataTo aus dem Observation-Store', async () => {

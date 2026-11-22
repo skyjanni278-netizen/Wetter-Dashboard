@@ -11,8 +11,7 @@ import { TypeOrmObservationStore } from './typeorm-observation.store';
  * Stundenwerte (03 B4.1): Tabelle `observation` über den `TypeOrmObservationStore` (Token
  * `OBSERVATION_STORE`) und `GET /api/gaps`. Exportiert nur den Store. Kennt das `ImportsModule` **nicht**:
  * die `importId` eines Imports kommt nur als Wert herein (Spalte `import_id`), sonst entstünde der Zyklus
- * Imports ↔ Observations. Der `InMemoryObservationStore` bleibt für Unit-Tests und den Testpfad mit
- * Altdateien (`test/support/legacy-stores.ts`).
+ * Imports ↔ Observations. Den Altbestand schreibt `cli import:legacy` über denselben Store (03 B2.7).
  */
 @Module({
   imports: [CommonModule, TypeOrmModule.forFeature([Observation])],

@@ -90,6 +90,26 @@ describe('TypeOrmObservationStore (SQLite :memory:, Migrationen wie im Betrieb)'
       expect(await storedRow(dataSource, '2026-11-20T13:00:00Z')).toMatchObject({ source: 'forecast_api', version: 2 });
     });
 
+    it('fetchedAt je Stunde (Altdatenimport, B2.7 Schritt 6): fetched_at und R08-Grenze, updated_at bleibt jetzt', async () => {
+      const fetchedAt = '2026-11-19T21:04:32Z';
+      const day = hours('2026-11-19T20:00:00Z', 3).map(h => ({ ...h, fetchedAt }));
+      await store.upsertHours(day, { mode: 'upsert', importId });
+      expect(await storedRow(dataSource, '2026-11-19T21:00:00Z')).toMatchObject({
+        source: 'forecast_api',
+        fetched_at: fetchedAt,
+        updated_at: '2026-11-20T12:00:00Z',
+      });
+      // 22:00Z liegt nach dem Abruf (21:04:32Z), obwohl die Stunde beim Schreiben schon vorbei ist.
+      expect(await storedRow(dataSource, '2026-11-19T22:00:00Z')).toMatchObject({ source: 'prediction', fetched_at: fetchedAt });
+
+      // Zweiter Lauf später: gleicher Abrufzeitpunkt → nichts ändert sich (idempotent, US15-3).
+      clock.set('2026-11-22T08:00:00Z');
+      expect(await store.upsertHours(day, { mode: 'upsert', importId })).toMatchObject({ inserted: 0, updated: 0, unchanged: 3 });
+      await expect(store.upsertHours([{ ...day[0], fetchedAt: 'gestern' }], { mode: 'upsert', importId })).rejects.toThrow(
+        /ungültigem Abrufzeitpunkt/,
+      );
+    });
+
     it('gaps (insertMissing): nur fehlende Stunden, veraltete Vorhersagen und null-Lücken; sonst unchanged', async () => {
       clock.set('2026-11-10T03:30:00Z');
       await store.upsertHours(hours('2026-11-09T23:00:00Z', 6, i => (i === 1 ? { temperature: null } : {})), {

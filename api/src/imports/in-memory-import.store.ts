@@ -1,36 +1,18 @@
-import { Inject, Injectable, Optional } from '@nestjs/common';
-import { ACTIVE_FIXTURE } from '../fixtures/fixture';
-import type { Fixture } from '../fixtures/fixture';
-import { HEUBACH } from '../locations/location';
-import { ACTIVE_IMPORT_STATUSES, emptyCounts } from './import';
+import { Injectable } from '@nestjs/common';
+import { ACTIVE_IMPORT_STATUSES } from './import';
 import type { ImportKind, ImportRecord, ImportStatus } from './import';
 import { ImportAlreadyRunningError, INTERRUPTED_ERROR } from './import.store';
 import type { ImportPage, ImportPageQuery, ImportStore, ImportUpdate, NewImport } from './import.store';
 
 /**
- * `ImportStore` im Arbeitsspeicher (Schritt 3; seit Schritt 9 nur Unit-Tests und Testpfad). IDs ab 1 nach jedem Start.
- * Mit einer Fixture stehen die Importe der Fixture schon darin (für `updateState`, R25, US16).
+ * `ImportStore` im Arbeitsspeicher, seit Schritt 9b **nur** als Test-Fake für Unit-Tests von Services
+ * (`ImportsService`, `SchedulerService`, `StatusService`): ohne Datenbank, mit denselben Regeln (R19, Sortierung
+ * von `findPage`). Die App nutzt den `TypeOrmImportStore`. IDs ab 1 je Instanz.
  */
 @Injectable()
 export class InMemoryImportStore implements ImportStore {
   private readonly records = new Map<number, ImportRecord>();
   private nextId = 1;
-
-  constructor(@Optional() @Inject(ACTIVE_FIXTURE) fixture: Fixture | null = null) {
-    for (const entry of fixture?.imports ?? []) {
-      const id = this.nextId++;
-      this.records.set(id, {
-        ...entry,
-        id,
-        locationId: HEUBACH.id,
-        overwriteCorrections: false,
-        requestedBy: null,
-        counts: emptyCounts(),
-        warnings: [],
-        error: null,
-      });
-    }
-  }
 
   async create(input: NewImport): Promise<ImportRecord> {
     // Synchron zwischen Prüfung und Anlegen: kein zweiter Aufruf kann dazwischenkommen (R19).

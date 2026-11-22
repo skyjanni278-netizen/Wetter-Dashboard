@@ -1,24 +1,29 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { rm } from 'node:fs/promises';
 import path from 'node:path';
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../../src/app.module';
+import { localDate, localDateTime, startOfDayUtc } from '../../src/common/berlin-time';
 import { Clock, FixedClock } from '../../src/common/clock';
+import { legacyTimeToUtc } from '../../src/legacy/legacy-time';
 import { createTestApp } from '../support/app';
-import { useLegacyStores } from '../support/legacy-stores';
+import { copyLegacySubset, importLegacy } from '../support/legacy-files';
 
 /**
- * Charakterisierung (03 B2.7 Schritt 9, Roadmap Schritt 7): vergleicht die neue API (Nest, Altbestand aus
- * `backend/data`, nur lesend) mit den Golden Files der Express-API. Toleranz 0,05. Jede Abweichung muss in
- * `expected-differences.json` mit F-/R-Nummer und Begründung stehen; die Abbildung der Felder steht in
+ * Charakterisierung (03 B2.7 Schritt 9, Roadmap Schritt 7): vergleicht die neue API mit den Golden Files der
+ * Express-API. Seit Schritt 9b liest Nest den Altbestand aus der Datenbank: `backend/data` (nur lesend; eine Kopie
+ * der Tagesdateien bis heute mit ihren Änderungszeiten) kommt per Altdatenimport (`LegacyImporter`, Regel
+ * `LEGACY_TIME_RULE`) in die `:memory:`-Datenbank. Toleranz 0,05. Jede Abweichung muss in
+ * `expected-differences.json` mit F-/R-/Z-Nummer und Begründung stehen; die Abbildung der Felder steht in
  * `README.md`. Braucht kein laufendes Express. Ohne `backend/data` (nicht im Git) wird der Test übersprungen.
  */
 const DATA_DIR = path.resolve(__dirname, '../../../backend/data');
 const GOLDEN_DIR = path.join(__dirname, 'golden');
 const TOLERANCE = 0.05;
-/** Fester Zeitpunkt nach dem Aufnahmetag (19.11.2026); spätere Dateien in `backend/data` stören nicht. */
+/** Fester Zeitpunkt nach dem Aufnahmetag (19.11.2026). Importiert werden nur Dateien bis heute (20.11.2026). */
 const NOW = '2026-11-20T12:00:00Z';
 
 interface ExpectedDifference {
@@ -71,6 +76,7 @@ const run = existsSync(DATA_DIR) ? describe : describe.skip;
 
 run('Charakterisierung: neue API gegenüber den Golden Files von Express', () => {
   let app: INestApplication<App>;
+  let subset: string | undefined;
   const deviations: Deviation[] = [];
   const dayCache = new Map<string, Record<string, any>>();
 
@@ -93,19 +99,18 @@ run('Charakterisierung: neue API gegenüber den Golden Files von Express', () =>
   }
 
   beforeAll(async () => {
-    // TODO(9b): Nach `cli import:legacy` gegen die Datenbank prüfen (Altbestand importiert, ohne
-    // `useLegacyStores`) und die erwarteten Abweichungen der DST-Regel aus B2.7 Schritt 2 ergänzen.
-    // Bis dahin lesen die In-Memory-Stores `backend/data` wie vor Schritt 9 (nur lesend).
     const clock = new FixedClock(NOW);
-    const moduleRef = await useLegacyStores(
-      Test.createTestingModule({ imports: [AppModule] }).overrideProvider(Clock).useValue(clock),
-      { clock, dataDir: DATA_DIR },
-    ).compile();
+    const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(Clock).useValue(clock).compile();
     app = await createTestApp(moduleRef);
+    // Die Datei vom 21.11. (und spätere) gehört nicht zum Stand des Tests; Änderungszeiten bleiben (R08, Z2).
+    subset = await copyLegacySubset(DATA_DIR, localDate(clock.now()));
+    const report = await importLegacy(app, subset, clock);
+    expect(report).toMatchObject({ status: 'succeeded', files: { invalid: 0 } });
   });
 
   afterAll(async () => {
     await app?.close();
+    if (subset) await rm(subset, { recursive: true, force: true });
   });
 
   it('Tage (day-*.json): jede Stunde und jeder Wert', async () => {
@@ -114,14 +119,21 @@ run('Charakterisierung: neue API gegenüber den Golden Files von Express', () =>
     for (const file of files) {
       const g = golden<{ date: string; hourly: GoldenHour[] }>(file);
       const body = await day(g.date);
-      const hours = body.hours as Record<string, unknown>[];
-      check(`day:${g.date}:hours`, g.hourly.length, hours.length);
-      g.hourly.forEach(gh => {
-        const hour = hours.find(h => h.timeLocal === gh.time);
+      check(`day:${g.date}:hours`, g.hourly.length, (body.hours as unknown[]).length);
+      for (const gh of g.hourly) {
+        // Dieselbe physikalische Stunde: Ortszeit der Altdatei → UTC nach der Regel (Z1) → Berliner Ortszeit.
+        // Im Sommer liegt sie eine Stunde später, die Stunde 23:00 schon am Folgetag (README „Abbildung“).
+        // `hours[]` ist nach UTC sortiert und lückenlos: Index = Stunden seit 00:00 Berlin (eindeutig auch bei
+        // der doppelten Ortszeit 02:00 am Ende der Sommerzeit).
+        const instant = new Date(legacyTimeToUtc(gh.time)!);
+        const date = localDate(instant);
+        const index = (instant.getTime() - startOfDayUtc(date).getTime()) / 3_600_000;
+        const candidate = ((await day(date)).hours as Record<string, unknown>[])[index];
+        const hour = candidate?.timeLocal === localDateTime(instant) ? candidate : undefined;
         for (const [goldenField, field] of HOUR_FIELDS) {
           check(`day:${g.date}:${gh.time.slice(11)}:${field}`, gh[goldenField], hour?.[field]);
         }
-      });
+      }
     }
   });
 

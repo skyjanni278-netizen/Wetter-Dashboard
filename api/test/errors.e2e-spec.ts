@@ -1,6 +1,3 @@
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
 import { INestApplication, Logger } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
@@ -10,25 +7,9 @@ import { Clock, FixedClock } from '../src/common/clock';
 import { LocationsService } from '../src/locations/locations.service';
 import { OpenMeteoClient } from '../src/weather-provider/open-meteo.client';
 import { createTestApp } from './support/app';
-import { legacyDay } from './support/fakes';
-import { useLegacyStores } from './support/legacy-stores';
+import { dayObservations, fixtureOf, seedApp } from './support/seed';
 
 const REQUEST_ID = /^[0-9a-f]{8}$/;
-
-async function writeDay(dir: string, date: string): Promise<void> {
-  const file = path.join(dir, date.slice(0, 7), `${date}.json`);
-  await mkdir(path.dirname(file), { recursive: true });
-  const hourly = legacyDay(date).map(h => ({
-    time: h.time,
-    temperature: h.temperature,
-    apparentTemperature: h.apparentTemperature,
-    precipitation: h.precipitation,
-    weathercode: h.weatherCode,
-    windspeed: h.windSpeed,
-    winddirection: h.windDirection,
-  }));
-  await writeFile(file, JSON.stringify({ date, location: 'Heubach', hourly }));
-}
 
 /** Kein Test darf Open-Meteo aufrufen; ein Import entsteht hier ohnehin nie. */
 const offlineProvider = {
@@ -41,30 +22,24 @@ const offlineProvider = {
 };
 
 describe('Fehlerformat und Statuscodes (Schritt 5, B3.2/B3.3)', () => {
-  let dataDir: string;
   let app: INestApplication<App>;
-  // 20.11.2026, 11:00 Berlin: heute gibt es keine Datei, morgen ist der 21.11.
+  // 20.11.2026, 11:00 Berlin: heute gibt es keine Stunde, morgen ist der 21.11.
   const clock = new FixedClock('2026-11-20T10:00:00Z');
 
   beforeAll(async () => {
-    dataDir = await mkdtemp(path.join(tmpdir(), 'wetter-api-errors-'));
-    await writeDay(dataDir, '2025-01-01');
-    await writeDay(dataDir, '2026-11-19');
-
-    const moduleRef = await useLegacyStores(
-      Test.createTestingModule({ imports: [AppModule] })
-        .overrideProvider(Clock)
-        .useValue(clock)
-        .overrideProvider(OpenMeteoClient)
-        .useValue(offlineProvider),
-      { clock, dataDir },
-    ).compile();
+    const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+      .overrideProvider(Clock)
+      .useValue(clock)
+      .overrideProvider(OpenMeteoClient)
+      .useValue(offlineProvider)
+      .compile();
     app = await createTestApp(moduleRef);
+    // Zwei Tage in der `:memory:`-Datenbank (applySeed wie `db:seed --fixture`).
+    await seedApp(app, fixtureOf([...dayObservations('2025-01-01'), ...dayObservations('2026-11-19')]), clock.now());
   });
 
   afterAll(async () => {
     await app.close();
-    await rm(dataDir, { recursive: true, force: true });
   });
 
   it('US02-5, R03: GET /api/days/2024-12-31 → 404 NO_DATA, Meldung nennt 01.01.2025, details.dataFrom', async () => {
@@ -225,7 +200,6 @@ describe('Fehlerformat und Statuscodes (Schritt 5, B3.2/B3.3)', () => {
 });
 
 describe('Unerwarteter Fehler im Service (Schritt 5: 500 ohne Stacktrace)', () => {
-  let dataDir: string;
   let app: INestApplication<App>;
   const failing = {
     findAll: () => {
@@ -237,24 +211,20 @@ describe('Unerwarteter Fehler im Service (Schritt 5: 500 ohne Stacktrace)', () =
   };
 
   beforeAll(async () => {
-    dataDir = await mkdtemp(path.join(tmpdir(), 'wetter-api-500-'));
     const clock = new FixedClock('2026-11-20T10:00:00Z');
-    const moduleRef = await useLegacyStores(
-      Test.createTestingModule({ imports: [AppModule] })
-        .overrideProvider(Clock)
-        .useValue(clock)
-        .overrideProvider(OpenMeteoClient)
-        .useValue(offlineProvider)
-        .overrideProvider(LocationsService)
-        .useValue(failing),
-      { clock, dataDir },
-    ).compile();
+    const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+      .overrideProvider(Clock)
+      .useValue(clock)
+      .overrideProvider(OpenMeteoClient)
+      .useValue(offlineProvider)
+      .overrideProvider(LocationsService)
+      .useValue(failing)
+      .compile();
     app = await createTestApp(moduleRef);
   });
 
   afterAll(async () => {
     await app.close();
-    await rm(dataDir, { recursive: true, force: true });
   });
 
   it.each(['/api/locations', '/api/locations/1'])('GET %s → 500, message "Interner Fehler", kein stack', async url => {

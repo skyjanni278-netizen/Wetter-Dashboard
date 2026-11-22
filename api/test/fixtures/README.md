@@ -10,7 +10,7 @@ curl -s http://127.0.0.1:3001/api/days/today
 
 Abweichung beim Seed: Importe mit `kind` `legacy`/`scheduled` werden als `range` angelegt. Diese Arten kennzeichnen gesammelte Daten, und der nächste `db:seed`/`db:reset` würde sich sonst verweigern; für `updateState` (R25) zählt `range` gleich. Fixtures ohne Import (`us06-records`, `us02-dst`) bekommen einen Import `range` mit `finishedAt` = `fakeNow`, weil jede Stunde einen Import braucht (`observation.import_id`).
 
-Die e2e-Tests laden die Dateien mit `loadFixture(<name>)` und geben sie über `useLegacyStores` (`test/support/legacy-stores.ts`) den In-Memory-Stores (Übergang bis Schritt 9b).
+Die e2e-Tests laden die Dateien mit `loadFixture(<name>)` und schreiben sie mit `seedApp` (`test/support/seed.ts`, also `applySeed` wie `db:seed`) in ihre `:memory:`-Datenbank (seit Schritt 9b).
 
 ## Format
 

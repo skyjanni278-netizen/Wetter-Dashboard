@@ -13,7 +13,7 @@ describe('RevisionCache (03 B2.4)', () => {
   it('gleiche Revision und Stunde → einmal gerechnet; neue Revision → neu gerechnet', async () => {
     const { store, set } = storeWithRevision('10:2026-11-19T13:05:00Z:10');
     const cache = new RevisionCache(store);
-    const compute = jest.fn(async () => ({ value: compute.mock.calls.length }));
+    const compute: jest.Mock<Promise<{ value: number }>, []> = jest.fn(async () => ({ value: compute.mock.calls.length }));
 
     expect(await cache.get('records', now, compute)).toEqual({ value: 1 });
     expect(await cache.get('records', new Date('2026-11-19T13:59:59Z'), compute)).toEqual({ value: 1 });

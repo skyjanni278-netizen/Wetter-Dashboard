@@ -1,9 +1,8 @@
-import { FakeLegacySource, legacyDay } from '../../test/support/fakes';
 import { FixedClock } from '../common/clock';
 import { emptyCounts } from '../imports/import';
 import type { ImportKind, ImportStatus } from '../imports/import';
 import { InMemoryImportStore } from '../imports/in-memory-import.store';
-import { InMemoryObservationStore } from '../observations/in-memory-observation.store';
+import type { ObservationStore } from '../observations/observation.store';
 import { StatusService, UPDATE_DELAYED_AFTER_MS, updateStateOf } from './status.service';
 
 const FINISHED = '2026-11-19T12:00:00Z';
@@ -29,12 +28,11 @@ async function finishedImport(
 }
 
 function setup(now: string) {
-  const legacy = new FakeLegacySource();
-  legacy.days.set('2025-01-01', legacyDay('2025-01-01'));
-  legacy.days.set('2026-11-19', legacyDay('2026-11-19'));
+  // Der StatusService braucht vom Store nur den Datenzeitraum (V35).
+  const observations = { getDataRange: async () => ({ from: '2025-01-01', to: '2026-11-19' }) } as ObservationStore;
   const imports = new InMemoryImportStore();
   const clock = new FixedClock(now);
-  const service = new StatusService(new InMemoryObservationStore(legacy.asSource(), clock), imports, clock);
+  const service = new StatusService(observations, imports, clock);
   return { imports, clock, service };
 }
 

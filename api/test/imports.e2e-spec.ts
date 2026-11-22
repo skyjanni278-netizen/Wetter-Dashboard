@@ -1,6 +1,4 @@
-import { mkdtemp, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { rm } from 'node:fs/promises';
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
@@ -11,29 +9,13 @@ import { ImportRunner } from '../src/imports/import-runner';
 import { OpenMeteoClient } from '../src/weather-provider/open-meteo.client';
 import type { HourlyRequest, ProviderHour } from '../src/weather-provider/open-meteo.client';
 import { createTestApp } from './support/app';
-import { forecastDays, legacyDay, providerHours } from './support/fakes';
-import { useLegacyStores } from './support/legacy-stores';
+import { forecastDays, providerHours } from './support/fakes';
+import { importLegacy, tempDir, writeLegacyDay } from './support/legacy-files';
 
 /** Stunden für die angefragten UTC-Tage, wie Open-Meteo sie mit `timezone=GMT` liefert. */
 function hoursFor(req: HourlyRequest): ProviderHour[] {
   const days = (Date.parse(`${req.endDate}T00:00:00Z`) - Date.parse(`${req.startDate}T00:00:00Z`)) / 86_400_000 + 1;
   return providerHours(`${req.startDate}T00:00:00Z`, days * 24);
-}
-
-async function writeDay(dir: string, date: string): Promise<string> {
-  const file = path.join(dir, date.slice(0, 7), `${date}.json`);
-  await mkdir(path.dirname(file), { recursive: true });
-  const hourly = legacyDay(date).map(h => ({
-    time: h.time,
-    temperature: h.temperature,
-    apparentTemperature: h.apparentTemperature,
-    precipitation: h.precipitation,
-    weathercode: h.weatherCode,
-    windspeed: h.windSpeed,
-    winddirection: h.windDirection,
-  }));
-  await writeFile(file, JSON.stringify({ date, location: 'Heubach', hourly }));
-  return file;
 }
 
 describe('Importe (Schritt 3, e2e mit gemocktem Provider, ohne Netz)', () => {
@@ -54,20 +36,20 @@ describe('Importe (Schritt 3, e2e mit gemocktem Provider, ohne Netz)', () => {
   };
 
   beforeAll(async () => {
-    dataDir = await mkdtemp(path.join(tmpdir(), 'wetter-api-imports-'));
-    await writeDay(dataDir, '2026-10-01');
-    await writeDay(dataDir, '2026-10-02');
+    // Altbestand 01.–02.10.2026 als Import 1 (kind = legacy, Regel fixed+01:00: Berliner 01.10. 01:00 bis 03.10. 00:00).
+    dataDir = await tempDir('wetter-api-imports-');
+    await writeLegacyDay(dataDir, '2026-10-01', { modifiedAt: '2026-11-19T13:36:00Z' });
+    await writeLegacyDay(dataDir, '2026-10-02', { modifiedAt: '2026-11-19T13:36:00Z' });
 
-    const moduleRef = await useLegacyStores(
-      Test.createTestingModule({ imports: [AppModule] })
-        .overrideProvider(Clock)
-        .useValue(clock)
-        .overrideProvider(OpenMeteoClient)
-        .useValue(provider),
-      { clock, dataDir },
-    ).compile();
+    const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+      .overrideProvider(Clock)
+      .useValue(clock)
+      .overrideProvider(OpenMeteoClient)
+      .useValue(provider)
+      .compile();
     app = await createTestApp(moduleRef);
     runner = app.get(ImportRunner);
+    await importLegacy(app, dataDir, clock);
   });
 
   afterAll(async () => {
@@ -77,23 +59,43 @@ describe('Importe (Schritt 3, e2e mit gemocktem Provider, ohne Netz)', () => {
     await rm(dataDir, { recursive: true, force: true });
   });
 
-  it('US07-2: vor dem ersten Import ist updateState "never"', async () => {
+  it('US07-2: vor dem ersten Import über die API ist updateState "never" (legacy zählt nicht, R25)', async () => {
     const res = await request(app.getHttpServer()).get('/api/status').expect(200);
     expect(res.body).toMatchObject({ updateState: 'never', lastSuccessfulUpdateAt: null });
   });
 
-  it('US10-3, R19, US11-1: 202 mit Location, 409 während des Laufs, danach succeeded; keine Datei geändert', async () => {
-    const fileBefore = await readFile(path.join(dataDir, '2026-10', '2026-10-01.json'), 'utf-8');
-    const mtimeBefore = (await stat(path.join(dataDir, '2026-10', '2026-10-01.json'))).mtimeMs;
+  it('US15-2: GET /api/imports?kind=legacy → der Altdatenimport mit 48 Stunden', async () => {
+    const res = await request(app.getHttpServer()).get('/api/imports?kind=legacy').expect(200);
+    expect(res.body.meta.total).toBe(1);
+    expect(res.body.items[0]).toMatchObject({
+      id: 1,
+      kind: 'legacy',
+      status: 'succeeded',
+      from: '2026-10-01',
+      to: '2026-10-02',
+      counts: { inserted: 48, updated: 0, unchanged: 0, skippedCorrected: 0 },
+      error: null,
+    });
+    // Protokoll: Regel, Herkunft, Stundenzahl der Randtage (Sommer, fixed+01:00), ohne forecast.json nur ein Hinweis.
+    expect(res.body.items[0].warnings.map((w: { code: string; message: string }) => `${w.code} ${w.message.slice(0, 10)}`)).toEqual([
+      'LEGACY_TIME_RULE Ortszeiten',
+      'LEGACY_SOURCES Herkunft (',
+      'LEGACY_HOURS_PER_DAY 2026-10-01',
+      'LEGACY_HOURS_PER_DAY 2026-10-03',
+      'LEGACY_NO_FORECAST forecast.j',
+    ]);
+  });
+
+  it('US10-3, R19, US11-1: 202 mit Location, 409 während des Laufs, danach succeeded', async () => {
     gate = new Promise(resolve => (release = resolve));
 
     const created = await request(app.getHttpServer())
       .post('/api/imports')
       .send({ kind: 'range', from: '2026-10-01', to: '2026-10-03' })
       .expect(202);
-    expect(created.headers['location']).toBe('/api/imports/1');
+    expect(created.headers['location']).toBe('/api/imports/2');
     expect(created.body).toMatchObject({
-      id: 1,
+      id: 2,
       locationId: 1,
       kind: 'range',
       status: 'queued',
@@ -105,7 +107,7 @@ describe('Importe (Schritt 3, e2e mit gemocktem Provider, ohne Netz)', () => {
       counts: { inserted: 0, updated: 0, unchanged: 0, skippedCorrected: 0 },
       warnings: [],
       error: null,
-      links: { self: '/api/imports/1' },
+      links: { self: '/api/imports/2' },
     });
 
     const conflict = await request(app.getHttpServer())
@@ -120,29 +122,24 @@ describe('Importe (Schritt 3, e2e mit gemocktem Provider, ohne Netz)', () => {
       path: '/api/imports',
       timestamp: '2026-11-20T10:00:00Z',
       requestId: expect.stringMatching(/^[0-9a-f]{8}$/),
-      details: { runningImportId: 1 },
+      details: { runningImportId: 2 },
     });
     expect(conflict.headers['location']).toBeUndefined();
 
-    const running = await request(app.getHttpServer()).get('/api/imports/1').expect(200);
+    const running = await request(app.getHttpServer()).get('/api/imports/2').expect(200);
     expect(running.body.status).toBe('running');
 
     release();
     await runner.whenIdle();
 
-    const done = await request(app.getHttpServer()).get('/api/imports/1').expect(200);
+    const done = await request(app.getHttpServer()).get('/api/imports/2').expect(200);
     expect(done.body).toMatchObject({ status: 'succeeded', finishedAt: '2026-11-20T10:00:00Z', error: null });
+    // 48 der 72 Berliner Stunden gibt es aus dem Altbestand schon (andere Werte → updated), 24 sind neu.
     expect(done.body.counts.inserted).toBe(24);
     expect(done.body.counts.updated + done.body.counts.unchanged).toBe(48);
 
     const day = await request(app.getHttpServer()).get('/api/days/2026-10-03').expect(200);
     expect(day.body.hours).toHaveLength(24);
-
-    // Nest schreibt nie in den Datenordner (Express bleibt der Schreiber).
-    expect(await readFile(path.join(dataDir, '2026-10', '2026-10-01.json'), 'utf-8')).toBe(fileBefore);
-    expect((await stat(path.join(dataDir, '2026-10', '2026-10-01.json'))).mtimeMs).toBe(mtimeBefore);
-    expect((await readdir(path.join(dataDir, '2026-10'))).sort()).toEqual(['2026-10-01.json', '2026-10-02.json']);
-    expect(await readdir(dataDir)).toEqual(['2026-10']);
   });
 
   it('R25: nach dem erfolgreichen Import updateState "ok"; Vorhersage aus dem Import', async () => {
@@ -180,7 +177,7 @@ describe('Importe (Schritt 3, e2e mit gemocktem Provider, ohne Netz)', () => {
     });
 
     it('ungültige Aufträge legen keinen Import an', async () => {
-      await request(app.getHttpServer()).get('/api/imports/2').expect(404);
+      await request(app.getHttpServer()).get('/api/imports/3').expect(404);
     });
 
     it('GET /api/imports/abc → 400 mit field "id"', async () => {

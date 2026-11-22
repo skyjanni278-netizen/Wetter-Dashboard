@@ -1,42 +1,58 @@
+import type { DataSource } from 'typeorm';
+import { insertImport, openTestDatabase } from '../../test/support/database';
 import {
-  FakeLegacySource,
   fakeFetch,
   forecastDays,
   jsonResponse,
-  legacyDay,
   openMeteoDailyBody,
   openMeteoHourlyBody,
   providerHours,
 } from '../../test/support/fakes';
 import { FixedClock } from '../common/clock';
-import { InMemoryForecastStore } from '../forecasts/in-memory-forecast.store';
-import { InMemoryObservationStore } from '../observations/in-memory-observation.store';
+import { DailyForecast } from '../forecasts/daily-forecast.entity';
+import { TypeOrmForecastStore } from '../forecasts/typeorm-forecast.store';
+import { Observation } from '../observations/observation.entity';
+import { TypeOrmObservationStore } from '../observations/typeorm-observation.store';
 import { OpenMeteoClient, OpenMeteoError } from '../weather-provider/open-meteo.client';
 import { emptyCounts } from './import';
 import type { ImportKind } from './import';
+import { Import } from './import.entity';
+import type { ImportStore } from './import.store';
 import { ImportRunner } from './import-runner';
-import { InMemoryImportStore } from './in-memory-import.store';
+import { TypeOrmImportStore } from './typeorm-import.store';
 
 /** Berliner 01.–03.10.2026 (MESZ) = UTC 30.09. 22:00 bis 03.10. 21:59; Open-Meteo liefert UTC 30.09.–03.10. */
 const UTC_SEP30_TO_OCT3 = providerHours('2026-09-30T00:00:00Z', 96);
 
-function setup(provider: Pick<OpenMeteoClient, 'fetchHourly' | 'fetchDailyForecast'>) {
+let dataSource: DataSource | undefined;
+afterEach(async () => {
+  await dataSource?.destroy();
+  dataSource = undefined;
+});
+
+/**
+ * Runner mit den Stores der App auf SQLite `:memory:` (seit 9b statt der In-Memory-Stores). Vorher vorhanden:
+ * 01.10. mit denselben Werten wie die Antwort, 02.10. mit anderen (Temperatur −5), 03.10. fehlt.
+ */
+async function setup(provider: Pick<OpenMeteoClient, 'fetchHourly' | 'fetchDailyForecast'>) {
   const clock = new FixedClock('2026-11-20T10:00:00Z');
-  const legacy = new FakeLegacySource();
-  // Altbestand: 01.10. mit denselben Werten wie die Antwort, 02.10. mit anderen, 03.10. fehlt.
-  legacy.days.set(
-    '2026-10-01',
-    UTC_SEP30_TO_OCT3.slice(22, 46).map((h, i) => ({ ...h, time: `2026-10-01T${String(i).padStart(2, '0')}:00` })),
+  dataSource = await openTestDatabase();
+  const imports = new TypeOrmImportStore(dataSource.getRepository(Import));
+  const observations = new TypeOrmObservationStore(dataSource.getRepository(Observation), clock);
+  const forecasts = new TypeOrmForecastStore(dataSource.getRepository(DailyForecast));
+  const existing = await insertImport(dataSource, { kind: 'legacy', from: '2026-10-01', to: '2026-10-02', at: '2026-11-19T12:00:00Z' });
+  await observations.upsertHours(
+    [
+      ...UTC_SEP30_TO_OCT3.slice(22, 46),
+      ...UTC_SEP30_TO_OCT3.slice(46, 70).map(h => ({ ...h, temperature: -5 })),
+    ].map(h => ({ ...h, source: 'archive' as const })),
+    { mode: 'upsert', importId: existing },
   );
-  legacy.days.set('2026-10-02', legacyDay('2026-10-02', () => ({ temperature: -5 })));
-  const imports = new InMemoryImportStore();
-  const observations = new InMemoryObservationStore(legacy.asSource(), clock);
-  const forecasts = new InMemoryForecastStore(legacy.asSource());
   const runner = new ImportRunner(imports, observations, forecasts, provider as OpenMeteoClient, clock);
-  return { clock, legacy, imports, observations, forecasts, runner };
+  return { clock, imports, observations, forecasts, runner };
 }
 
-async function queue(store: InMemoryImportStore, kind: ImportKind = 'range', from = '2026-10-01', to = '2026-10-03') {
+async function queue(store: ImportStore, kind: ImportKind = 'range', from = '2026-10-01', to = '2026-10-03') {
   return store.create({
     locationId: 1,
     kind,
@@ -56,7 +72,7 @@ describe('ImportRunner (US08-2, R32, F01)', () => {
       fetchHourly: jest.fn().mockResolvedValue(UTC_SEP30_TO_OCT3),
       fetchDailyForecast: jest.fn().mockResolvedValue(forecastDays('2026-11-20')),
     };
-    const { imports, observations, forecasts, runner, clock } = setup(provider);
+    const { imports, observations, forecasts, runner, clock } = await setup(provider);
     const record = await queue(imports);
     clock.advance(3_000);
 
@@ -91,7 +107,7 @@ describe('ImportRunner (US08-2, R32, F01)', () => {
         .fn()
         .mockRejectedValue(new OpenMeteoError('UPSTREAM_TIMEOUT', 'Open-Meteo antwortete nicht innerhalb von 15 s')),
     };
-    const { imports, observations, forecasts, runner } = setup(provider);
+    const { imports, observations, forecasts, runner } = await setup(provider);
     const record = await queue(imports);
 
     await runner.run(record.id);
@@ -128,7 +144,7 @@ describe('ImportRunner (US08-2, R32, F01)', () => {
         hourly: () => jsonResponse(body),
         daily: () => jsonResponse(openMeteoDailyBody(forecastDays('2026-11-20'))),
       });
-      const { imports, observations, forecasts, runner } = setup(new OpenMeteoClient(fetch, []));
+      const { imports, observations, forecasts, runner } = await setup(new OpenMeteoClient(fetch, []));
       const upsert = jest.spyOn(observations, 'upsertHours');
       const before = await observations.getDay('2026-10-02');
       const record = await queue(imports);
@@ -149,7 +165,7 @@ describe('ImportRunner (US08-2, R32, F01)', () => {
   });
 
   describe('Tagesvorhersage mit echtem Client (timezone=Europe/Berlin)', () => {
-    function withDailyOffset(offset: number) {
+    async function withDailyOffset(offset: number) {
       const fetch = fakeFetch({
         hourly: () => jsonResponse(openMeteoHourlyBody(UTC_SEP30_TO_OCT3)),
         daily: () => jsonResponse(openMeteoDailyBody(forecastDays('2026-11-20'), offset)),
@@ -158,7 +174,7 @@ describe('ImportRunner (US08-2, R32, F01)', () => {
     }
 
     it('daily mit utc_offset_seconds 0 → partial mit Warnung, Stunden gespeichert', async () => {
-      const { imports, observations, forecasts, runner } = withDailyOffset(0);
+      const { imports, observations, forecasts, runner } = await withDailyOffset(0);
       const record = await queue(imports);
 
       await runner.run(record.id);
@@ -175,7 +191,7 @@ describe('ImportRunner (US08-2, R32, F01)', () => {
     });
 
     it('daily mit utc_offset_seconds 3600 → succeeded, Vorhersage mit Berliner Daten gespeichert', async () => {
-      const { imports, forecasts, runner } = withDailyOffset(3600);
+      const { imports, forecasts, runner } = await withDailyOffset(3600);
       const record = await queue(imports);
 
       await runner.run(record.id);
@@ -199,7 +215,7 @@ describe('ImportRunner (US08-2, R32, F01)', () => {
       fetchHourly: jest.fn().mockResolvedValue(UTC_SEP30_TO_OCT3),
       fetchDailyForecast: jest.fn().mockResolvedValue(forecastDays('2026-11-20')),
     };
-    const { imports, observations, runner } = setup(provider);
+    const { imports, observations, runner } = await setup(provider);
     const record = await queue(imports, 'gaps');
 
     await runner.run(record.id);
@@ -218,7 +234,7 @@ describe('ImportRunner (US08-2, R32, F01)', () => {
       fetchHourly: jest.fn().mockResolvedValue([]),
       fetchDailyForecast: jest.fn().mockResolvedValue([]),
     };
-    const { imports, runner } = setup(provider);
+    const { imports, runner } = await setup(provider);
     const record = await queue(imports, 'range', '2026-11-08', '2026-11-12');
 
     await runner.run(record.id);
@@ -234,7 +250,7 @@ describe('ImportRunner (US08-2, R32, F01)', () => {
       fetchHourly: jest.fn().mockResolvedValue(UTC_SEP30_TO_OCT3),
       fetchDailyForecast: jest.fn().mockResolvedValue([]),
     };
-    const { imports, observations, runner } = setup(provider);
+    const { imports, observations, runner } = await setup(provider);
     jest.spyOn(observations, 'upsertHours').mockRejectedValue(new Error('kaputt'));
     const record = await queue(imports);
 
@@ -251,7 +267,7 @@ describe('ImportRunner (US08-2, R32, F01)', () => {
       fetchHourly: jest.fn().mockResolvedValue([]),
       fetchDailyForecast: jest.fn().mockResolvedValue([]),
     };
-    const { imports, runner } = setup(provider);
+    const { imports, runner } = await setup(provider);
     const record = await queue(imports);
 
     runner.schedule(record.id);

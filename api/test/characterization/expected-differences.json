@@ -2,9 +2,9 @@
   "description": "Liste „erwartet anders“ für characterization.e2e-spec.ts (03 B2.7 Schritt 9). Jede Abweichung der neuen API von den Golden Files muss hier über `pattern` (RegExp auf den Vergleichsschlüssel) erfasst sein, mit F-/R-Nummer und Begründung. Einträge mit `mayBeAbsent: true` beschreiben gewollte Unterschiede, die im Altbestand nicht vorkommen; sie sind in Unit- und e2e-Tests abgedeckt. Alle anderen Einträge müssen auch auftreten, sonst ist die Liste veraltet.",
   "differences": [
     {
-      "pattern": "^month:(2025-02:2025-02-12|2025-06:2025-06-21|2025-07:2025-07-05|2025-11:2025-11-30|2025-12:2025-12-31|2026-01:2026-01-17|2026-05:2026-05-10|2026-06:2026-06-06|2026-10:2026-10-31|2026-11:2026-11-07):avgTemp$",
+      "pattern": "^month:(2025-02:2025-02-12|2025-11:2025-11-30|2025-12:2025-12-31|2026-01:2026-01-17|2026-10:2026-10-31|2026-11:2026-11-07):avgTemp$",
       "ref": "R11",
-      "reason": "Das ungerundete Tagesmittel liegt genau auf x,x5 (z. B. 5,75; −4,75). Express rundet mit Math.round(x*10)/10: Gleitkomma-Reste (5,7499999…) und negative Werte (Math.round(−47,5) = −47) landen auf der falschen Seite. round1 rundet kaufmännisch vom Nullpunkt weg (R11): 5,8 statt 5,7, −4,8 statt −4,7. Differenz immer genau 0,1."
+      "reason": "Das ungerundete Tagesmittel liegt genau auf x,x5 (z. B. 5,75; −4,75). Express rundet mit Math.round(x*10)/10: Gleitkomma-Reste (5,7499999…) und negative Werte (Math.round(−47,5) = −47) landen auf der falschen Seite. round1 rundet kaufmännisch vom Nullpunkt weg (R11): 5,8 statt 5,7, −4,8 statt −4,7. Differenz immer genau 0,1. Seit Schritt 9b (Regel fixed+01:00) nur noch die Tage außerhalb der Sommerzeit: Die Sommertage 21.06.2025, 05.07.2025, 10.05.2026 und 06.06.2026 bestehen nach der Umrechnung aus anderen Stunden (Z1); zwei davon weichen nicht mehr ab, zwei stehen unter Z1."
     },
     {
       "pattern": "^month:2026-11:2026-11-19:(avgTemp|totalPrecip)$",
@@ -35,6 +35,26 @@
       "pattern": "^stats:totalDays$",
       "ref": "F13, R13",
       "reason": "Express zählt alle 688 Dateien, daysCounted nur vollständige Tage (687: 01.01.2025–18.11.2026). Der 19.11. ist unvollständig, der 20.11. ist heute (R13: heute ist nie vollständig)."
+    },
+    {
+      "pattern": "^day:(2025-03-30|2025-10-26|2026-03-29):hours$",
+      "ref": "Z1, R07",
+      "reason": "Die Altdateien haben an den Tagen der Zeitumstellung 24 Ortszeiten mit festem Offset +01:00 (DST-Stichprobe: Regel fixed+01:00). Nach der Umrechnung in UTC und zurück nach Europe/Berlin hat der 30.03.2025 und der 29.03.2026 23 Stunden, der 26.10.2025 25 Stunden (hoursInDay). Die Werte jeder Stunde stimmen genau (Vergleich über dieselbe UTC-Stunde, README „Abbildung“)."
+    },
+    {
+      "pattern": "^month:(2025-03:2025-03-(31)|2025-04:2025-04-(01|02|03|05|06|07|11|12|13|14|15|18|19|20|21|23|24|25|28|29)|2025-05:2025-05-(01|02|03|04|10|11|14|15|17|18|19|20|21|22|24|25|26|27|28|29)|2025-06:2025-06-(03|04|06|07|08|10|11|12|13|15|16|18|22|23|24|25|26|28|30)|2025-07:2025-07-(03|04|06|07|08|10|12|13|14|16|18|19|20|21|26|27|28|29)|2025-08:2025-08-(04|05|06|07|08|09|10|12|14|15|16|17|18|20|21|22|25|26|27|28|30|31)|2025-09:2025-09-(02|03|05|06|08|09|12|13|15|16|17|18|19|20|21|22|23|25|26|29|30)|2025-10:2025-10-(01|03|08|09|12|14|17|18|19|20|21|23)|2026-03:2026-03-(30|31)|2026-04:2026-04-(02|03|04|06|07|08|11|12|13|15|17|18|19|20|22|23|27|28|29)|2026-05:2026-05-(01|05|06|07|08|09|10|11|12|13|17|19|21|22|23|24|26|27|28|29|31)|2026-06:2026-06-(02|06|08|09|10|11|12|13|14|16|17|18|19|20|21|22|23|24|26|28|29)|2026-07:2026-07-(01|02|03|04|05|06|07|08|10|14|15|16|17|18|19|21|24|25|26|27|28|29)|2026-08:2026-08-(01|02|03|04|06|08|09|11|15|16|17|19|20|21|22|24|26|27|28|29|30|31)|2026-09:2026-09-(01|03|04|05|07|09|10|12|14|15|16|17|21|23|24|25|27|28|29)|2026-10:2026-10-(02|05|07|08|09|10|11|13|14|16|17|18|19|21|23|25)):avgTemp$",
+      "ref": "Z1",
+      "reason": "Regel fixed+01:00 (03 B2.7 Schritt 9): Im Sommer liegt jede Stunde der Altdatei in Berliner Zeit eine Stunde später; die Stunde 23:00 gehört zum Folgetag, die Stunde 00:00 kommt aus der Datei des Vortags. Das Tagesmittel weicht dadurch an 275 der 421 Tage der Sommerzeit (30.03.–26.10.2025, 29.03.–25.10.2026) um mehr als 0,05 ab, höchstens um 2,7 °C. Genau die auftretenden Tage, kein Muster über Zeiträume; jede einzelne Stunde stimmt weiter genau."
+    },
+    {
+      "pattern": "^month:(2025-03:2025-03-(30|31)|2025-04:2025-04-(23|24)|2025-05:2025-05-(03|04|21|22|25|26|28|29)|2025-06:2025-06-(01|02|15|16)|2025-07:2025-07-(06|07|08|26|27|28)|2025-08:2025-08-(01|02|05|06)|2025-09:2025-09-(01|02|04|05|21|22|23|24|25|29|30)|2025-10:2025-10-(05|06|07|21|22)|2026-03:2026-03-(31)|2026-04:2026-04-(01|13|14)|2026-05:2026-05-(10|11|13|14)|2026-06:2026-06-(04|05|12|13)|2026-07:2026-07-(16|17|18|19|26|27)|2026-08:2026-08-(04|05|18|19|20|21|22|28|29)|2026-10:2026-10-(01|02|04|05|07|08|13|14|17|19|21|22)):totalPrecip$",
+      "ref": "Z1",
+      "reason": "Wie oben für die Tagessumme: Der Niederschlag der Stunde 23:00 der Altdatei zählt jetzt zum Folgetag. Die Abweichungen treten paarweise an aufeinanderfolgenden Tagen auf (81 Tage); die Summe beider Tage bleibt gleich."
+    },
+    {
+      "pattern": "^year:(2025:2025-04:avgTemp|2026:2026-0[34]:totalPrecip|2026:2026-05:avgTemp)$",
+      "ref": "Z1",
+      "reason": "Monatswerte an Monatsgrenzen in der Sommerzeit: Die Stunde 23:00 des letzten Monatstags wechselt in den Folgemonat (Niederschlag März 2026 44,7 → 44,4 mm, April 2026 30,8 → 31,1 mm), die Monatsmittel April 2025 und Mai 2026 verschieben sich um 0,1 °C. Die Jahreswerte 2025 bleiben gleich (US15-5)."
     },
     {
       "pattern": "^stats:(hottest|coldest):(date|value)$",

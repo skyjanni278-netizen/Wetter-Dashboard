@@ -16,7 +16,8 @@
     "migration:run": "npm run build && typeorm migration:run -d dist/database/data-source.js",
     "migration:revert": "npm run build && typeorm migration:revert -d dist/database/data-source.js",
     "db:seed": "npm run build && node dist/database/db-cli.js seed",
-    "db:reset": "npm run build && node dist/database/db-cli.js reset"
+    "db:reset": "npm run build && node dist/database/db-cli.js reset",
+    "cli": "npm run build && node dist/cli.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.6",

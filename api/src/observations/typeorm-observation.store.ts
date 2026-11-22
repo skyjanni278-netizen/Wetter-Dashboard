@@ -71,6 +71,7 @@ interface WriteRow {
   utcOffsetMin: number;
   values: ObservationValues;
   source: ObservationSource;
+  fetchedAt: string;
 }
 
 const SELECT_HOUR = `"local_date", "time_utc", ${VALUE_COLUMNS.map(c => `"${c}"`).join(', ')}, "source"`;
@@ -144,7 +145,8 @@ function chunk<T>(items: readonly T[], size: number): T[][] {
  * - Schreiben: Upsert in Blöcken zu 500 Zeilen in **einer** Transaktion (alles oder nichts),
  *   `ON CONFLICT (location_id, time_utc) DO UPDATE … WHERE (Werte unterscheiden sich) AND corrected_at IS NULL`
  *   (R20). Jede geänderte Zeile bekommt `updated_at = :now` und `version + 1`, neue `version = 1` (B2.4).
- * - R08: Eine Stunde, die nach dem Schreibzeitpunkt beginnt, wird als `source = "prediction"` gespeichert.
+ * - R08: Eine Stunde, die nach ihrem Abrufzeitpunkt beginnt (`ObservationInput.fetchedAt`, sonst der
+ *   Schreibzeitpunkt), wird als `source = "prediction"` gespeichert; `fetched_at` = dieser Abrufzeitpunkt.
  */
 @Injectable()
 export class TypeOrmObservationStore implements ObservationStore {
@@ -219,7 +221,7 @@ export class TypeOrmObservationStore implements ObservationStore {
           row.values.windDirection,
           row.source,
           options.importId,
-          nowText,
+          row.fetchedAt,
           1,
           nowText,
         ]);
@@ -238,7 +240,10 @@ export class TypeOrmObservationStore implements ObservationStore {
     return counts;
   }
 
-  /** Doppelte Zeitpunkte: der erste gewinnt (wie im In-Memory-Store); Ortsfelder über BerlinTime (03 B2.5). */
+  /**
+   * Doppelte Zeitpunkte: der erste gewinnt; Ortsfelder über BerlinTime (03 B2.5). `fetched_at` ist der
+   * Abrufzeitpunkt der Stunde (`fetchedAt`, sonst jetzt) und zugleich die Grenze für R08.
+   */
   private toWriteRows(hours: readonly ObservationInput[], now: Date): WriteRow[] {
     const seen = new Set<string>();
     const rows: WriteRow[] = [];
@@ -249,6 +254,10 @@ export class TypeOrmObservationStore implements ObservationStore {
       seen.add(timeUtc);
       if (!hour.source) {
         throw new Error(`Stunde ${timeUtc} ohne Herkunft (source)`);
+      }
+      const fetchedAt = hour.fetchedAt ? new Date(hour.fetchedAt) : now;
+      if (Number.isNaN(fetchedAt.getTime())) {
+        throw new Error(`Stunde ${timeUtc} mit ungültigem Abrufzeitpunkt "${hour.fetchedAt}"`);
       }
       rows.push({
         timeUtc,
@@ -264,7 +273,8 @@ export class TypeOrmObservationStore implements ObservationStore {
           windDirection: hour.windDirection,
         },
         // R08: Stunde nach dem Abrufzeitpunkt = Vorhersage.
-        source: instant.getTime() > now.getTime() ? 'prediction' : hour.source,
+        source: instant.getTime() > fetchedAt.getTime() ? 'prediction' : hour.source,
+        fetchedAt: formatUtc(fetchedAt),
       });
     }
     return rows;

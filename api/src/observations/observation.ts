@@ -46,6 +46,12 @@ export interface ObservationInput extends ObservationValues {
   timeUtc: string;
   /** Abgefragte API; ob die Stunde eine Vorhersage ist, entscheidet der Store beim Schreiben (R08). */
   source?: 'archive' | 'forecast_api';
+  /**
+   * Abrufzeitpunkt (UTC), wenn er vor dem Schreiben liegt: beim Altdatenimport die Änderungszeit der Datei
+   * (03 B2.7 Schritt 6). Spalte `fetched_at` und Grenze für R08 (Stunde danach = Vorhersage). Ohne Angabe gilt
+   * der Schreibzeitpunkt (`Clock.now()`), wie bei jedem Import über Open-Meteo.
+   */
+  fetchedAt?: string;
 }
 
 /** Stunden eines Berliner Kalendertags, wie sie der Store für Auswertungen liefert. */
