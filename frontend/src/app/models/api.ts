@@ -1,5 +1,5 @@
 /**
- * Typen der neuen NestJS-API (`api/`, Zielbild B2.2), Stand Schritt 8 (Listen und Zusammenfassungen).
+ * Typen der neuen NestJS-API (`api/`, Zielbild B2.2), Stand Schritt 11 (dazu Importe, Lücken, Health).
  * Messwerte sind `number | null`: fehlende Werte kommen als `null`, nie als 0 (F15).
  */
 
@@ -266,4 +266,107 @@ export interface UserResource {
   isActive: boolean;
   createdAt: string;
   lastLoginAt: string | null;
+}
+
+/** Art eines Imports (B2.2); über HTTP startbar sind nur `range` und `gaps` (US10-8). */
+export type ImportKind = 'legacy' | 'range' | 'gaps' | 'scheduled';
+
+/** Status eines Imports (R19); `queued`/`running` = noch nicht abgeschlossen. */
+export type ImportStatus = 'queued' | 'running' | 'succeeded' | 'partial' | 'failed';
+
+/** Zähler eines Imports; `skippedCorrected` zählt Stunden, die eine Korrektur geschützt hat (R20, ab 12a). */
+export interface ImportCounts {
+  inserted: number;
+  updated: number;
+  unchanged: number;
+  skippedCorrected: number;
+}
+
+/** Warnung eines Imports, z. B. fehlende Stunde; `timeUtc` bei Bezug auf eine Stunde. */
+export interface ImportWarning {
+  code: string;
+  message: string;
+  timeUtc?: string;
+}
+
+/** Fehler eines Imports ohne Stacktrace, z. B. `UPSTREAM_TIMEOUT`, `INTERRUPTED`. */
+export interface ImportFailure {
+  code: string;
+  message: string;
+}
+
+/** `GET /api/imports/:id`, Antwort von `POST /api/imports` und Eintrag der Liste (B2.2, US11). */
+export interface ImportResource {
+  id: number;
+  locationId: number;
+  kind: ImportKind;
+  status: ImportStatus;
+  /** Berliner Kalendertage `YYYY-MM-DD`; beim Altdatenimport `null`. */
+  from: string | null;
+  to: string | null;
+  overwriteCorrections: boolean;
+  requestedBy: number | null;
+  /** UTC `YYYY-MM-DDTHH:MM:SSZ`. */
+  requestedAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  counts: ImportCounts;
+  warnings: ImportWarning[];
+  error: ImportFailure | null;
+  links: { self: string };
+}
+
+/** Seitenangaben einer Liste (R24): `total` = alle Treffer des Filters. */
+export interface PageMeta {
+  page: number;
+  limit: number;
+  total: number;
+}
+
+/** `GET /api/imports?status&kind&page&limit`: nach `requestedAt` absteigend (US11-2). */
+export interface ImportList {
+  items: ImportResource[];
+  meta: PageMeta;
+}
+
+/** Query von `GET /api/imports`; ohne Angabe gilt `page = 1`, `limit = 20`. */
+export interface ImportsQuery {
+  status?: ImportStatus;
+  kind?: ImportKind;
+  page?: number;
+  limit?: number;
+}
+
+/** Body von `POST /api/imports` (`ImportCreateSchema`, US10). */
+export interface ImportCreateRequest {
+  kind: 'range' | 'gaps';
+  from: string;
+  to: string;
+  overwriteCorrections?: boolean;
+}
+
+/** Grund einer Lücke (US12-1). */
+export type GapReason = 'missing' | 'null_values' | 'stale_prediction';
+
+/**
+ * Eintrag aus `GET /api/gaps?from&to`. `from`/`to` = Beginn der ersten/letzten Stunde in Berliner
+ * Ortszeit **mit** Offset (`2026-11-12T04:00:00+01:00`); `id` = UTC der ersten Stunde.
+ */
+export interface Gap {
+  id: string;
+  from: string;
+  to: string;
+  hours: number;
+  reason: GapReason;
+}
+
+/** `GET /api/gaps?from&to`: aufsteigend, ohne Lücken `items = []`. */
+export interface GapList {
+  items: Gap[];
+}
+
+/** `GET /api/health` (US14-3); bei nicht lesbarer DB 503 mit `details.database = "error"`. */
+export interface Health {
+  status: 'ok';
+  database: 'ok';
 }

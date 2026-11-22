@@ -1,7 +1,7 @@
 import { Routes } from '@angular/router';
 import { adminGuard } from './guards/admin.guard';
 import { berlinToday } from './utils/berlin-date';
-import { dayViewTitle, monthViewTitle, yearViewTitle } from './utils/page-title';
+import { adminViewTitle, dayViewTitle, importDetailTitle, monthViewTitle, yearViewTitle } from './utils/page-title';
 
 const todayPage = () => import('./pages/today-page/today-page').then(m => m.TodayPageComponent);
 const monthlyPage = () => import('./pages/monthly-page/monthly-page').then(m => m.MonthlyPageComponent);
@@ -55,14 +55,32 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/admin/login-page/login-page').then(m => m.LoginPageComponent),
   },
   // Admin-Bereich: nur mit gültigem Token, sonst Umleitung auf die Anmeldung mit returnUrl (adminGuard).
+  // canMatch läuft bei jeder Navigation, also auch beim Wechsel zwischen den Kindseiten (abgelaufenes
+  // Token + Klick auf „Importe“ → Anmeldung mit returnUrl=/admin/importe). Rahmen und Seiten laden lazy.
   {
     path: 'admin',
     canMatch: [adminGuard],
+    loadComponent: () => import('./pages/admin/admin-layout/admin-layout').then(m => m.AdminLayoutComponent),
     children: [
       {
         path: '',
-        title: 'Admin',
-        loadComponent: () => import('./pages/admin/admin-page/admin-page').then(m => m.AdminPageComponent),
+        title: adminViewTitle('Status'),
+        loadComponent: () => import('./pages/admin/status-page/status-page').then(m => m.StatusPageComponent),
+      },
+      {
+        path: 'importe',
+        title: adminViewTitle('Importe'),
+        loadComponent: () => import('./pages/admin/imports-page/imports-page').then(m => m.ImportsPageComponent),
+      },
+      {
+        path: 'importe/:id',
+        title: route => importDetailTitle(route.paramMap.get('id')),
+        loadComponent: () => import('./pages/admin/import-detail-page/import-detail-page').then(m => m.ImportDetailPageComponent),
+      },
+      {
+        path: 'luecken',
+        title: adminViewTitle('Lücken'),
+        loadComponent: () => import('./pages/admin/gaps-page/gaps-page').then(m => m.GapsPageComponent),
       },
     ],
   },

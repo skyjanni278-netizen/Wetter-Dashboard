@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, input, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { ChipComponent, ChipVariant } from '../chip/chip';
 
 export interface DataTableColumn {
@@ -24,7 +25,15 @@ export interface DataTableIcon {
   text: string;
 }
 
-export type DataTableValue = string | number | null | undefined | DataTableChip | DataTableIcon;
+/** Zelle mit Textlink (Router), z. B. `{ link: ['/admin/importe', 12], text: '#12', label: 'Import 12 ansehen' }`. */
+export interface DataTableLink {
+  link: string | readonly (string | number)[];
+  text: string;
+  /** Zugänglicher Name, wenn der sichtbare Text allein nicht reicht (`aria-label`). */
+  label?: string;
+}
+
+export type DataTableValue = string | number | null | undefined | DataTableChip | DataTableIcon | DataTableLink;
 export type DataTableRow = Readonly<Record<string, DataTableValue>>;
 
 /**
@@ -37,7 +46,7 @@ export type DataTableRow = Readonly<Record<string, DataTableValue>>;
  */
 @Component({
   selector: 'app-data-table',
-  imports: [ChipComponent],
+  imports: [ChipComponent, RouterLink],
   templateUrl: './data-table.html',
   styleUrl: './data-table.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -73,11 +82,15 @@ export class DataTableComponent {
     return typeof value === 'object' && value !== null && 'chip' in value;
   }
 
+  isLink(value: DataTableValue): value is DataTableLink {
+    return typeof value === 'object' && value !== null && 'link' in value;
+  }
+
   text(value: DataTableValue): string {
     if (value === null || value === undefined || value === '') return '–';
     if (typeof value === 'number') return Number.isFinite(value) ? value.toLocaleString('de-DE') : '–';
     if (this.isChip(value)) return value.chip;
-    if (this.isIcon(value)) return value.text;
+    if (this.isIcon(value) || this.isLink(value)) return value.text;
     return value;
   }
 }

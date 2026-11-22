@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Title } from '@angular/platform-browser';
 import { RouterStateSnapshot, TitleStrategy } from '@angular/router';
+import { parseImportId } from './admin-format';
 import { isValidIsoDate } from './berlin-date';
 import { isValidMonthParam, isValidYearParam } from './route-params';
 
@@ -49,6 +50,16 @@ export function monthViewTitle(year: string | null | undefined, month: string | 
 /** Jahresansicht: „2025 – Jahr“, bei ungültigem Jahr „Ungültiges Jahr“. */
 export function yearViewTitle(year: string | null | undefined): string {
   return isValidYearParam(year) ? viewTitle('Jahr', year) : 'Ungültiges Jahr';
+}
+
+/** Admin-Bereich: „Importe – Admin“ (Muster „<Seite> – <Bereich>“ wie „November 2026 – Monat“). */
+export function adminViewTitle(page: string): string {
+  return viewTitle('Admin', page);
+}
+
+/** Detailseite eines Imports: „Import #12 – Admin“, bei ungültiger Nummer „Ungültiger Import – Admin“. */
+export function importDetailTitle(id: string | null | undefined): string {
+  return adminViewTitle(parseImportId(id) === null ? 'Ungültiger Import' : `Import #${id}`);
 }
 
 /** Setzt den Titel für Heute-, Monats- und Jahresansicht, wenn sich die Auswahl ändert. */

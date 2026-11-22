@@ -1,0 +1,100 @@
+<div class="page-header">
+  <div class="page-title">
+    <p class="kicker">Admin</p>
+    <h1>Betriebsstatus</h1>
+    <p>Abruf, Datenstand, Lücken und Datenbank auf einen Blick.</p>
+  </div>
+</div>
+
+<div class="page-stack">
+  @if (state() === 'error') {
+    <app-error [message]="errorMessage" [details]="apiError() ? [apiError()!.message] : []" (retry)="retry()" />
+  }
+
+  @if (state() === 'loading' && !data()) {
+    <app-loading label="Betriebsstatus wird geladen">
+      <div class="admin-grid">
+        @for (n of [1, 2, 3, 4]; track n) {
+          <app-skeleton height="8rem" />
+        }
+      </div>
+    </app-loading>
+  }
+
+  @if (data(); as d) {
+    <div class="admin-grid">
+      <app-card class="status-update" [busy]="state() === 'loading'">
+        <div class="card-head">
+          <h2>Stündlicher Abruf</h2>
+          <app-chip [variant]="update()!.variant">{{ update()!.label }}</app-chip>
+        </div>
+        <p class="status-text">{{ update()!.text }}</p>
+        <dl class="admin-dl">
+          <div><dt>Letzte erfolgreiche Aktualisierung</dt><dd>{{ formatDateTime(d.status.lastSuccessfulUpdateAt) }}</dd></div>
+          <div><dt>Heute (Berlin)</dt><dd>{{ formatDateDe(d.status.today) }}</dd></div>
+        </dl>
+      </app-card>
+
+      <app-card class="status-data" [busy]="state() === 'loading'">
+        <h2>Datenstand</h2>
+        @if (dataPeriod(); as period) {
+          <dl class="admin-dl">
+            <div><dt>Daten vorhanden</dt><dd>{{ period }}</dd></div>
+          </dl>
+        } @else {
+          <app-empty message="Es sind noch keine Wetterdaten gespeichert." />
+        }
+      </app-card>
+
+      <app-card class="status-gaps" [busy]="state() === 'loading'">
+        <h2>Lücken der letzten 30 Tage</h2>
+        <p class="status-text">
+          @if (d.gaps.items.length) {
+            <span class="num">{{ d.gaps.items.length }}</span> {{ d.gaps.items.length === 1 ? 'Lücke' : 'Lücken' }} mit zusammen
+            <span class="num">{{ hoursLabel(gapHours()) }}</span>
+          } @else {
+            Keine Lücken
+          }
+          ({{ gapPeriod() }}).
+        </p>
+        <a class="btn btn-text" routerLink="/admin/luecken">Lücken ansehen <span aria-hidden="true">→</span></a>
+      </app-card>
+
+      <app-card class="status-health" [busy]="state() === 'loading'">
+        <div class="card-head">
+          <h2>Datenbank</h2>
+          <app-chip [variant]="health()!.variant">{{ health()!.label }}</app-chip>
+        </div>
+        <p class="status-text">{{ health()!.text }}</p>
+      </app-card>
+    </div>
+
+    <app-card class="status-failed" [busy]="state() === 'loading'">
+      <h2>Letzter fehlgeschlagener Import</h2>
+      @if (lastFailed(); as failed) {
+        <p class="status-text">
+          <a [routerLink]="['/admin/importe', failed.id]">Import #{{ failed.id }}</a>
+          vom {{ formatDateTime(failed.requestedAt) }} Uhr
+        </p>
+        @if (failed.error; as failure) {
+          <p class="status-text"><strong>{{ failure.code }}</strong>: {{ failure.message }}</p>
+        }
+      } @else if (d.imports.items.length === 0) {
+        <p class="status-text">Noch keine Importe.</p>
+      } @else if (d.imports.items.length === 1) {
+        <p class="status-text">Der letzte Import ist nicht fehlgeschlagen.</p>
+      } @else {
+        <p class="status-text">Unter den letzten {{ d.imports.items.length }} Importen ist keiner fehlgeschlagen.</p>
+      }
+    </app-card>
+
+    <app-card class="status-imports" [busy]="state() === 'loading'">
+      <div class="card-head">
+        <h2>Letzte Importe</h2>
+        <a class="btn btn-text" routerLink="/admin/importe">Alle Importe <span aria-hidden="true">→</span></a>
+      </div>
+      <app-data-table caption="Letzte Importe, neueste zuerst" [captionHidden]="true"
+                      [columns]="columns" [columnsNarrow]="columnsNarrow" [rows]="importRows()" emptyText="Noch keine Importe." />
+    </app-card>
+  }
+</div>

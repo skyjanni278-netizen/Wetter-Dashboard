@@ -20,4 +20,9 @@
   color: var(--color-accent-strong);
 }
 
+/* Importstatus (E3.7.5): Statusfarbe nur als Text, Rand bleibt Deko.
+   success 5,31–6,20:1, danger 6,05–7,07:1 gegen bg/surface/surface-muted */
+:host(.chip-success) { color: var(--color-success); }
+:host(.chip-danger) { color: var(--color-danger); }
+
 .chip-symbol { font-size: var(--fs-sm); line-height: 1; }

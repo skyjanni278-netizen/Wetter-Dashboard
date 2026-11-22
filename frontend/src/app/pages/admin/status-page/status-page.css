@@ -1,0 +1,7 @@
+/* Statusseite (US14): Karten im Raster, Text ohne eigene Ränder */
+.status-text {
+  margin: 0 0 var(--space-3);
+  overflow-wrap: anywhere;
+}
+
+.status-text:last-child { margin-bottom: 0; }

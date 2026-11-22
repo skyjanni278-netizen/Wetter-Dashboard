@@ -13,6 +13,7 @@ describe('NoticeComponent', () => {
     ['info', 'Hinweis'],
     ['error', 'Fehler'],
     ['forecast', 'Vorhersage'],
+    ['success', 'Erfolg'],
   ])('Variante %s mit Kicker „%s“', (variant, kicker) => {
     const el = create({ variant });
     expect(el.classList).toContain(`notice-${variant}`);
@@ -39,5 +40,9 @@ describe('NoticeComponent', () => {
     expect(create({ variant: 'error', announce: true }).getAttribute('role')).toBe('alert');
     expect(create({ variant: 'info', announce: true }).getAttribute('role')).toBe('status');
     expect(create({ variant: 'error' }).getAttribute('role')).toBeNull();
+  });
+
+  it('Erfolg (Admin, E3.7.7): announce → role="status"', () => {
+    expect(create({ variant: 'success', announce: true }).getAttribute('role')).toBe('status');
   });
 });

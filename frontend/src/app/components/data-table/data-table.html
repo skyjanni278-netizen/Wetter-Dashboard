@@ -14,10 +14,18 @@
           @for (col of activeColumns(); track col.key) {
             @let value = row[col.key];
             @if (col.rowHeader) {
-              <th scope="row" [class.cell-end]="col.align === 'end'" [class.num]="col.align === 'end'">{{ text(value) }}</th>
+              <th scope="row" [class.cell-end]="col.align === 'end'" [class.num]="col.align === 'end'">
+                @if (isLink(value)) {
+                  <a [routerLink]="value.link" [attr.aria-label]="value.label ?? null">{{ value.text }}</a>
+                } @else {
+                  {{ text(value) }}
+                }
+              </th>
             } @else {
               <td [class.cell-end]="col.align === 'end'" [class.num]="col.align === 'end'">
-                @if (isChip(value)) {
+                @if (isLink(value)) {
+                  <a [routerLink]="value.link" [attr.aria-label]="value.label ?? null">{{ value.text }}</a>
+                } @else if (isChip(value)) {
                   <app-chip [variant]="value.variant ?? 'status'">{{ value.chip }}</app-chip>
                 } @else if (isIcon(value)) {
                   <span class="cell-icon" aria-hidden="true">{{ value.icon }}</span>

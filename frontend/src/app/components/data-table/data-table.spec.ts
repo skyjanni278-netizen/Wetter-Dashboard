@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { DataTableColumn, DataTableComponent, DataTableRow } from './data-table';
 
 const COLUMNS: DataTableColumn[] = [
@@ -94,5 +95,19 @@ describe('DataTableComponent', () => {
       const el = create(rows, { columnsNarrow: narrow });
       expect(el.querySelectorAll('thead th').length).toBe(3);
     });
+  });
+
+  it('Link-Zelle (Admin): RouterLink mit sichtbarem Text, im Zeilenkopf und in normalen Zellen', () => {
+    TestBed.configureTestingModule({ providers: [provideRouter([])] });
+    const el = create([
+      { hour: { link: ['/admin/importe', 12], text: '#12', label: 'Import #12 ansehen' }, temp: 1, kind: { link: '/admin/luecken', text: 'Lücken' } },
+    ]);
+    const head = el.querySelector('tbody th a') as HTMLAnchorElement;
+    expect(head.getAttribute('href')).toBe('/admin/importe/12');
+    expect(head.textContent?.trim()).toBe('#12');
+    expect(head.getAttribute('aria-label')).toBe('Import #12 ansehen');
+    const cell = el.querySelector('tbody td:last-child a') as HTMLAnchorElement;
+    expect(cell.getAttribute('href')).toBe('/admin/luecken');
+    expect(cell.getAttribute('aria-label')).toBeNull();
   });
 });

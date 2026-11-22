@@ -1,0 +1,86 @@
+<div class="page-header">
+  <div class="page-title">
+    <p class="kicker">Admin · Import</p>
+    <h1>Import #{{ importId() ?? id() }}</h1>
+    <!-- Status als Chip (E3.7.5); die Live-Region meldet den Wechsel „Läuft“ → „OK“ -->
+    <p class="detail-status" aria-live="polite">
+      @if (data()) {
+        <span class="visually-hidden">Status:</span>
+        <app-chip [variant]="statusVariant()">{{ statusLabel() }}</app-chip>
+        @if (polling()) {
+          <span class="detail-polling">Wird alle {{ pollSeconds }} Sekunden aktualisiert.</span>
+        }
+      }
+    </p>
+  </div>
+  <a class="btn btn-text" routerLink="/admin/importe"><span aria-hidden="true">←</span> Zum Importprotokoll</a>
+</div>
+
+<div class="page-stack">
+  @if (state() === 'idle' && error()) {
+    <app-empty [message]="error()!" />
+  }
+
+  @if (state() === 'empty') {
+    <app-empty [message]="error() ?? ''" [announce]="true">
+      <a class="btn btn-text" routerLink="/admin/importe">Zum Importprotokoll <span aria-hidden="true">→</span></a>
+    </app-empty>
+  }
+
+  @if (state() === 'error') {
+    <app-error [message]="error()" [details]="apiError() ? [apiError()!.message] : []" (retry)="retry()" />
+  }
+
+  @if (state() === 'loading' && !data()) {
+    <app-loading label="Import wird geladen">
+      <app-skeleton height="8rem" />
+    </app-loading>
+  }
+
+  @if (data(); as item) {
+    <app-card class="detail-order">
+      <h2>Auftrag</h2>
+      <dl class="admin-dl">
+        <div><dt>Art</dt><dd>{{ kindLabel[item.kind] }}</dd></div>
+        <div><dt>Zeitraum</dt><dd>{{ formatPeriod(item.from, item.to) }}</dd></div>
+        <div><dt>Angefordert</dt><dd>{{ formatDateTime(item.requestedAt) }}</dd></div>
+        <div><dt>Gestartet</dt><dd>{{ formatDateTime(item.startedAt) }}</dd></div>
+        <div><dt>Beendet</dt><dd>{{ formatDateTime(item.finishedAt) }}</dd></div>
+      </dl>
+    </app-card>
+
+    <section aria-labelledby="detail-counts-title">
+      <h2 id="detail-counts-title">Zähler</h2>
+      <div class="kpi-grid detail-counts">
+        <app-kpi-card kicker="Neu" [value]="item.counts.inserted" [digits]="0" meta="Stunden" />
+        <app-kpi-card kicker="Geändert" [value]="item.counts.updated" [digits]="0" meta="Stunden" />
+        <app-kpi-card kicker="Unverändert" [value]="item.counts.unchanged" [digits]="0" meta="Stunden" />
+        <app-kpi-card kicker="Korrigiert, nicht überschrieben" [value]="item.counts.skippedCorrected" [digits]="0" meta="Stunden" />
+      </div>
+    </section>
+
+    @if (item.error; as failure) {
+      <app-notice class="detail-error" variant="error">
+        <p><strong>{{ failure.code }}</strong>: {{ failure.message }}</p>
+      </app-notice>
+    }
+
+    <section aria-labelledby="detail-warnings-title">
+      <h2 id="detail-warnings-title">Warnungen</h2>
+      @if (item.warnings.length) {
+        <ul class="detail-warnings">
+          @for (warning of item.warnings; track $index) {
+            <li>
+              <strong>{{ warning.code }}</strong>: {{ warning.message }}
+              @if (warning.timeUtc) {
+                <span class="detail-warning-time">({{ formatDateTime(warning.timeUtc) }} Uhr)</span>
+              }
+            </li>
+          }
+        </ul>
+      } @else {
+        <p class="detail-none">Keine Warnungen.</p>
+      }
+    </section>
+  }
+</div>

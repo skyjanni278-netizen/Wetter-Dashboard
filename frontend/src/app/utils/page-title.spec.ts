@@ -1,4 +1,4 @@
-import { dayViewTitle, fullTitle, longDateLabel, monthLabel, monthViewTitle, viewTitle, yearViewTitle } from './page-title';
+import { adminViewTitle, dayViewTitle, fullTitle, importDetailTitle, longDateLabel, monthLabel, monthViewTitle, viewTitle, yearViewTitle } from './page-title';
 
 describe('page-title (V10)', () => {
   it('Monat: „November 2026 – Monat – Wetter Heubach“', () => {
@@ -34,5 +34,13 @@ describe('page-title (V10)', () => {
     expect(fullTitle(monthViewTitle('2025', '13'))).toBe('Ungültiger Monat – Wetter Heubach');
     expect(fullTitle(yearViewTitle('2025'))).toBe('2025 – Jahr – Wetter Heubach');
     expect(fullTitle(yearViewTitle('1999'))).toBe('Ungültiges Jahr – Wetter Heubach');
+  });
+
+  it('Admin: „Importe – Admin“, Detail „Import #12 – Admin“, ungültige Nummer „Ungültiger Import – Admin“', () => {
+    expect(fullTitle(adminViewTitle('Importe'))).toBe('Importe – Admin – Wetter Heubach');
+    expect(adminViewTitle('Status')).toBe('Status – Admin');
+    expect(importDetailTitle('12')).toBe('Import #12 – Admin');
+    expect(importDetailTitle('0')).toBe('Ungültiger Import – Admin');
+    expect(importDetailTitle(null)).toBe('Ungültiger Import – Admin');
   });
 });

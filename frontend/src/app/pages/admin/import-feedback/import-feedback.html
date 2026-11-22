@@ -1,0 +1,21 @@
+@switch (feedback().type) {
+  @case ('started') {
+    <app-notice variant="success" [announce]="true">
+      <p>Import #{{ importId() }} gestartet.</p>
+      <a class="btn btn-text" [routerLink]="['/admin/importe', importId()]">Import #{{ importId() }} ansehen <span aria-hidden="true">→</span></a>
+    </app-notice>
+  }
+  @case ('running') {
+    <app-notice variant="error" [announce]="true">
+      <p>{{ runningMessage }}</p>
+      @if (importId() !== null) {
+        <a class="btn btn-text" [routerLink]="['/admin/importe', importId()]">Laufenden Import #{{ importId() }} ansehen <span aria-hidden="true">→</span></a>
+      }
+    </app-notice>
+  }
+  @default {
+    <app-notice variant="error" [announce]="true">
+      <p>{{ errorMessage() }}</p>
+    </app-notice>
+  }
+}

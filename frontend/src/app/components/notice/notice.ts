@@ -1,11 +1,12 @@
 import { ChangeDetectionStrategy, Component, ViewEncapsulation, computed, input } from '@angular/core';
 
-export type NoticeVariant = 'info' | 'error' | 'forecast';
+export type NoticeVariant = 'info' | 'error' | 'forecast' | 'success';
 
 const DEFAULT_KICKER: Record<NoticeVariant, string> = {
   info: 'Hinweis',
   error: 'Fehler',
   forecast: 'Vorhersage',
+  success: 'Erfolg',
 };
 
 /**
@@ -13,6 +14,7 @@ const DEFAULT_KICKER: Record<NoticeVariant, string> = {
  * - `info`: Linie `--color-notice-line`, Fläche `--color-notice-bg`, Kicker „HINWEIS“.
  * - `forecast`: Linie `--color-accent-bright`, Fläche `--color-surface`, Kicker „VORHERSAGE“ + „◔“.
  * - `error`: Linie und Kicker `--color-danger`, Fläche `--color-danger-bg`, Kicker „FEHLER“.
+ * - `success` (Admin): Linie und Kicker `--color-success`, Fläche `--color-success-bg`, Kicker „ERFOLG“.
  *
  * `announce`: nur bei nachträglicher Anzeige setzen (Fehler nach einer Aktion, späterer Hinweis).
  * Dann trägt die Box `role="alert"` (Fehler) bzw. `role="status"` (sonst).
@@ -31,6 +33,7 @@ const DEFAULT_KICKER: Record<NoticeVariant, string> = {
     '[class.notice-info]': 'variant() === "info"',
     '[class.notice-error]': 'variant() === "error"',
     '[class.notice-forecast]': 'variant() === "forecast"',
+    '[class.notice-success]': 'variant() === "success"',
     '[attr.role]': 'role()',
   },
 })

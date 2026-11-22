@@ -36,3 +36,10 @@
   background-color: var(--color-danger-bg);
 }
 .notice-error .notice-kicker { color: var(--color-danger); }
+
+/* Erfolg (Admin, E3.7.7): Linie und Kicker „ERFOLG“ 5,45:1 auf success-bg */
+.notice-success {
+  border-left-color: var(--color-success);
+  background-color: var(--color-success-bg);
+}
+.notice-success .notice-kicker { color: var(--color-success); }

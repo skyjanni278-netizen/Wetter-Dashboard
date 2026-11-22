@@ -1,0 +1,92 @@
+<div class="page-header">
+  <div class="page-title">
+    <p class="kicker">Admin</p>
+    <h1>Importe</h1>
+    <p>Wetterdaten für einen Zeitraum von Open-Meteo laden und frühere Importe ansehen.</p>
+  </div>
+</div>
+
+<div class="page-stack">
+  <!-- Import starten (US10): Felder E3.7.3, Rückmeldung E3.7.7 als erstes Element im Formular -->
+  <app-card class="import-form-card">
+    <h2 id="import-form-title">Import starten</h2>
+    <form class="admin-form" [formGroup]="form" (ngSubmit)="submit()" aria-labelledby="import-form-title">
+      @if (feedback(); as f) {
+        <app-import-feedback [feedback]="f" />
+      }
+
+      <div class="admin-form-fields">
+        <app-form-field label="Von" fieldId="import-from" [error]="fieldError('from')" [control]="form.controls.from">
+          <input id="import-from" name="from" type="date" formControlName="from" [attr.max]="today()" required>
+        </app-form-field>
+
+        <app-form-field label="Bis" fieldId="import-to" [error]="fieldError('to')" [control]="form.controls.to">
+          <input id="import-to" name="to" type="date" formControlName="to" [attr.max]="today()" required>
+        </app-form-field>
+
+        <app-form-field label="Art" fieldId="import-kind" [control]="form.controls.kind"
+                        hint="Zeitraum: alle Stunden neu laden. Lücken: nur fehlende oder leere Stunden.">
+          <select id="import-kind" name="kind" formControlName="kind">
+            <option value="range">Zeitraum neu laden</option>
+            <option value="gaps">Nur Lücken füllen</option>
+          </select>
+        </app-form-field>
+      </div>
+
+      <button type="submit" class="btn btn-primary admin-form-submit"
+              [attr.aria-disabled]="pending() ? 'true' : null" [attr.aria-busy]="pending() ? 'true' : null">
+        {{ pending() ? 'Wird gestartet …' : 'Import starten' }}
+      </button>
+    </form>
+  </app-card>
+
+  <!-- Importprotokoll (US11, E3.7.5): Status-Chips, Filter und Blättern über die URL -->
+  <app-card class="imports-log" [busy]="listState() === 'loading' && !!list()">
+    <div class="card-head">
+      <h2>Importprotokoll</h2>
+      <app-form-field class="imports-filter" label="Status" fieldId="imports-status-filter">
+        <select id="imports-status-filter" name="status" (change)="setStatusFilter($event)">
+          <option value="" [selected]="!statusFilter()">Alle</option>
+          @for (option of statusOptions; track option.value) {
+            <option [value]="option.value" [selected]="statusFilter() === option.value">{{ option.label }}</option>
+          }
+        </select>
+      </app-form-field>
+    </div>
+
+    @if (listState() === 'error') {
+      <app-error [message]="listError()" [details]="listApiMessage() ? [listApiMessage()!] : []" (retry)="retry()" />
+    }
+
+    @if (listState() === 'loading' && !list()) {
+      <app-loading label="Importprotokoll wird geladen">
+        <app-skeleton height="12rem" />
+      </app-loading>
+    }
+
+    @if (list(); as l) {
+      <p class="imports-total">
+        <span class="num">{{ total() }}</span> {{ total() === 1 ? 'Import' : 'Importe' }}@if (statusFilterLabel(); as label) { mit Status „{{ label }}“}
+      </p>
+      <app-data-table caption="Importprotokoll, neueste zuerst" [captionHidden]="true"
+                      [columns]="columns" [columnsNarrow]="columnsNarrow" [rows]="rows()"
+                      [emptyText]="emptyText()" />
+
+      @if (pageCount() > 1 || page() > 1) {
+        <nav class="pager" aria-label="Seiten des Importprotokolls">
+          @if (hasPrevious()) {
+            <a class="btn btn-secondary" [routerLink]="[]" [queryParams]="pageQuery(page() - 1)" queryParamsHandling="merge">
+              <span aria-hidden="true">‹</span> Vorherige Seite
+            </a>
+          }
+          <p class="pager-info">Seite <span class="num">{{ page() }}</span> von <span class="num">{{ pageCount() }}</span></p>
+          @if (hasNext()) {
+            <a class="btn btn-secondary" [routerLink]="[]" [queryParams]="pageQuery(page() + 1)" queryParamsHandling="merge">
+              Nächste Seite <span aria-hidden="true">›</span>
+            </a>
+          }
+        </nav>
+      }
+    }
+  </app-card>
+</div>

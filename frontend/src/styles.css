@@ -197,3 +197,52 @@ app-card.chart-card { padding-inline: var(--space-2); }
 @media (min-width: 48em) {
   app-card.chart-card { padding-inline: var(--space-4); }
 }
+
+/* ---------- Admin (Schritt 11): Formular, Blättern, Angabenliste ----------
+   Gemeinsam für Status, Importe, Importdetail und Lücken. */
+.admin-form { display: grid; gap: var(--space-4); }
+
+/* Felder nebeneinander, solange Platz ist; mobil untereinander in voller Breite */
+.admin-form-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: var(--space-3) var(--gutter);
+  align-items: start;
+}
+.admin-form-fields :is(input, select) { width: 100%; }
+
+.admin-form-submit { justify-self: start; }
+
+/* Blättern (E3.7.5, ?seite=): Links als Sekundärbuttons, Seitenangabe dazwischen */
+.pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin-top: var(--space-3);
+}
+.pager-info { margin: 0; color: var(--color-text-muted); }
+
+/* Angaben als <dl>: Begriff klein und versal, Wert darunter */
+.admin-dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: var(--space-3) var(--gutter);
+  margin: 0;
+}
+.admin-dl > div { min-width: 0; }
+.admin-dl dt {
+  margin-bottom: var(--space-1);
+  color: var(--color-text-muted);
+  font: var(--fw-semibold) var(--fs-xs) / 1.3 var(--font-body);
+  letter-spacing: var(--tracking-kicker);
+  text-transform: uppercase;
+}
+.admin-dl dd { margin: 0; overflow-wrap: anywhere; }
+
+/* Karten nebeneinander (Statusseite) */
+.admin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+  gap: var(--gutter);
+}
