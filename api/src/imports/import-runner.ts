@@ -62,17 +62,28 @@ export class ImportRunner {
     }
   }
 
-  /** Führt einen Import im Status `queued` aus. Wirft nie; Fehler landen im Import. */
+  /**
+   * Führt einen Import im Status `queued` aus. Wirft nie; Fehler landen im Import. Log-Ereignisse (C1 A09):
+   * „gestartet“, „fertig“ (`succeeded`, bei `partial` als Warnung) bzw. „fehlgeschlagen“ mit Fehlercode.
+   */
   async run(id: number): Promise<void> {
     try {
       const record = await this.imports.findById(id);
       if (!record || record.status !== 'queued') return;
+      const label = `Import ${id} (${record.kind} ${record.from}–${record.to})`;
       await this.imports.update(id, { status: 'running', startedAt: formatUtc(this.clock.now()) });
+      this.logger.log(`${label} gestartet`);
       const result = await this.execute(record);
       await this.imports.update(id, { ...result, finishedAt: formatUtc(this.clock.now()) });
-      this.logger.log(`Import ${id} (${record.kind} ${record.from}–${record.to}): ${result.status}`);
+      if (result.status === 'failed') {
+        this.logger.error(`${label} fehlgeschlagen: ${result.error?.code ?? 'INTERNAL_ERROR'} ${result.error?.message ?? ''}`.trimEnd());
+      } else if (result.status === 'partial') {
+        this.logger.warn(`${label} fertig: partial (${(result.warnings ?? []).map(w => w.code).join(', ')})`);
+      } else {
+        this.logger.log(`${label} fertig: ${result.status}`);
+      }
     } catch (error) {
-      this.logger.error(`Import ${id} abgebrochen: ${errorText(error)}`);
+      this.logger.error(`Import ${id} fehlgeschlagen (abgebrochen): ${errorText(error)}`);
       await this.imports
         .update(id, { status: 'failed', finishedAt: formatUtc(this.clock.now()), error: toImportError(error) })
         .catch(() => undefined);

@@ -15,7 +15,6 @@ import { LocationsService } from './locations/locations.service';
 import { GapsService } from './observations/gaps.service';
 import { OBSERVATION_STORE } from './observations/observation.store';
 import { RecordsService } from './records/records.service';
-import { isSchedulerEnabled } from './scheduler/scheduler-enabled';
 import { SchedulerService } from './scheduler/scheduler.service';
 import { AggregationService } from './stats/aggregation.service';
 import { StatusService } from './status/status.service';
@@ -59,14 +58,35 @@ describe('AppModule (Boot, Module nach B4.1)', () => {
     }
     expect(moduleRef.get(Clock, { strict: false })).toBeInstanceOf(SystemClock);
     expect(moduleRef.get(DB_PATH, { strict: false })).toBe(':memory:');
-    // Standard SCHEDULER_ENABLED=false: kein ScheduleModule, kein Cron-Job.
-    // Ist der Schalter in der Shell gesetzt, gibt es die Registry (Wert wird beim Laden gelesen).
-    if (isSchedulerEnabled()) {
-      expect(moduleRef.get(SchedulerRegistry, { strict: false })).toBeDefined();
-    } else {
-      expect(() => moduleRef.get(SchedulerRegistry, { strict: false })).toThrow();
-    }
+    // Tests laufen mit SCHEDULER_ENABLED=false (test-env.ts): kein ScheduleModule, kein Cron-Job.
+    expect(() => moduleRef.get(SchedulerRegistry, { strict: false })).toThrow();
+    expect(moduleRef.get(SchedulerService, { strict: false })).toBeInstanceOf(SchedulerService);
 
     await moduleRef.close();
+  });
+
+  it('ohne SCHEDULER_ENABLED gilt der Standard true (03 B4.8): ScheduleModule über ConditionalModule, Cron-Job registriert', async () => {
+    const saved = { ...process.env };
+    delete process.env['SCHEDULER_ENABLED'];
+    try {
+      // Eigenes Modul-Register: ConfigModule.forRoot und ConditionalModule werten beim Laden von app.module.ts aus.
+      await jest.isolateModulesAsync(async () => {
+        const { Test: IsolatedTest } = require('@nestjs/testing') as typeof import('@nestjs/testing');
+        const { AppModule: IsolatedAppModule } = require('./app.module') as typeof import('./app.module');
+        const schedule = require('@nestjs/schedule') as typeof import('@nestjs/schedule');
+        const scheduler = require('./scheduler/scheduler.service') as typeof import('./scheduler/scheduler.service');
+        const moduleRef = await IsolatedTest.createTestingModule({ imports: [IsolatedAppModule] }).compile();
+        await moduleRef.init();
+        try {
+          const job = moduleRef.get(schedule.SchedulerRegistry, { strict: false }).getCronJob(scheduler.SCHEDULED_IMPORT_JOB);
+          expect(job.cronTime.source).toBe('0 5 * * * *');
+          expect(job.isActive).toBe(true);
+        } finally {
+          await moduleRef.close();
+        }
+      });
+    } finally {
+      process.env = saved;
+    }
   });
 });

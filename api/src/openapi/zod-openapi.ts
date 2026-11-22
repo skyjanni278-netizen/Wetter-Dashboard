@@ -89,8 +89,9 @@ export function ApiErrors(errors: Record<number, string> = {}): MethodDecorator 
 }
 
 /**
- * Geschützter Endpunkt (Schritt 10, 03 B4.7): Schloss in der Swagger UI (`security: [{ bearer: [] }]`, Schema
- * aus `addBearerAuth()`) und die 401-Antwort. An Controller oder Handler ohne `@Public()`.
+ * Geschützter Endpunkt (03 B4.7): Schloss in der Swagger UI (`security: [{ bearer: [] }]`, Schema aus
+ * `addBearerAuth()`), die 401- und (seit Schritt 11, `RolesGuard`) die 403-Antwort. An Controller oder Handler
+ * mit `@Roles(...)`.
  */
 export function ApiBearer(): MethodDecorator & ClassDecorator {
   return applyDecorators(
@@ -98,6 +99,11 @@ export function ApiBearer(): MethodDecorator & ClassDecorator {
     ApiResponse({
       status: 401,
       description: `${statusText(401)}. UNAUTHENTICATED: Token fehlt, ist ungültig oder abgelaufen`,
+      schema: API_ERROR_REF,
+    }),
+    ApiResponse({
+      status: 403,
+      description: `${statusText(403)}. FORBIDDEN: Token ohne die nötige Rolle (admin)`,
       schema: API_ERROR_REF,
     }),
   );

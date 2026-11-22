@@ -11,6 +11,7 @@ import {
 import type { ApiErrorBody, ApiErrorPayload } from './api-error';
 import { bodyParserException } from './body-parser';
 import { Clock } from './clock';
+import { logText } from './log-text';
 import { requestIdOf } from './request-id';
 import { formatUtc } from './utc';
 
@@ -80,10 +81,15 @@ function describe(exception: unknown): { text: string; stack?: string } {
   return { text: String(exception) };
 }
 
+/** Statuscodes, die als Sicherheitsereignis ins Log gehen (C1 A09): fehlende Anmeldung, fehlende Rolle, Limit. */
+const SECURITY_STATUSES = new Set([401, 403, 429]);
+
 /**
  * Der eine globale Filter (03 B3.3, als `APP_FILTER` registriert) für **alle** Exceptions aus
  * Middleware, Guards, Pipes, Controllern, Services und dem Router (`@Catch()` ohne Typ). Ergänzt
- * `path`, `timestamp` (UTC ohne ms) und `requestId`. Fehler ab 500 gehen mit `requestId` ins Log.
+ * `path`, `timestamp` (UTC ohne ms) und `requestId`. Fehler ab 500 gehen mit `requestId` ins Log,
+ * 401/403/429 als Warnung (C1 A09) nur mit Methode, Pfad (ohne Query) und `code`: kein Header, kein Token,
+ * kein Body, keine IP (C2).
  */
 @Catch()
 export class ApiExceptionFilter implements ExceptionFilter {
@@ -102,6 +108,8 @@ export class ApiExceptionFilter implements ExceptionFilter {
     if (payload.statusCode >= 500) {
       const { text, stack } = describe(exception);
       this.logger.error(`[${requestId}] ${req.method} ${path} → ${payload.statusCode}: ${text}`, stack);
+    } else if (SECURITY_STATUSES.has(payload.statusCode)) {
+      this.logger.warn(`[${requestId}] ${req.method} ${logText(path)} → ${payload.statusCode} ${payload.code}`);
     }
     if (res.headersSent) {
       this.logger.warn(`[${requestId}] Antwort schon gesendet, Fehler ${payload.code} nicht zustellbar`);

@@ -5,6 +5,7 @@ import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { Clock, FixedClock } from '../src/common/clock';
 import { createTestApp } from './support/app';
+import { withConfig } from './support/config';
 
 /** Alle Nest-Pfade aus 03 B3.1, die es bis Schritt 10 gibt (OpenAPI-Schreibweise), mit ihren Methoden. */
 const EXPECTED_PATHS: Record<string, string[]> = {
@@ -32,12 +33,12 @@ const EXPECTED_PATHS: Record<string, string[]> = {
 const PROTECTED = ['get /api/imports', 'post /api/imports', 'get /api/imports/{id}', 'get /api/gaps', 'get /api/auth/me'];
 
 /** App wie `main.ts` mit leerer Datenbank (`:memory:`, Schema über die Migrationen). */
-async function start(env: NodeJS.ProcessEnv) {
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+async function start(env: Record<string, string | undefined>) {
+  const moduleRef = await withConfig(Test.createTestingModule({ imports: [AppModule] }), env)
     .overrideProvider(Clock)
     .useValue(new FixedClock('2026-11-19T13:30:00Z'))
     .compile();
-  const app = await createTestApp(moduleRef, env);
+  const app = await createTestApp(moduleRef);
   return {
     app,
     close: () => app.close(),
@@ -132,6 +133,26 @@ describe('OpenAPI (B3.7) mit SWAGGER_ENABLED=true', () => {
     expect(res.headers['x-request-id']).toMatch(/^[0-9a-f]{8}$/);
   });
 
+  it('Schritt 11: CSP der Swagger UI erlaubt eigene Skripte/Styles, Inline-Styles und data:-Bilder, aber kein Upgrade auf https', async () => {
+    const page = await request(app.getHttpServer()).get('/api/docs/').set('Accept', 'text/html').expect(200);
+    const csp = page.headers['content-security-policy'] as string;
+    expect(csp).toContain("script-src 'self'");
+    expect(csp).toContain("style-src 'self' 'unsafe-inline'");
+    expect(csp).toContain("img-src 'self' data:");
+    expect(csp).not.toContain('upgrade-insecure-requests');
+    expect(page.headers['x-content-type-options']).toBe('nosniff');
+    // Die Seite lädt nur Dateien derselben Origin (relativ), die es gibt; kein Inline-Skript.
+    const scripts = [...page.text.matchAll(/<script([^>]*)>/g)].map(m => m[1]);
+    expect(scripts.length).toBeGreaterThan(0);
+    for (const attrs of scripts) expect(attrs).toMatch(/src="\.\/[\w.-]+\.js"/);
+    for (const file of ['swagger-ui-bundle.js', 'swagger-ui-init.js', 'swagger-ui.css']) {
+      await request(app.getHttpServer()).get(`/api/docs/${file}`).set('Accept', '*/*').expect(200);
+    }
+    // JSON-Antworten bekommen die strenge CSP.
+    const status = await request(app.getHttpServer()).get('/api/status').expect(200);
+    expect(status.headers['content-security-policy']).toContain("default-src 'none'");
+  });
+
   it('andere Pfade prüfen Accept weiter (406)', async () => {
     const res = await request(app.getHttpServer()).get('/api/status').set('Accept', 'text/html').expect(406);
     expect(res.body.code).toBe('NOT_ACCEPTABLE');
@@ -139,12 +160,17 @@ describe('OpenAPI (B3.7) mit SWAGGER_ENABLED=true', () => {
 });
 
 describe('OpenAPI ohne SWAGGER_ENABLED', () => {
-  it.each([{}, { SWAGGER_ENABLED: 'TRUE' }, { SWAGGER_ENABLED: '1' }])('env %j → /api/docs-json und /api/docs 404 als JSON', async env => {
+  it.each([{}, { SWAGGER_ENABLED: 'false' }])('env %j → /api/docs-json und /api/docs 404 als JSON (B3.3)', async env => {
     const h = await start(env);
     try {
       const json = await request(h.app.getHttpServer()).get('/api/docs-json').expect(404);
-      expect(json.body.code).toBe('NOT_FOUND');
-      await request(h.app.getHttpServer()).get('/api/docs').expect(404);
+      expect(json.body).toMatchObject({ statusCode: 404, code: 'NOT_FOUND', path: '/api/docs-json', errors: [], details: null });
+      const docs = await request(h.app.getHttpServer()).get('/api/docs').expect(404);
+      expect(docs.headers['content-type']).toMatch(/application\/json/);
+      expect(docs.body).toMatchObject({ code: 'NOT_FOUND', path: '/api/docs' });
+      // Offener Punkt aus Schritt 8: Ohne Swagger gilt die 406-Prüfung auch für /api/docs*.
+      const html = await request(h.app.getHttpServer()).get('/api/docs/').set('Accept', 'text/html').expect(406);
+      expect(html.body.code).toBe('NOT_ACCEPTABLE');
     } finally {
       await h.close();
     }

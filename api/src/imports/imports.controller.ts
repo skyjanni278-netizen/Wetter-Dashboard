@@ -3,9 +3,11 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { IdParamSchema } from '../common/dto/id-param.schema';
 import type { IdParam } from '../common/dto/id-param.schema';
+import { Roles } from '../common/roles.decorator';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { ImportListSchema, ImportResourceSchema } from '../openapi/response.schemas';
 import { ApiBearer, ApiErrors, ApiZodBody, ApiZodParams, ApiZodQuery, ApiZodResponse } from '../openapi/zod-openapi';
+import { ADMIN_ROLE } from '../users/role.entity';
 import { ImportCreateSchema } from './dto/import-create.schema';
 import type { ImportCreateDto } from './dto/import-create.schema';
 import { ImportsQuerySchema } from './dto/imports-query.schema';
@@ -15,11 +17,12 @@ import type { ImportList, ImportResource } from './import';
 import { ImportsService } from './imports.service';
 
 /**
- * US10-3, US11-1/-2/-3/-4: Importaufträge (asynchron, 03 B3.5). Ohne `@Public()`: Seit Schritt 10 verlangt der
- * globale `JwtAuthGuard` ein gültiges Token (sonst 401, US10-1, US11-5); `@Roles('admin')` folgt in Schritt 11.
+ * US10-3, US11-1/-2/-3/-4: Importaufträge (asynchron, 03 B3.5). Nur für Admins (03 B4.7): ohne gültiges Token 401
+ * (`JwtAuthGuard`, US10-1, US11-5), mit Token ohne Rolle `admin` 403 (`RolesGuard`, US10-2).
  */
 @ApiTags('imports')
 @ApiBearer()
+@Roles(ADMIN_ROLE)
 @Controller('imports')
 export class ImportsController {
   constructor(private readonly service: ImportsService) {}

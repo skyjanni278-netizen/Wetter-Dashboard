@@ -1,7 +1,8 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ApiException } from '../common/api.exception';
 import { Clock } from '../common/clock';
+import { logText } from '../common/log-text';
 import { DUMMY_PASSWORD_HASH, verifyPassword } from '../users/password';
 import { toTokenUser, toUserResource } from '../users/user';
 import type { TokenUser, UserResource } from '../users/user';
@@ -26,6 +27,8 @@ export function invalidCredentials(): ApiException {
  */
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly users: UsersService,
     private readonly jwt: JwtService,
@@ -33,11 +36,21 @@ export class AuthService {
     @Inject(JWT_CONFIG) private readonly config: JwtConfig,
   ) {}
 
+  /**
+   * Log-Ereignisse (C1 A09): Erfolg und Fehlschlag mit Benutzername (bereinigt, `logText`) und Grund, **nie** mit
+   * Passwort oder Token; keine IP (C2: keine IPs im Anwendungslog). Der Grund steht nur im Log, die Antwort bleibt
+   * für alle Fälle gleich (US09-2/-3).
+   */
   async login(dto: LoginDto): Promise<TokenResponse> {
     const account = await this.users.findForLogin(dto.username);
     const matches = await verifyPassword(dto.password, account?.passwordHash ?? DUMMY_PASSWORD_HASH);
-    if (!account || !matches || !account.isActive) throw invalidCredentials();
+    if (!account || !matches || !account.isActive) {
+      const reason = !account ? 'unbekannter Benutzername' : !matches ? 'falsches Passwort' : 'Konto gesperrt';
+      this.logger.warn(`Anmeldung fehlgeschlagen: Benutzer "${logText(dto.username)}" (${reason})`);
+      throw invalidCredentials();
+    }
     await this.users.recordLogin(account.id, this.clock.now());
+    this.logger.log(`Anmeldung erfolgreich: Benutzer "${logText(account.username)}" (Konto ${account.id})`);
     return this.issueToken(toTokenUser(account));
   }
 

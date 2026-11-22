@@ -1,7 +1,10 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { DataSource } from 'typeorm';
+import { z } from 'zod';
 import { SystemClock } from './common/clock';
+import { loadEnv } from './config/config';
+import { DatabaseEnvSchema, EnvConfigError, OpenMeteoEnvSchema } from './config/env.schema';
 import { dataSourceOptions } from './database/database-options';
 import { isMemoryDatabase, resolveDbPath } from './database/db-path';
 import { DailyForecast } from './forecasts/daily-forecast.entity';
@@ -14,7 +17,7 @@ import { checkLegacyArchive, LegacyImporter } from './legacy/legacy-import';
 import type { LegacyImportReport } from './legacy/legacy-import';
 import { Observation } from './observations/observation.entity';
 import { TypeOrmObservationStore } from './observations/typeorm-observation.store';
-import { AdminCommandError, createAdmin, setAdminPassword } from './users/admin-commands';
+import { ADMIN_INITIAL_PASSWORD, AdminCommandError, createAdmin, setAdminPassword } from './users/admin-commands';
 import { PasswordInputAborted, promptNewPassword } from './users/password-input';
 import { User } from './users/user.entity';
 import { UsernameSchema } from './users/username.schema';
@@ -29,7 +32,10 @@ import { OpenMeteoClient } from './weather-provider/open-meteo.client';
  *   node dist/cli.js admin:create --username <name>        (Passwort aus ADMIN_INITIAL_PASSWORD oder verdeckt von stdin)
  *   node dist/cli.js admin:set-password --username <name>  (Passwort verdeckt von stdin)
  *
- * Ziel ist `DB_PATH` (ohne Angabe die Dev-DB); die Datei muss migriert sein (`npm run migration:run`).
+ * Konfiguration wie die App aus `api/.env` und der Umgebung (Vorrang), aber je Befehl nur das Nötige (Teilschemas
+ * in `config/env.schema.ts`, **kein** `JWT_SECRET`): `import:legacy` und `admin:*` brauchen `NODE_ENV` und
+ * `DB_PATH` (Pflicht, die Datei muss migriert sein: `npm run migration:run`), `import:legacy --dry-run` nichts,
+ * `legacy:dst-check` nur die Open-Meteo-Werte (mit Standard). Fehlt ein Wert → Meldung mit Feldname, Exit-Code 1.
  * Kein Nest-Kontext: Es laufen weder Scheduler (`SCHEDULER_ENABLED` spielt keine Rolle) noch der Start-Hook,
  * der laufende Importe auf `INTERRUPTED` setzt, und kein HTTP (kein Token nötig); die Stores sind dieselben
  * wie in der App. Exit-Code 0 bei Erfolg, 1 bei Fehlern in den Daten, beim Schreiben oder Abbruch (z. B. es
@@ -140,14 +146,15 @@ async function openTarget(dbPath: string, command: CliArgs['command']): Promise<
 async function importLegacy(args: ArchiveArgs): Promise<number> {
   if (!existsSync(args.dir)) throw new Error(`Ordner ${args.dir} gibt es nicht.`);
   if (args.dryRun) {
-    // Probelauf ohne Datenbank: weder Datei noch Import-Eintrag entstehen (US15-1).
+    // Probelauf ohne Datenbank: weder Datei noch Import-Eintrag entstehen (US15-1); braucht keinen Wert aus .env.
     const report = await checkLegacyArchive(args.dir);
     printReport(report);
     return report.files.invalid === 0 ? 0 : 1;
   }
 
+  const env = await loadEnv(DatabaseEnvSchema);
   const clock = new SystemClock();
-  const dbPath = resolveDbPath();
+  const dbPath = resolveDbPath(env.DB_PATH);
   const dataSource = await openTarget(dbPath, args.command);
   try {
     console.log(`Datenbank: ${dbPath}`);
@@ -166,7 +173,13 @@ async function importLegacy(args: ArchiveArgs): Promise<number> {
 }
 
 async function dstCheck(args: ArchiveArgs): Promise<number> {
-  const result = await runDstCheck(args.dir, new OpenMeteoClient());
+  const env = await loadEnv(OpenMeteoEnvSchema);
+  const client = new OpenMeteoClient(undefined, undefined, {
+    forecastUrl: env.OPEN_METEO_FORECAST_URL,
+    archiveUrl: env.OPEN_METEO_ARCHIVE_URL,
+    timeoutMs: env.OPEN_METEO_TIMEOUT_MS,
+  });
+  const result = await runDstCheck(args.dir, client);
   for (const line of formatDstCheck(result)) console.log(line);
   return result.rule ? 0 : 1;
 }
@@ -174,15 +187,18 @@ async function dstCheck(args: ArchiveArgs): Promise<number> {
 /**
  * `admin:create` / `admin:set-password` (03 B4.6) gegen `DB_PATH`. Das Passwort kommt verdeckt von stdin (im
  * Terminal zweimal) oder bei `admin:create` einmalig aus `ADMIN_INITIAL_PASSWORD`; Abfragen gehen nach stderr.
+ * `ADMIN_INITIAL_PASSWORD` ist ein Einmalwert nur für die CLI (nicht im `EnvSchema` der App, 03 B4.8); er kommt
+ * über dasselbe Teilschema aus Umgebung bzw. `.env` und wird nie ausgegeben.
  */
 async function adminCommand(args: AdminArgs): Promise<number> {
-  const dbPath = resolveDbPath();
+  const env = await loadEnv(DatabaseEnvSchema.extend({ [ADMIN_INITIAL_PASSWORD]: z.string().optional() }));
+  const dbPath = resolveDbPath(env.DB_PATH);
   const dataSource = await openTarget(dbPath, args.command);
   try {
     console.log(`Datenbank: ${dbPath}`);
     const deps = {
       users: new UsersService(dataSource.getRepository(User)),
-      env: process.env,
+      env: { [ADMIN_INITIAL_PASSWORD]: env[ADMIN_INITIAL_PASSWORD] },
       prompt: () => promptNewPassword({ input: process.stdin, output: process.stderr }),
       now: () => new Date(),
       log: (line: string) => console.log(line),
@@ -212,7 +228,7 @@ async function main(): Promise<number> {
     const prefix =
       error instanceof ImportAlreadyRunningError
         ? 'Abbruch (R19)'
-        : error instanceof AdminCommandError || error instanceof PasswordInputAborted
+        : error instanceof AdminCommandError || error instanceof PasswordInputAborted || error instanceof EnvConfigError
           ? 'Abbruch'
           : 'Fehler';
     console.error(`${prefix}: ${(error as Error).message}`);

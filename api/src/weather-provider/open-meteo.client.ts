@@ -8,17 +8,32 @@ import {
   OpenMeteoResponseSchema,
 } from './open-meteo.schema';
 
-/** Adressen der Open-Meteo-API (Schritt 11: aus der Konfiguration). */
+/** Standard-Adressen der Open-Meteo-API; die App nimmt sie aus der Konfiguration (`OPEN_METEO_*`, 03 B4.8). */
 export const OPEN_METEO_FORECAST_URL = 'https://api.open-meteo.com/v1/forecast';
 export const OPEN_METEO_ARCHIVE_URL = 'https://archive-api.open-meteo.com/v1/archive';
 
-/** Zeitlimit je Versuch und Wartezeiten vor den 2 Wiederholungen (Backoff). */
+/** Zeitlimit je Versuch (Standard, `OPEN_METEO_TIMEOUT_MS`) und Wartezeiten vor den 2 Wiederholungen (Backoff). */
 export const OPEN_METEO_TIMEOUT_MS = 15_000;
 export const DEFAULT_RETRY_DELAYS_MS: readonly number[] = [1_000, 3_000];
 
 /** Optionale DI-Tokens, damit Tests `fetch` und die Wartezeiten ersetzen können. */
 export const OPEN_METEO_FETCH = 'OPEN_METEO_FETCH';
 export const OPEN_METEO_RETRY_DELAYS_MS = 'OPEN_METEO_RETRY_DELAYS_MS';
+/** Optionales DI-Token für Adressen und Zeitlimit (`WeatherProviderModule` aus dem `ConfigService`). */
+export const OPEN_METEO_CONFIG = 'OPEN_METEO_CONFIG';
+
+/** Adressen und Zeitlimit; nur aus der Konfiguration, nie aus einer Anfrage (C1 A01, SSRF). */
+export interface OpenMeteoConfig {
+  forecastUrl: string;
+  archiveUrl: string;
+  timeoutMs: number;
+}
+
+export const DEFAULT_OPEN_METEO_CONFIG: OpenMeteoConfig = {
+  forecastUrl: OPEN_METEO_FORECAST_URL,
+  archiveUrl: OPEN_METEO_ARCHIVE_URL,
+  timeoutMs: OPEN_METEO_TIMEOUT_MS,
+};
 
 export type FetchFn = (input: string | URL, init?: RequestInit) => Promise<Response>;
 
@@ -96,18 +111,21 @@ export class OpenMeteoClient {
   private readonly logger = new Logger(OpenMeteoClient.name);
   private readonly fetchFn: FetchFn;
   private readonly retryDelays: readonly number[];
+  private readonly config: OpenMeteoConfig;
 
   constructor(
     @Optional() @Inject(OPEN_METEO_FETCH) fetchFn?: FetchFn,
     @Optional() @Inject(OPEN_METEO_RETRY_DELAYS_MS) retryDelays?: readonly number[],
+    @Optional() @Inject(OPEN_METEO_CONFIG) config?: OpenMeteoConfig,
   ) {
     this.fetchFn = fetchFn ?? ((input, init) => globalThis.fetch(input, init));
     this.retryDelays = retryDelays ?? DEFAULT_RETRY_DELAYS_MS;
+    this.config = config ?? DEFAULT_OPEN_METEO_CONFIG;
   }
 
   /** Stundenwerte für die UTC-Tage `startDate` bis `endDate`. */
   async fetchHourly(request: HourlyRequest, location: Coordinates): Promise<ProviderHour[]> {
-    const url = new URL(request.source === 'archive' ? OPEN_METEO_ARCHIVE_URL : OPEN_METEO_FORECAST_URL);
+    const url = new URL(request.source === 'archive' ? this.config.archiveUrl : this.config.forecastUrl);
     url.search = new URLSearchParams({
       latitude: String(location.latitude),
       longitude: String(location.longitude),
@@ -138,7 +156,7 @@ export class OpenMeteoClient {
    * `timezone=Europe/Berlin`: Tageswerte (Max, Min, Summe) gelten für Berliner Kalendertage.
    */
   async fetchDailyForecast(location: Coordinates, days = 7): Promise<ProviderForecastDay[]> {
-    const url = new URL(OPEN_METEO_FORECAST_URL);
+    const url = new URL(this.config.forecastUrl);
     url.search = new URLSearchParams({
       latitude: String(location.latitude),
       longitude: String(location.longitude),
@@ -173,7 +191,7 @@ export class OpenMeteoClient {
             : isTimeout(error)
               ? new OpenMeteoError(
                   'UPSTREAM_TIMEOUT',
-                  `Open-Meteo antwortete nicht innerhalb von ${OPEN_METEO_TIMEOUT_MS / 1000} s`,
+                  `Open-Meteo antwortete nicht innerhalb von ${this.config.timeoutMs / 1000} s`,
                   true,
                 )
               : new OpenMeteoError(
@@ -193,7 +211,7 @@ export class OpenMeteoClient {
   private async attempt(url: URL): Promise<unknown> {
     const response = await this.fetchFn(url, {
       headers: { accept: 'application/json' },
-      signal: AbortSignal.timeout(OPEN_METEO_TIMEOUT_MS),
+      signal: AbortSignal.timeout(this.config.timeoutMs),
     });
     if (!response.ok) {
       const retryable = response.status >= 500 || response.status === 429;

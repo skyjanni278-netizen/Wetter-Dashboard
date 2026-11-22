@@ -5,14 +5,6 @@ import { SWAGGER_PATH } from './docs-path';
 import { ApiErrorSchema } from './response.schemas';
 import { API_ERROR_SCHEMA_NAME, toOpenApiSchema } from './zod-openapi';
 
-/**
- * Übergang bis Schritt 11 (dann `EnvSchema`): nur exakt `"true"` schaltet die Doku ein (`TRUE`, `1` usw.
- * bleiben aus, wie bei `SCHEDULER_ENABLED`). Standard aus.
- */
-export function isSwaggerEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env['SWAGGER_ENABLED'] === 'true';
-}
-
 /** OpenAPI-Dokument aus den Controllern; das Fehlerschema (B3.3) steht einmal unter `components.schemas`. */
 export function createOpenApiDocument(app: INestApplication) {
   const config = new DocumentBuilder()
@@ -35,7 +27,7 @@ export function createOpenApiDocument(app: INestApplication) {
   return document;
 }
 
-/** Richtet `/api/docs` und `/api/docs-json` ein (vor `init`/`listen`, aufgerufen von `configureApp`). */
+/** Richtet `/api/docs` und `/api/docs-json` ein (vor `init`/`listen`, aufgerufen von `configureApp` bei `SWAGGER_ENABLED=true`). */
 export function setupSwagger(app: INestApplication): void {
   SwaggerModule.setup(SWAGGER_PATH, app, () => createOpenApiDocument(app));
 }

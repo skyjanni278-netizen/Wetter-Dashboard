@@ -1,10 +1,5 @@
-/** DI-Token: Wert `true`, wenn der stündliche Abruf laufen soll (`SchedulerModule.forRoot`). */
-export const SCHEDULER_ENABLED = 'SCHEDULER_ENABLED';
-
 /**
- * Schalter `SCHEDULER_ENABLED` übergangsweise aus `process.env` (wie `PORT`, Schritt 11: ConfigModule).
- * Standard `false`, weil im Parallelbetrieb Express schreibt; nur der exakte Text `"true"` schaltet ein.
+ * DI-Token: Wert `true`, wenn der stündliche Abruf laufen soll (`SchedulerModule.forRoot`). Der Wert kommt aus
+ * `SCHEDULER_ENABLED` (`EnvSchema`, 03 B4.8: nur `true`/`false`, Standard `true`); Tests ersetzen das Token.
  */
-export function isSchedulerEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env['SCHEDULER_ENABLED'] === 'true';
-}
+export const SCHEDULER_ENABLED = 'SCHEDULER_ENABLED';

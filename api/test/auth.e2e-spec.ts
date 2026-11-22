@@ -176,7 +176,8 @@ describe('Schritt 10: Login, JWT, JwtAuthGuard (US09, US10-1, US11-5, US12-4)', 
     });
     expect(Number(blocked.headers['retry-after-login'])).toBeGreaterThan(0);
     await login({ username: 'admin', password: PASSWORD }).expect(429);
-    // Das Limit gilt nur für den Login (03 B3.2); das globale Limit kommt in Schritt 11.
+    // Das Login-Limit gilt nur für den Login (03 B3.2); das globale Limit (Schritt 11) ist in Tests hoch gesetzt
+    // (test-env.ts) und wird in access.e2e-spec.ts geprüft.
     for (let i = 0; i < 10; i++) await request(server()).get('/api/status').expect(200);
   });
 

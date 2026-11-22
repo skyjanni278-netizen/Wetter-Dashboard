@@ -17,10 +17,9 @@ function isLoginThrottled(context: ExecutionContext): boolean {
 }
 
 /**
- * Throttler `login` für `ThrottlerModule.forRoot`: gilt nur für Handler mit `@LoginThrottle()`, alle anderen
- * Routen überspringt er (`skipIf`). Gezählt wird jede Anfrage (auch 400), Schlüssel ist die Client-IP
- * (`req.ip`; Nest lauscht nur auf `127.0.0.1`, einen Proxy gibt es bis Schritt 11 nicht). Das globale Limit
- * (`THROTTLE_GLOBAL_LIMIT`) kommt in Schritt 11 als zweiter Eintrag dazu.
+ * Throttler `login` (`throttling.ts`): gilt nur für Handler mit `@LoginThrottle()`, alle anderen Routen
+ * überspringt er (`skipIf`). Gezählt wird jede Anfrage (auch 400), Schlüssel ist die Client-IP (`req.ip`, hinter
+ * einem Proxy nach `TRUST_PROXY`) zusammen mit dem Handler. Dazu kommt das globale Limit `THROTTLE_GLOBAL_LIMIT`.
  */
 export const LOGIN_THROTTLER: ThrottlerOptions = {
   name: 'login',

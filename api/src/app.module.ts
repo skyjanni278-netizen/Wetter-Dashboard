@@ -3,6 +3,7 @@ import { APP_FILTER } from '@nestjs/core';
 import { AuthModule } from './auth/auth.module';
 import { ApiExceptionFilter } from './common/api-exception.filter';
 import { CommonModule } from './common/common.module';
+import { AppConfigModule } from './config/app-config.module';
 import { DatabaseModule } from './database/database.module';
 import { ForecastsModule } from './forecasts/forecasts.module';
 import { HealthModule } from './health/health.module';
@@ -18,13 +19,16 @@ import { WeatherProviderModule } from './weather-provider/weather-provider.modul
  * Schritt 6: Module je Ressource nach 03 B4.1, ohne Zyklen und ohne `forwardRef`. Jedes Modul nutzt von
  * anderen nur, was diese über `exports` freigeben. `AppModule` bündelt die Module und registriert den
  * globalen `ApiExceptionFilter` (Fehlerformat B3.3); Middleware und Body-Parser richtet `configureApp`
- * ein (`app.setup.ts`). `SCHEDULER_ENABLED` liest `SchedulerModule.forRoot()` beim Laden dieser Datei.
- * Schritt 9: `DatabaseModule` (SQLite über TypeORM, `DB_PATH`) steht zuerst; `HealthModule` für `GET /api/health`.
- * Schritt 10: `AuthModule` (Login, JWT; importiert `UsersModule`) registriert die globalen Guards `ThrottlerGuard`
- * und `JwtAuthGuard`; Gast-Endpunkte tragen `@Public()`.
+ * ein (`app.setup.ts`).
+ * Schritt 9: `DatabaseModule` (SQLite über TypeORM, `DB_PATH`); `HealthModule` für `GET /api/health`.
+ * Schritt 10: `AuthModule` (Login, JWT; importiert `UsersModule`) registriert die globalen Guards.
+ * Schritt 11: `AppConfigModule` (`ConfigModule.forRoot`, global, `EnvSchema`) steht zuerst; alle Module lesen
+ * ihre Werte über den `ConfigService`. `SCHEDULER_ENABLED` wertet `SchedulerModule.forRoot()` nach dem Laden der
+ * Konfiguration aus. Guards: Throttler → JWT → Rollen (ohne `@Public()`/`@Roles()` → 403).
  */
 @Module({
   imports: [
+    AppConfigModule,
     DatabaseModule,
     CommonModule,
     AuthModule,

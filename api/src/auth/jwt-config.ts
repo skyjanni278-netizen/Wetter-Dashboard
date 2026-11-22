@@ -18,7 +18,7 @@ export interface JwtConfig {
   expiresInSeconds: number;
 }
 
-/** Ungültige Anmelde-Konfiguration; `main.ts` bricht den Start mit dieser Meldung ab (Exit-Code 1). */
+/** Ungültige Anmelde-Konfiguration (nach `validateEnv` nur noch, wenn ein Test die Werte ersetzt). */
 export class JwtConfigError extends Error {
   constructor(message: string) {
     super(message);
@@ -37,25 +37,17 @@ export function parseExpiresIn(value: string): number | null {
 }
 
 /**
- * Übergang bis Schritt 11 (dann `EnvSchema`, 03 B4.8): `JWT_SECRET` ist Pflicht und mindestens 32 Zeichen,
- * `JWT_EXPIRES_IN` optional (Standard `1h`). Sonst `JwtConfigError` mit klarer Meldung (fail fast).
+ * Aus den geprüften Werten (`EnvSchema`, 03 B4.8): `JWT_SECRET` mindestens 32 Zeichen, `JWT_EXPIRES_IN` (Standard
+ * `1h`; das Format prüft schon `validateEnv` beim Start). Zweite Sicherung, falls ein Test die Werte ersetzt.
+ * Die Meldung nennt nie das Secret.
  */
-export function jwtConfigFromEnv(env: NodeJS.ProcessEnv = process.env): JwtConfig {
-  const secret = env['JWT_SECRET'] ?? '';
-  if (secret.trim() === '') {
-    throw new JwtConfigError(
-      `JWT_SECRET fehlt. Ohne Secret kann die API keine Anmeldung prüfen. Erzeugen mit: openssl rand -base64 48`,
-    );
-  }
+export function jwtConfig(secret: string, expiresIn: string = DEFAULT_JWT_EXPIRES_IN): JwtConfig {
   if (secret.length < MIN_JWT_SECRET_LENGTH) {
-    throw new JwtConfigError(
-      `JWT_SECRET ist zu kurz (${secret.length} Zeichen, mindestens ${MIN_JWT_SECRET_LENGTH}). Erzeugen mit: openssl rand -base64 48`,
-    );
+    throw new JwtConfigError(`JWT_SECRET ist zu kurz (mindestens ${MIN_JWT_SECRET_LENGTH} Zeichen).`);
   }
-  const raw = env['JWT_EXPIRES_IN']?.trim() || DEFAULT_JWT_EXPIRES_IN;
-  const expiresInSeconds = parseExpiresIn(raw);
+  const expiresInSeconds = parseExpiresIn(expiresIn);
   if (expiresInSeconds === null) {
-    throw new JwtConfigError(`JWT_EXPIRES_IN="${raw}" ist ungültig. Erlaubt: Sekunden oder Zahl mit s, m, h, d (z. B. 1h).`);
+    throw new JwtConfigError('JWT_EXPIRES_IN ist ungültig (erlaubt: Sekunden oder Zahl mit s, m, h, d, z. B. 1h).');
   }
   return { secret, expiresInSeconds };
 }

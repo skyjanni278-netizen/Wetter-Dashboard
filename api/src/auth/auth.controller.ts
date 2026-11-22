@@ -39,7 +39,7 @@ export class AuthController {
     return this.service.login(dto);
   }
 
-  /** US09-8: das eigene Konto. `@Roles('admin')` wirkt ab Schritt 11 (RolesGuard); bis dahin reicht ein gültiges Token. */
+  /** US09-8: das eigene Konto. Ohne Token 401, mit Token ohne Rolle `admin` 403 (`RolesGuard`, 03 B4.7). */
   @Get('me')
   @Roles(ADMIN_ROLE)
   @ApiBearer()

@@ -2,7 +2,6 @@ import { DaysQuerySchema } from '../days/dto/days-query.schema';
 import { ImportsQuerySchema } from '../imports/dto/imports-query.schema';
 import { YearParamSchema } from '../summaries/dto/year-param.schema';
 import { isDocsPath } from './docs-path';
-import { isSwaggerEnabled } from './swagger';
 import { toOpenApiSchema } from './zod-openapi';
 
 describe('Zod → OpenAPI (B3.7)', () => {
@@ -26,13 +25,6 @@ describe('Zod → OpenAPI (B3.7)', () => {
   it('transform: Pfadparameter year als Text im Format JJJJ (Eingabeseite)', () => {
     const json = toOpenApiSchema(YearParamSchema, 'input');
     expect(json.properties?.['year']).toMatchObject({ type: 'string', pattern: '^\\d{4}$' });
-  });
-
-  it('SWAGGER_ENABLED: nur exakt "true" schaltet ein', () => {
-    expect(isSwaggerEnabled({ SWAGGER_ENABLED: 'true' })).toBe(true);
-    for (const value of [undefined, '', 'TRUE', '1', 'false']) {
-      expect(isSwaggerEnabled({ SWAGGER_ENABLED: value })).toBe(false);
-    }
   });
 
   it.each([

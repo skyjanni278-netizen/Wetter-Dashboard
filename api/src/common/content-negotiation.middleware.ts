@@ -62,12 +62,15 @@ export function contentNegotiationError(method: string, headers: IncomingHttpHea
  * 03 B4.3: läuft vor dem Body-Parser und vor allen Guards (in `configureApp` registriert).
  * `Accept` ohne `application/json`, `application/*` oder `*\/*` → 406 `NOT_ACCEPTABLE`;
  * POST/PATCH mit Body im falschen Typ → 415 `UNSUPPORTED_MEDIA_TYPE`. Die Antwort baut der Filter.
- * Ausgenommen sind die Pfade der Doku (`/api/docs*`), weil die Swagger UI HTML ist (B3.1).
+ * Ausgenommen sind die Pfade der Doku (`/api/docs*`), weil die Swagger UI HTML ist (B3.1), aber **nur**, wenn
+ * Swagger an ist (`docsEnabled`, aus `SWAGGER_ENABLED`); sonst gelten sie wie jeder unbekannte Pfad.
  */
 @Injectable()
 export class ContentNegotiationMiddleware implements NestMiddleware<Request, Response> {
+  constructor(private readonly docsEnabled: boolean = false) {}
+
   use(req: Request, _res: Response, next: NextFunction): void {
-    if (isDocsPath(req.path)) {
+    if (this.docsEnabled && isDocsPath(req.path)) {
       next();
       return;
     }

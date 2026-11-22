@@ -2,17 +2,14 @@ import path from 'node:path';
 import { prepareDatabase } from './prepare-database';
 import { resolveDbPath } from './db-path';
 
-describe('resolveDbPath (03 B4.4, übergangsweise aus process.env)', () => {
-  it('ohne DB_PATH: die Dev-DB unter %LOCALAPPDATA%\\wetter-heubach, nie die Sammel-DB', () => {
-    const resolved = resolveDbPath({ LOCALAPPDATA: 'C:\\Users\\x\\AppData\\Local' }, 'C:\\Projekte\\api');
-    expect(resolved).toBe(path.join('C:\\Users\\x\\AppData\\Local', 'wetter-heubach', 'weather.dev.db'));
-    expect(resolved).not.toMatch(/weather\.db$/);
-  });
-
-  it('DB_PATH relativ zum Arbeitsverzeichnis; :memory: bleibt; Leerzeichen zählen als nicht gesetzt', () => {
-    expect(resolveDbPath({ DB_PATH: 'data/x.db' }, '/srv/api')).toBe(path.resolve('/srv/api', 'data/x.db'));
-    expect(resolveDbPath({ DB_PATH: ':memory:' })).toBe(':memory:');
-    expect(resolveDbPath({ DB_PATH: '  ', LOCALAPPDATA: '/l' }, '/c')).toBe(path.join('/l', 'wetter-heubach', 'weather.dev.db'));
+describe('resolveDbPath (03 B4.4; DB_PATH ist seit Schritt 11 Pflicht im EnvSchema)', () => {
+  it('absoluter Pfad bleibt (normalisiert); relativ gilt ab dem Arbeitsverzeichnis; :memory: bleibt; Leerzeichen am Rand fallen weg', () => {
+    expect(resolveDbPath('C:\\Users\\x\\AppData\\Local\\wetter-heubach\\weather.dev.db', 'C:\\Projekte\\api')).toBe(
+      path.resolve('C:\\Users\\x\\AppData\\Local\\wetter-heubach\\weather.dev.db'),
+    );
+    expect(resolveDbPath('data/x.db', '/srv/api')).toBe(path.resolve('/srv/api', 'data/x.db'));
+    expect(resolveDbPath(':memory:')).toBe(':memory:');
+    expect(resolveDbPath('  data/x.db ', '/srv/api')).toBe(path.resolve('/srv/api', 'data/x.db'));
   });
 });
 

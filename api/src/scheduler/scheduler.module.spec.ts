@@ -2,13 +2,16 @@ import { Logger } from '@nestjs/common';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
+import { AppConfigModule } from '../config/app-config.module';
 import { DatabaseModule } from '../database/database.module';
 import { SchedulerModule } from './scheduler.module';
 import { SCHEDULED_IMPORT_JOB, SchedulerService } from './scheduler.service';
 
 async function boot(enabled: boolean): Promise<TestingModule> {
-  // Die Stores brauchen die Datenbank (`:memory:`, test/support/test-env.ts).
-  const moduleRef = await Test.createTestingModule({ imports: [DatabaseModule, SchedulerModule.forRoot(enabled)] }).compile();
+  // Die Stores brauchen die Datenbank (`:memory:`, test/support/test-env.ts), Uhr und Datenbank die Konfiguration.
+  const moduleRef = await Test.createTestingModule({
+    imports: [AppConfigModule, DatabaseModule, SchedulerModule.forRoot(enabled)],
+  }).compile();
   await moduleRef.init();
   return moduleRef;
 }

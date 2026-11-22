@@ -3,7 +3,6 @@ import { FixedClock } from '../common/clock';
 import type { ImportRunner } from '../imports/import-runner';
 import { ImportsService } from '../imports/imports.service';
 import { InMemoryImportStore } from '../imports/in-memory-import.store';
-import { isSchedulerEnabled } from './scheduler-enabled';
 import { SchedulerService } from './scheduler.service';
 
 function setup(enabled = true, now = '2026-11-20T09:05:00Z') {
@@ -101,21 +100,8 @@ describe('SchedulerService (US08, R19)', () => {
     setup(false).scheduler.onApplicationBootstrap();
     setup(true).scheduler.onApplicationBootstrap();
 
-    expect(log.mock.calls[0][0]).toBe('Scheduler deaktiviert (SCHEDULER_ENABLED ist nicht "true")');
+    expect(log.mock.calls[0][0]).toBe('Scheduler deaktiviert (SCHEDULER_ENABLED=false)');
     expect(log.mock.calls[1][0]).toContain('Scheduler aktiv: 0 5 * * * * (Europe/Berlin)');
   });
 });
-
-describe('isSchedulerEnabled (SCHEDULER_ENABLED)', () => {
-  it('Standard false: Variable fehlt', () => {
-    expect(isSchedulerEnabled({})).toBe(false);
-  });
-
-  it.each(['false', '', 'TRUE', 'True', '1', 'yes', ' true'])('"%s" → false', value => {
-    expect(isSchedulerEnabled({ SCHEDULER_ENABLED: value })).toBe(false);
-  });
-
-  it('nur exakt "true" → true', () => {
-    expect(isSchedulerEnabled({ SCHEDULER_ENABLED: 'true' })).toBe(true);
-  });
-});
+// Erlaubte Werte und Standard von SCHEDULER_ENABLED prüft EnvSchema (src/config/env.schema.spec.ts).

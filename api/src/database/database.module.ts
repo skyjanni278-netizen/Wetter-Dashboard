@@ -1,11 +1,22 @@
 import { Module } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import type { AppConfig } from '../config/config';
 import { dataSourceOptions } from './database-options';
 import { DB_PATH, resolveDbPath } from './db-path';
 
-/** Stellt nur den Pfad bereit (Token `DB_PATH`), damit Tests ihn per `overrideProvider` ersetzen können. */
+/**
+ * Stellt nur den Pfad bereit (Token `DB_PATH`, aus `DB_PATH` im globalen `ConfigModule`, 03 B4.8), damit Tests ihn
+ * per `overrideProvider` ersetzen können.
+ */
 @Module({
-  providers: [{ provide: DB_PATH, useFactory: () => resolveDbPath() }],
+  providers: [
+    {
+      provide: DB_PATH,
+      inject: [ConfigService],
+      useFactory: (config: AppConfig) => resolveDbPath(config.get('DB_PATH', { infer: true })),
+    },
+  ],
   exports: [DB_PATH],
 })
 export class DbPathModule {}

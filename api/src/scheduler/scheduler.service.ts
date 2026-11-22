@@ -37,7 +37,7 @@ export class SchedulerService implements OnApplicationBootstrap {
     if (this.enabled) {
       this.logger.log(`Scheduler aktiv: ${SCHEDULER_CRON} (${BERLIN_TIMEZONE}), Import für gestern und heute`);
     } else {
-      this.logger.log('Scheduler deaktiviert (SCHEDULER_ENABLED ist nicht "true")');
+      this.logger.log('Scheduler deaktiviert (SCHEDULER_ENABLED=false)');
     }
   }
 
