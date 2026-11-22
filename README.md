@@ -2,8 +2,8 @@
 
 > **Aktuelle Projektdokumentation** (Aufbau, Routen, Komponenten, Endpunkte, Befehle, Änderungsprotokoll): [`docs/PROJEKTDOKU.md`](docs/PROJEKTDOKU.md). Die Planung des Umbaus steht unter [`docs/umbau/`](docs/umbau/).
 
-Lokales Wetter-Dashboard für die Stadt **Heubach im Ostalbkreis (Baden-Württemberg)**.  
-Stündlicher Datenabruf von der kostenlosen [Open-Meteo API](https://open-meteo.com), Speicherung als JSON-Dateien und Darstellung im Browser mit interaktiven Klimadiagrammen.
+Lokales Wetter-Dashboard für die Stadt **Heubach im Ostalbkreis (Baden-Württemberg)**.
+Stündlicher Datenabruf von der kostenlosen [Open-Meteo API](https://open-meteo.com), Speicherung in SQLite und Darstellung im Browser mit interaktiven Klimadiagrammen.
 
 ---
 
@@ -13,201 +13,101 @@ Stündlicher Datenabruf von der kostenlosen [Open-Meteo API](https://open-meteo.
 |---|---|
 | **Standort** | Heubach, Ostalbkreis — 48.7936°N, 9.9369°E |
 | **Datenquelle** | Open-Meteo API (kostenlos, kein API-Key erforderlich) |
-| **Datenspeicherung** | JSON-Dateien (`backend/data/YYYY-MM/YYYY-MM-DD.json`) |
-| **Aktualisierung** | Automatisch jede volle Stunde via Cron-Job |
-| **Frontend-Port** | 4200 (Entwicklung) |
-| **Backend-Port** | 3000 |
+| **Backend** | `api/`: NestJS mit SQLite (TypeORM), Port 3000, nur `127.0.0.1` |
+| **Frontend** | `frontend/`: Angular 21, Port 4200 (Entwicklung), Proxy `/api` → `http://localhost:3000` |
+| **Aktualisierung** | stündlich durch den Scheduler, nur mit `SCHEDULER_ENABLED=true` |
 
 ---
 
-## Features
-
-- **Tagesansicht** — Aktuelles Wetter mit Temperatur, Gefühlter Temperatur, Windgeschwindigkeit und -richtung sowie Wetter-Icon. Für vergangene Tage: Höchst-/Tiefsttemperatur und Gesamtniederschlag
-- **7-Tage-Vorschau** — Tagesstreifen mit Wetter-Icon, Max-/Min-Temperatur und Niederschlag
-- **Klimadiagramm (Tagesverlauf)** — Stündliche Temperatur (Linie) und Niederschlag (Balken) in einem kombinierten Diagramm
-- **Monatsübersicht** — Tägliche Durchschnittstemperaturen und Gesamtniederschlag für jeden Tag des Monats
-- **Jahresübersicht** — Monatliche Durchschnittswerte für das gesamte Jahr
-- **Rekorde & Statistiken** — Heißester Tag, kältester Tag, regenreichster Tag, längste Trockenperiode
-
----
-
-## Technologien
-
-### Backend
-| Paket | Zweck |
-|---|---|
-| Node.js + TypeScript | Laufzeitumgebung |
-| Express | REST-API-Server |
-| node-cron | Stündlicher Scheduler |
-| axios | HTTP-Requests zur Open-Meteo API |
-| helmet | HTTP-Sicherheitsheader |
-| cors | Cross-Origin-Anfragen erlauben |
-
-### Frontend
-| Paket | Zweck |
-|---|---|
-| Angular 21 | Framework (Standalone Components, Signals) |
-| Chart.js | Klimadiagramme (Dual-Achsen, Bar + Line) |
-| Angular Router | Lazy Loading der 4 Seiten |
-
----
-
-## Projektstruktur
+## Aufbau
 
 ```
 Wetter-Dashboard/
-├── backend/
-│   ├── src/
-│   │   ├── server.ts         # Express-Server + REST-Endpunkte
-│   │   ├── scheduler.ts      # Stündlicher Cron-Job (Datenabruf)
-│   │   ├── weather-api.ts    # Open-Meteo API-Integration
-│   │   └── data-store.ts     # JSON-Dateien lesen/schreiben + Aggregation
-│   ├── data/                 # Gespeicherte Wetterdaten (auto-generiert)
-│   │   └── YYYY-MM/
-│   │       └── YYYY-MM-DD.json
-│   ├── package.json
-│   └── tsconfig.json
-│
-└── frontend/
-    └── src/
-        └── app/
-            ├── pages/
-            │   ├── today-page/       # Tagesansicht (/)
-            │   ├── monthly-page/     # Monatsdiagramm (/monat)
-            │   ├── yearly-page/      # Jahresdiagramm (/jahr)
-            │   └── stats-page/       # Rekorde (/statistiken)
-            ├── components/
-            │   └── climate-chart/    # Wiederverwendbare Chart.js-Komponente
-            ├── services/
-            │   └── weather.service.ts
-            ├── models/
-            │   └── weather.ts        # TypeScript-Interfaces
-            └── utils/
-                └── weather-icon.ts   # WMO-Code → Emoji + Beschreibung
+├── api/                  # NestJS-API + SQLite (src/, test/)
+├── frontend/             # Angular-App (Seiten Heute, Monat, Jahr, Rekorde)
+├── backend/data/         # nur Altbestand (JSON), Quelle für den Altdatenimport
+└── docs/                 # PROJEKTDOKU.md, Planung (umbau/), Postman (api/)
 ```
+
+`backend/data/` ist nur noch Altbestand bzw. Archiv (nicht im Git). Der frühere Express-Server ist entfernt.
 
 ---
 
-## Installation & Start
+## Voraussetzungen
 
-### Voraussetzungen
-- Node.js 20+
+- Node.js 20+ (getestet mit Node 24)
 - npm 9+
 
-### 1. Repository klonen
 ```bash
 git clone https://github.com/skyjanni278-netizen/Wetter-Dashboard.git
 cd Wetter-Dashboard
 ```
 
-### 2. Backend starten
-```bash
-cd backend
-npm install
-npm run dev
-```
-Der Server startet auf `http://localhost:3000` und ruft beim Start sofort die ersten Wetterdaten ab.
+---
 
-### 3. Frontend starten
+## Start
+
+### Nest-API (Port 3000)
+
+```bash
+cd api
+npm install
+npm run migration:run     # Datenbank anlegen bzw. aktualisieren
+npm run db:seed           # optional: Testdaten in die Dev-DB
+npm start
+```
+
+Ohne `DB_PATH` arbeitet Nest auf der **Dev-DB** `%LOCALAPPDATA%\wetter-heubach\weather.dev.db`, ohne Scheduler (`SCHEDULER_ENABLED` ist standardmäßig aus).
+
+**Mit der Sammel-DB und Scheduler** (echte Daten, stündlicher Abruf):
+
+```bash
+cd api
+npm run build
+# Windows (cmd):
+set DB_PATH=%LOCALAPPDATA%\wetter-heubach\weather.db
+set SCHEDULER_ENABLED=true
+node dist/main.js
+```
+
+Weitere Variablen: `PORT` (Standard 3000), `SWAGGER_ENABLED=true` (OpenAPI-Doku), `FAKE_NOW` (feste Uhr für Prüfungen, nicht mit Scheduler). Alle Variablen: PROJEKTDOKU 3a.5.
+
+### Frontend (Port 4200)
+
 ```bash
 cd frontend
 npm install
-npm start
+npm start                 # ng serve, leitet /api an http://localhost:3000
 ```
-Das Dashboard ist erreichbar unter `http://localhost:4200`.
 
-> Beim ersten Start dauert es einen kurzen Moment, bis der Scheduler die Daten von Open-Meteo geladen und gespeichert hat.
+Das Dashboard ist erreichbar unter `http://localhost:4200`. Nest muss laufen.
 
-### Historische Daten laden (optional)
-Falls Verlaufsdaten benötigt werden, lädt das Backfill-Skript echte Daten von Open-Meteo:
-```bash
-cd backend
-npm run backfill
-```
+---
+
+## Wichtige Skripte (in `api/`)
+
+| Befehl | Wirkung |
+|---|---|
+| `npm run migration:run` | Migrationen gegen `DB_PATH` ausführen |
+| `npm run db:seed [-- --fixture <name>]` | Dev-Daten bzw. Fixture einspielen (ersetzt alle Daten der DB) |
+| `npm run db:reset` | DB neu aufbauen; verweigert sich bei `NODE_ENV=production` und bei gesammelten Daten (Importe `legacy`/`scheduled`), außer mit `-- --force-delete-collected-data`; sichert vorher per `VACUUM INTO` |
+| `npm run cli -- import:legacy --dir <pfad> [--dry-run]` | Altbestand (JSON) in die DB übernehmen; `--dry-run` prüft nur. Kopien des Ordners nur mit erhaltenen Dateizeitstempeln anlegen |
+| `npm run cli -- legacy:dst-check --dir <pfad>` | DST-Stichprobe gegen Open-Meteo (Zeitregel des Altbestands) |
+| `npm test` / `npm run test:e2e` | Unit- bzw. e2e-Tests |
+
+Im Ordner `frontend/`: `npm test -- --watch=false`, `npm run lint:css`, `npm run build`.
 
 ---
 
 ## REST-API
 
-Alle Endpunkte sind unter `http://localhost:3000` erreichbar.
+Alle Endpunkte liegen unter `http://localhost:3000/api` (Frontend: über den Proxy unter `/api`). Ressourcen: `locations`, `status`, `health`, `days`, `forecasts`, `summaries`, `records`, `imports`, `gaps`. Fehler haben ein einheitliches JSON-Format.
 
-| Methode | Pfad | Beschreibung |
-|---|---|---|
-| `GET` | `/api/status` | Letzter Abruf, Status, gespeicherte Tage |
-| `GET` | `/api/data/today` | Heutiger Tag (stündliche Einträge) |
-| `GET` | `/api/data/day/:date` | Beliebiger Tag im Format `YYYY-MM-DD` |
-| `GET` | `/api/data/month/:year/:month` | Monatsdurchschnitte (z.B. `/2026/05`) |
-| `GET` | `/api/data/year/:year` | Jahresdurchschnitte (z.B. `/2026`) |
-| `GET` | `/api/forecast` | 7-Tage-Vorschau (aus gespeicherter Datei) |
-| `GET` | `/api/stats` | Rekorde und Statistiken |
-
-### Beispiel: Tagesformat (`YYYY-MM-DD.json`)
-```json
-{
-  "date": "2026-05-07",
-  "location": "Heubach",
-  "hourly": [
-    {
-      "time": "2026-05-07T00:00",
-      "temperature": 11.2,
-      "apparentTemperature": 9.4,
-      "precipitation": 0.0,
-      "weathercode": 0,
-      "windspeed": 8.3,
-      "winddirection": 215
-    }
-  ]
-}
-```
-
----
-
-## Datenarchitektur
-
-```
-Open-Meteo API
-      │
-      │  1× pro Stunde (Cron-Job)
-      ▼
-  scheduler.ts
-  ├── fetchTodayData()  →  data/YYYY-MM/YYYY-MM-DD.json
-  └── fetchForecast()   →  data/forecast.json
-      │
-      │  bei Seitenaufruf (nur Datei lesen)
-      ▼
-  server.ts (REST-API)
-      │
-      │  via /api (Proxy)
-      ▼
-  Angular Frontend
-```
-
-Die API ruft Open-Meteo **niemals** direkt bei einem Seitenaufruf auf — alle Daten kommen aus gespeicherten Dateien.
-
----
-
-## Produktivbetrieb
-
-Für den dauerhaften Betrieb (z.B. Raspberry Pi oder Server) empfiehlt sich [PM2](https://pm2.keymetrics.io/):
-
-```bash
-cd backend
-npm run build
-pm2 start dist/server.js --name wetter-backend
-
-cd ../frontend
-npm run build
-# Statische Dateien aus dist/frontend/ via Nginx oder einem anderen Webserver ausliefern
-```
-
-Den Backend-Port kann man über die Umgebungsvariable `PORT` steuern:
-```bash
-PORT=8080 node dist/server.js
-```
+Die vollständige, maschinenlesbare Beschreibung (OpenAPI, Swagger UI) steht bei `SWAGGER_ENABLED=true` unter `http://localhost:3000/api/docs`. Die Tabelle aller Endpunkte, Antwortformate und Regeln steht in [`docs/PROJEKTDOKU.md`](docs/PROJEKTDOKU.md). Eine Postman-Collection liegt unter `docs/api/`.
 
 ---
 
 ## Datenquelle & Attribution
 
-Wetterdaten bereitgestellt von [Open-Meteo](https://open-meteo.com) — kostenlos und ohne API-Key nutzbar.  
+Wetterdaten bereitgestellt von [Open-Meteo](https://open-meteo.com) — kostenlos und ohne API-Key nutzbar.
 Koordinaten Heubach: 48.7936°N, 9.9369°E, Zeitzone: Europe/Berlin.

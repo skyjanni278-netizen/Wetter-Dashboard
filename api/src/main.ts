@@ -6,9 +6,9 @@ import { APP_OPTIONS, configureApp } from './app.setup';
 import { fakeNowFromEnv } from './common/fake-now';
 import { DB_PATH } from './database/db-path';
 
-/** Nur lokal erreichbar (S9); Port übergangsweise aus `PORT` (Schritt 11: ConfigModule). */
+/** Nur lokal erreichbar (S9); seit der Übergabe in Schritt 9 Port 3000 (A2), übergangsweise aus `PORT` (Schritt 11: ConfigModule). */
 const HOST = '127.0.0.1';
-const DEFAULT_PORT = 3001;
+const DEFAULT_PORT = 3000;
 
 /**
  * `FIXTURE` gibt es seit Schritt 9 nicht mehr: Die App liest nur noch die Datenbank. Statt still auf der

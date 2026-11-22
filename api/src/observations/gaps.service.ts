@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { assertNotInFuture } from '../common/api-validation.exception';
-import { addDays, localDate, localDateTime, localDateTimeWithOffset, startOfDayUtc } from '../common/berlin-time';
+import { addDays, localDate, localDateTimeWithOffset, startOfDayUtc } from '../common/berlin-time';
 import { Clock } from '../common/clock';
 import { formatUtc } from '../common/utc';
 import type { Gap, GapList, GapReason } from './gap';
@@ -40,12 +40,9 @@ export class GapsService {
     assertNotInFuture('to', to, localDate(now));
 
     const byUtc = new Map<string, ObservationHour>();
-    // Übergang: Stunden ohne `timeUtc` (Altbestand im In-Memory-Store) über die Ortszeit zuordnen.
-    const byLocal = new Map<string, ObservationHour[]>();
     for (const day of await this.store.getRange(from, to)) {
       for (const hour of day.hours) {
         if (hour.timeUtc !== null) byUtc.set(hour.timeUtc, hour);
-        else byLocal.set(hour.timeLocal, [...(byLocal.get(hour.timeLocal) ?? []), hour]);
       }
     }
 
@@ -54,7 +51,7 @@ export class GapsService {
     const end = Math.min(startOfDayUtc(addDays(to, 1)).getTime(), now.getTime() - HOUR_MS + 1);
     for (let t = startOfDayUtc(from).getTime(); t < end; t += HOUR_MS) {
       const instant = new Date(t);
-      const hour = byUtc.get(formatUtc(instant)) ?? byLocal.get(localDateTime(instant))?.shift();
+      const hour = byUtc.get(formatUtc(instant));
       const reason = reasonOf(hour);
       if (current && reason === current.reason) {
         current.last = instant;

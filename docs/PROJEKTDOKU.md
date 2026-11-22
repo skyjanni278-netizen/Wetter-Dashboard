@@ -1,6 +1,6 @@
 # Projektdokumentation – Wetter-Dashboard Heubach
 
-> Stand: 21.11.2026 · Roadmap-Schritt 8 (`2099d52`) · Pflege: siehe Abschnitt „11. Pflege dieser Datei“
+> Stand: 22.11.2026 · Roadmap-Schritt 9 · Pflege: siehe Abschnitt „11. Pflege dieser Datei“
 
 Diese Datei ist eine Landkarte des **aktuellen** Systems: was es gibt, wo es liegt, wie es zusammenhängt. Sie enthält keinen Code und keine Planung (die steht in `docs/umbau/`).
 
@@ -8,22 +8,17 @@ Diese Datei ist eine Landkarte des **aktuellen** Systems: was es gibt, wo es lie
 
 ## 1. Überblick
 
-Lokales Wetter-Dashboard für Heubach (Ostalbkreis, 48,7936 °N, 9,9369 °O). Ein Express-Backend ruft stündlich Daten von Open-Meteo ab und legt sie als JSON-Dateien ab. Ein Angular-Frontend zeigt Tag, Monat, Jahr und Rekorde.
-
-Parallelbetrieb (Strangler-Muster): Neben Express entsteht in `api/` ein NestJS-Backend. Es liest die JSON-Dateien von Express **nur lesend** und liefert die ersten Ressourcen der neuen API. Importe über `POST /api/imports` holt Nest selbst von Open-Meteo, hält sie aber **nur im Arbeitsspeicher**. Express bleibt der einzige Schreiber der Dateien. Der Dev-Proxy verteilt die Anfragen je Ressource (siehe 4.6).
+Lokales Wetter-Dashboard für Heubach (Ostalbkreis, 48,7936 °N, 9,9369 °O). Ein NestJS-Backend (`api/`, Port 3000) ruft stündlich Daten von Open-Meteo ab (nur mit `SCHEDULER_ENABLED=true`), speichert sie in SQLite und liefert sie über eine REST-API. Ein Angular-Frontend zeigt Tag, Monat, Jahr und Rekorde. Der frühere Express-Server (`backend/src`) ist seit der Übergabe (Schritt 9c) entfernt; `backend/data/` ist nur noch Altbestand (siehe 3a.14). Der Dev-Proxy leitet `/api` an Nest (4.6).
 
 ```mermaid
 flowchart LR
   Browser["Browser"] -->|"http://localhost:4200"| NgServe["ng serve :4200 (Proxy /api)"]
-  NgServe -->|"/api/* (Rest) an :3000"| Express["Express :3000 (backend/)"]
-  NgServe -->|"/api/locations, /api/status an :3001"| Nest["NestJS :3001 (api/)"]
-  Express -->|"liest und schreibt"| Json[("backend/data/ JSON-Dateien")]
-  Nest -->|"liest nur"| Json
-  Nest -->|"POST /api/imports (nur In-Memory)"| OpenMeteo
-  Scheduler["Scheduler (node-cron, im Express-Prozess)"] -->|"stündlich"| OpenMeteo["Open-Meteo API"]
-  Scheduler -->|"speichert"| Json
-  Backfill["npm run backfill"] -->|"Archiv und Forecast"| OpenMeteo
-  Backfill -->|"speichert"| Json
+  NgServe -->|"/api an :3000"| Nest["NestJS :3000 (api/)"]
+  Nest -->|"liest und schreibt"| Db[("SQLite weather.db / weather.dev.db")]
+  Nest -->|"POST /api/imports"| OpenMeteo["Open-Meteo API"]
+  Scheduler["Scheduler (nur mit SCHEDULER_ENABLED=true)"] -->|"stündlich"| OpenMeteo
+  Scheduler -->|"speichert"| Db
+  Legacy["cli import:legacy (einmalig)"] -->|"liest Altbestand"| Db
 ```
 
 ---
@@ -33,12 +28,10 @@ flowchart LR
 | Ordner / Datei | Zweck |
 |---|---|
 | `README.md` | Kurzbeschreibung und Startanleitung für Menschen |
-| `.gitignore` | schließt `node_modules/`, `backend/dist/`, `frontend/dist/`, `frontend/.angular/`, `backend/data/` und Logs aus |
-| `backend/` | Express-Server, Scheduler, Datenablage (eigene `package.json`) |
-| `backend/src/` | TypeScript-Quellen des Backends (Dateien siehe 3.1) |
-| `backend/data/` | Laufzeitdaten, **nicht im Git**: Ordner `YYYY-MM/` mit Tagesdateien plus `forecast.json` (Stand: 23 Monatsordner und `forecast.json`) |
+| `.gitignore` | schließt `node_modules/`, `backend/dist/`, `frontend/dist/`, `frontend/.angular/`, `backend/data/`, Datenbankdateien und Logs aus |
+| `backend/` | nur noch Altbestand: `backend/data/` (**nicht im Git**: Ordner `YYYY-MM/` mit Tagesdateien plus `forecast.json`, Quelle für `cli import:legacy`; der User löscht es selbst), dazu vorerst `package.json`, `package-lock.json`, `tsconfig.json`, `node_modules`. `backend/src/` ist seit 9c gelöscht |
 | `frontend/` | Angular-21-App (eigene `package.json`, Angular-CLI-Konfiguration, stylelint, Vitest) |
-| `frontend/proxy.conf.json` | Dev-Proxy: die Nest-Ressourcen (`/api/locations`, `/api/status`, `/api/days`, `/api/forecasts`, `/api/records`, `/api/summaries`, `/api/imports`) an `http://localhost:3001`, Rest `/api` an `http://localhost:3000` (Express), siehe 4.6 |
+| `frontend/proxy.conf.json` | Dev-Proxy: `/api` an `http://localhost:3000` (Nest), siehe 4.6 |
 | `frontend/vitest.config.mjs` | Vitest-Ergänzung (`maxWorkers: 2`) |
 | `frontend/.stylelintrc.json` | stylelint-Regeln (u. a. `color-no-hex`), `tokens.css` ausgenommen |
 | `frontend/src/main.ts`, `index.html` | Einstieg, `lang="de"`, Standardtitel „Wetter Heubach“ |
@@ -66,82 +59,15 @@ flowchart LR
 
 ---
 
-## 3. Backend (Express)
+## 3. Backend (Express, entfernt)
 
-Node.js + TypeScript, Express 4, helmet, node-cron, axios. Port 3000, `PORT` über Umgebungsvariable änderbar.
-
-### 3.1 Dateien und Aufgaben
-
-| Datei (`backend/src/`) | Aufgabe |
-|---|---|
-| `server.ts` | Express-App, `helmet()`, `express.json()`, alle Endpunkte, startet den Scheduler, lauscht nur auf `127.0.0.1` |
-| `scheduler.ts` | Stündlicher Abruf per node-cron; hält `lastFetch`, `lastStatus`, `lastError` im Speicher (`getSchedulerStatus`, `startScheduler`) |
-| `weather-api.ts` | Open-Meteo-Aufrufe (`fetchDayData`, `fetchTodayData`, `fetchForecast`) und die Typen `HourlyEntry`, `DayData`, `DayForecast` |
-| `data-store.ts` | Lesen und Schreiben der JSON-Dateien, Zusammenfassungen (`getMonthSummary`, `getYearSummary`), Rekorde (`getStats`), `countStoredDays` |
-| `berlin-date.ts` | `berlinDate()`: heutiges Datum als `YYYY-MM-DD` in Europe/Berlin |
-| `backfill.ts` | Skript: lädt historische Daten nach (siehe 3.5) |
-
-`seed-data.ts` (künstliche Testtage im Mai 2026, überschrieb echte Dateien) ist seit Schritt 9b gelöscht (V34, F16); Dateien in seinem Format lehnt `cli import:legacy` ab (3a.13).
-
-### 3.2 Endpunkte
-
-Alle Endpunkte sind `GET`. Fehlerantworten haben die Form `{ "error": "<Text>" }`.
-
-| Pfad | Antwort bei Erfolg | Fehlercodes |
-|---|---|---|
-| `/api/status` | `{ lastFetch, lastStatus ("ok"/"error"), lastError, storedDays }` | – |
-| `/api/data/today` | `DayData` für den heutigen Berliner Tag (`{ date, location, hourly[] }`) | 404 keine Datei für heute |
-| `/api/data/day/:date` | `DayData` für `YYYY-MM-DD` | 400 Format ungültig, 404 keine Datei |
-| `/api/data/month/:year/:month` | `{ year, month, data: [{ day, avgTemp, totalPrecip }] }` (leeres `data`, wenn nichts da ist) | 400 wenn nicht `\d{4}` und `\d{2}` |
-| `/api/data/year/:year` | `{ year, data: [{ month, avgTemp, totalPrecip }] }` (leeres `data` möglich) | 400 wenn nicht `\d{4}` |
-| `/api/forecast` | Liste `[{ date, maxTemp, minTemp, precipitation, weathercode }]` (7 Tage ab heute) | 404 noch keine `forecast.json` |
-| `/api/stats` | `{ hottestDay, coldestDay, rainiestDay, driestStreak, totalDays }`, Felder `null`, wenn keine Daten | – |
-
-Hinweise: Der Monats-Parameter wird nur auf zwei Ziffern geprüft (kein Bereich 01–12). Alle Zusammenfassungen werden bei jeder Anfrage aus den Dateien berechnet (kein Cache). `/api/status` von Express ist über den Dev-Proxy nicht mehr erreichbar, weil der Proxy diesen Pfad an Nest gibt (4.6); direkt auf `127.0.0.1:3000` antwortet Express weiter.
-
-### 3.3 Scheduler und Datenabruf
-
-| Punkt | Wert |
-|---|---|
-| Zeitplan | sofort beim Start, dann `0 * * * *` (jede volle Stunde), Zeitzone `Europe/Berlin` |
-| Ablauf je Lauf | `fetchTodayData()` und `fetchForecast()` parallel, dann `saveDayData` und `saveForecast`; Fehler werden nur geloggt und in `lastError` gemerkt |
-| Tagesdaten | `https://api.open-meteo.com/v1/forecast` mit `hourly=temperature_2m, apparent_temperature, precipitation, weathercode, windspeed_10m, winddirection_10m`, `start_date = end_date = heute` |
-| Vorhersage | derselbe Endpunkt mit `daily=temperature_2m_max, temperature_2m_min, precipitation_sum, weathercode`, `forecast_days=7` |
-| Backfill | `https://archive-api.open-meteo.com/v1/archive` (ältere Tage) und Forecast-API mit `past_days` (letzte 10 Tage) |
-| Zeit | alle Aufrufe mit `timezone=Europe/Berlin`; „heute“ bestimmt `berlinDate()` |
-
-### 3.4 Datenablage
-
-- Tagesdatei: `backend/data/YYYY-MM/YYYY-MM-DD.json`
-- Vorhersage: `backend/data/forecast.json` (wird bei jedem Lauf überschrieben)
-- Zeitstempel `time` sind Ortszeit **ohne Offset** (`2026-11-18T00:00`)
-- Die Tagesdatei wird bei jedem Lauf komplett überschrieben
-
-```json
-{
-  "date": "2026-11-18",
-  "location": "Heubach",
-  "hourly": [
-    { "time": "2026-11-18T00:00", "temperature": 12.6, "apparentTemperature": 9.3,
-      "precipitation": 0, "weathercode": 3, "windspeed": 15.6, "winddirection": 220 }
-  ]
-}
-```
-
-### 3.5 Skripte
-
-| Befehl (in `backend/`) | Wirkung |
-|---|---|
-| `npm run dev` | `ts-node src/server.ts` (Server + Scheduler) |
-| `npm run build` | `tsc` nach `backend/dist/` |
-| `npm start` | `node dist/server.js` (nach `build`) |
-| `npm run backfill` | lädt Daten ab 2025-01-01 bis heute nach; Startdatum optional: `npm run backfill -- 2024-06-01`; schreibt auch `forecast.json` und überschreibt vorhandene Tagesdateien dieser Tage |
+Der Express-Server (`backend/src/`) ist mit Schritt 9c gelöscht. Seine Aufgaben übernimmt Nest (Abschnitt 3a). Vom Altsystem bleibt nur das Dateiformat des Altbestands (`backend/data/YYYY-MM/YYYY-MM-DD.json`, `forecast.json`; `time` ohne Offset, Regel `fixed+01:00`), das `cli import:legacy` liest (3a.13). Die Antworten der alten API stehen als Golden Files unter `api/test/characterization/golden/` (6).
 
 ---
 
 ## 3a. Backend (NestJS, `api/`)
 
-NestJS 11 auf Express 5 (`@nestjs/platform-express`), TypeScript strict, Jest, Zod 4 (`zod` ^4.6.7) für Open-Meteo-Antworten und für jede Eingabe (Pfad, Query, Body; 3a.7), `@nestjs/schedule` ^6.1.3 (nutzt `cron` 4.4.0) für den stündlichen Abruf, `@nestjs/swagger` ^11.4.8 für die OpenAPI-Doku (3a.11). Module je Ressource nach 03 B4.1 (3a.0); Controller rufen nur Services auf, Services greifen über DI-Tokens auf Stores zu (3a.3). Seit Roadmap-Schritt 7 liegen die Fachregeln R06–R14 im `AggregationService` (3a.9), Tage, Zusammenfassungen und Rekorde haben berechnete Felder. Seit Schritt 9a liegen alle Daten in **SQLite** (`better-sqlite3` ^12.11.1 über `typeorm` ^0.3.31 und `@nestjs/typeorm` ^11.0.3, 3a.12): Stundenwerte, Vorhersagen und Importe überleben einen Neustart. Die App liest die JSON-Dateien von Express **nicht mehr**; der Altbestand kommt mit `npm run cli -- import:legacy --dir <pfad>` (Schritt 9b, 3a.13) in die Datenbank. Die Dev-DB enthält Seeds bzw. Fixtures; in die Sammel-DB wird der Altbestand erst mit der Übergabe (9c) importiert. Lauscht nur auf `127.0.0.1`, globales Präfix `/api`.
+NestJS 11 auf Express 5 (`@nestjs/platform-express`), TypeScript strict, Jest, Zod 4 (`zod` ^4.6.7) für Open-Meteo-Antworten und für jede Eingabe (Pfad, Query, Body; 3a.7), `@nestjs/schedule` ^6.1.3 (nutzt `cron` 4.4.0) für den stündlichen Abruf, `@nestjs/swagger` ^11.4.8 für die OpenAPI-Doku (3a.11). Module je Ressource nach 03 B4.1 (3a.0); Controller rufen nur Services auf, Services greifen über DI-Tokens auf Stores zu (3a.3). Seit Roadmap-Schritt 7 liegen die Fachregeln R06–R14 im `AggregationService` (3a.9), Tage, Zusammenfassungen und Rekorde haben berechnete Felder. Seit Schritt 9a liegen alle Daten in **SQLite** (`better-sqlite3` ^12.11.1 über `typeorm` ^0.3.31 und `@nestjs/typeorm` ^11.0.3, 3a.12): Stundenwerte, Vorhersagen und Importe überleben einen Neustart. Die App liest keine JSON-Dateien; der Altbestand kam mit `npm run cli -- import:legacy --dir <pfad>` (Schritt 9b, 3a.13) in die Datenbank. Die Dev-DB enthält Seeds bzw. Fixtures; die Sammel-DB enthält seit der Übergabe (9c) den Altbestand (3a.14). Lauscht nur auf `127.0.0.1`, globales Präfix `/api`.
 
 ### 3a.0 Module und Abhängigkeiten
 
@@ -288,7 +214,7 @@ Antwort nur JSON. **Jede** Fehlerantwort hat das Format aus B3.3 mit `path`, `ti
 | `GET /api/imports?status&kind&page&limit` | `{ items: [Import-Ressource], meta: { page, limit, total } }` (B2.2, US11-2), sortiert nach `requestedAt` absteigend (Gleichstand: `id` absteigend); `total` = alle Treffer des Filters; Seite hinter dem Ende → `items = []`. Standard `page = 1`, `limit = 20`. Noch ohne Anmeldung (US11-5 ab Schritt 10/11) | 400 `VALIDATION_FAILED` (`ImportsQuerySchema`, 3a.7) an `status`/`kind` (`invalid_value`), `page` (`too_small`, `invalid_type`), `limit` (`too_small`/`too_big`, z. B. `500`), `unrecognized_keys` |
 | `GET /api/imports/:id` | Import-Ressource (B2.2): `id, locationId, kind, status, from, to, overwriteCorrections (false), requestedBy (null), requestedAt, startedAt, finishedAt, counts { inserted, updated, unchanged, skippedCorrected }, warnings[], error, links.self`; bleibt über einen Neustart erhalten (F32) | 400 `id` keine positive ganze Zahl (`field: "id"`), 404 `NOT_FOUND` unbekannt |
 | `GET /api/gaps?from&to` | `{ items: [Gap] }`, aufsteigend; Eintrag (B2.2): `id` (UTC der ersten Stunde), `from`/`to` (Beginn der ersten/letzten Stunde, Berliner Ortszeit **mit** Offset, z. B. `2026-11-12T04:00:00+01:00`), `hours`, `reason` ∈ `missing` (Zeile fehlt) / `null_values` (Temperatur oder Niederschlag `null`) / `stale_prediction` (nur Vorhersage, Zeit vorbei). Geprüft werden nur **abgeschlossene** Stunden (Ende ≤ jetzt), alle 23/24/25 UTC-Stunden je Berliner Tag; aufeinanderfolgende Stunden mit gleichem Grund = eine Lücke. Noch ohne Anmeldung (US12-4 ab Schritt 10/11) | 400 `VALIDATION_FAILED` (`GapsQuerySchema`: `invalid_date`, `to_before_from`/`range_too_long` an `to`, `unrecognized_keys`), 400 `DATE_IN_FUTURE` an `to` |
-| `GET /api/health` | `{ status: "ok", database: "ok" }` (US14-3; Abfrage auf `location`) | 503 `SERVICE_UNAVAILABLE` mit `details.database = "error"` (DB nicht lesbar, Ursache nur im Log) |
+| `GET /api/health` | `{ status: "ok", database: "ok" }` (US14-3; Abfrage auf `location`) | 503 `SERVICE_UNAVAILABLE` mit `details.database = "error"` (DB wird **zur Laufzeit** unlesbar, Ursache nur im Log). Ist `DB_PATH` schon beim Start unlesbar oder nicht migriert, startet Nest gar nicht (Exit 1, roher SQLite-Fehler) |
 
 Ein `DELETE` für Importe entfällt (begründet in der Roadmap, Schritt 3). **Sortierung** ist je Liste fest (`days`, `summaries` aufsteigend, `imports` absteigend); einen `sort`-Parameter gibt es bewusst nicht (B3.1), er ergibt wie jeder unbekannte Parameter 400 `unrecognized_keys`. Mit `SWAGGER_ENABLED=true` kommen `GET /api/docs` (Swagger UI, HTML) und `GET /api/docs-json` (OpenAPI 3.0) dazu, sonst 404 (3a.11).
 
@@ -333,17 +259,17 @@ Services injizieren die Stores mit `@Inject(<TOKEN>)`; Tests ersetzen sie per `o
   | `FORECAST_FAILED` | `warnings[]` | Tagesvorhersage nicht gespeichert; die Meldung nennt den Code der Ursache in Klammern | `partial`, Stunden gespeichert |
   | `INTERRUPTED` | `error` | Neustart während eines Laufs (R19) | beim Start setzt `ImportsService.recoverInterrupted` jeden Import mit `queued`/`running` auf `failed` mit `finishedAt` = Startzeit; danach ist R19 wieder frei |
 - **`updateState`** (R25, `StatusService`): maßgeblich ist der zuletzt abgeschlossene Import mit `kind` ∈ `scheduled`/`range`/`gaps` und `status` ∈ `succeeded`/`partial`. Gibt es keinen → `never`, `lastSuccessfulUpdateAt = null`. Sonst `lastSuccessfulUpdateAt` = dessen `finishedAt`, `ok` bis einschließlich 2 h danach, darüber `delayed`. Da Express-Läufe keine Nest-Importe sind, zählt nur, was in der DB steht (nach `db:seed --fixture us16-ok` → `ok`, `us16-delayed` → `delayed` bei `FAKE_NOW=2026-11-19T13:30:00Z`; mit echter Uhr nach dem 19.11.2026 beide `delayed`).
-- **Scheduler (Z3):** holt wie bisher gestern und heute (`SchedulerService.tick`, 3a.0); unverändert in Schritt 9a, Übergabe von Express an Nest erst in 9c.
+- **Scheduler (Z3):** holt wie bisher gestern und heute (`SchedulerService.tick`, 3a.0); läuft nur mit `SCHEDULER_ENABLED=true`. Seit der Übergabe (9c) ist Nest der einzige Schreiber; der User startet ihn mit Scheduler selbst (3a.14).
 
 ### 3a.5 Umgebungsvariablen (Übergang)
 
 | Variable | Standard | Zweck |
 |---|---|---|
-| `PORT` | `3001` | Port; Host ist immer `127.0.0.1` |
-| `DB_PATH` | `%LOCALAPPDATA%\wetter-heubach\weather.dev.db` (**Dev-DB**) | SQLite-Datei für App, `migration:*`, `db:seed`, `db:reset` (03 B4.4); relativ zum Arbeitsverzeichnis; den Ordner legt der Treiber an. Die **Sammel-DB** `…\weather.db` wird nur ausdrücklich gewählt (ab 9b/9c). `:memory:` nur für Tests (dann laufen die Migrationen beim Verbinden). Übergangsweise aus `process.env` (Schritt 11: `EnvSchema`, Pflicht) |
+| `PORT` | `3000` | Port; Host ist immer `127.0.0.1` |
+| `DB_PATH` | `%LOCALAPPDATA%\wetter-heubach\weather.dev.db` (**Dev-DB**) | SQLite-Datei für App, `migration:*`, `db:seed`, `db:reset` (03 B4.4); relativ zum Arbeitsverzeichnis; den Ordner legt der Treiber an. Die **Sammel-DB** `…\weather.db` (Altbestand, seit 9c) wird nur ausdrücklich gewählt. `:memory:` nur für Tests (dann laufen die Migrationen beim Verbinden). Übergangsweise aus `process.env` (Schritt 11: `EnvSchema`, Pflicht) |
 | `NODE_ENV` | – | Nur `production` wirkt bisher: `db:seed` und `db:reset` verweigern sich dann immer (auch mit `--force-delete-collected-data`) |
 | `LEGACY_DATA_DIR` | – | **entfallen** (Schritt 9b): der Ordner des Altbestands ist der Parameter `--dir` von `npm run cli -- import:legacy` bzw. `legacy:dst-check` (3a.13); die Tests nutzen `backend/data` direkt (nur lesend) |
-| `SCHEDULER_ENABLED` | `false` | stündlicher Import über Nest (3a.0); nur exakt `true` schaltet ein (`TRUE`, `1` usw. bleiben aus). Im Parallelbetrieb aus lassen, weil Express schreibt; Übergabe in Schritt 9. Wird beim Laden von `app.module.ts` gelesen (Schritt 11: ConfigModule, Zielstandard dann `true`, 03 B4.8) |
+| `SCHEDULER_ENABLED` | `false` | stündlicher Import über Nest (3a.0); nur exakt `true` schaltet ein (`TRUE`, `1` usw. bleiben aus). Nest ist seit 9c der einzige Schreiber; für die Sammel-DB setzt der User ihn selbst auf `true` (3a.14), für Dev-DB und Prüfungen bleibt er aus (mit `FAKE_NOW` nicht erlaubt). Wird beim Laden von `app.module.ts` gelesen (Schritt 11: ConfigModule, Zielstandard dann `true`, 03 B4.8) |
 | `FAKE_NOW` | – (echte Uhr) | feste Uhr für Prüfungen (03 B4.8): UTC-Zeitpunkt mit `Z`, z. B. `2026-11-19T13:30:00Z` → `Clock` = `FixedClock` (steht still), Warn-Log beim Start. Nur erlaubt, wenn `SCHEDULER_ENABLED` nicht `true` ist; sonst oder bei ungültigem Wert bricht der Start ab (`Start abgebrochen: …`, Exit-Code 1). Übergangsweise direkt aus `process.env` (Schritt 11: `EnvSchema`, dann auch „nicht in Produktion“) |
 | `FIXTURE` | – | **entfallen** (Schritt 9a): gesetzt → `Start abgebrochen: FIXTURE="…" wird nicht mehr unterstützt …`, Exit-Code 1. Stattdessen `npm run db:seed -- --fixture <name>` (3a.6) |
 | `SWAGGER_ENABLED` | `false` | OpenAPI-Doku (3a.11): nur exakt `true` richtet `/api/docs` (Swagger UI) und `/api/docs-json` ein, sonst 404. Gelesen in `configureApp` (Übergang aus `process.env`; Schritt 11: `EnvSchema`, Standard in Produktion aus) |
@@ -368,7 +294,7 @@ Services injizieren die Stores mit `@Inject(<TOKEN>)`; Tests ersetzen sie per `o
 | `npm run cli -- import:legacy --dir <pfad> --dry-run` | baut; prüft alle Tagesdateien und `forecast.json`, Bericht „N Dateien gültig, M Fehler“ mit Herkunft je Quelle; öffnet **keine** Datenbank (legt auch keine Datei an), schreibt nichts; Exit-Code 0 ohne Fehler (US15-1) |
 | `npm run cli -- import:legacy --dir <pfad>` | baut; Altdatenimport in `DB_PATH` (vorher `npm run migration:run`; ohne Datei oder mit offenen Migrationen Abbruch mit Exit-Code 1): Import `kind = "legacy"`, Transaktion je Monatsordner, idempotent, danach Nachprüfung (`COUNT(*)`, `COUNT(DISTINCT local_date)`, Stunden der DST-Tage). Exit-Code 0 bei `succeeded`, 1 bei `partial`/`failed` (3a.13) |
 | `FAKE_NOW=2026-11-19T13:30:00Z node dist/main.js` | Prüfstart mit fester Uhr (nach `npm run db:seed -- --fixture us16-ok`, im Ordner `api/`) |
-| `SWAGGER_ENABLED=true node dist/main.js` | mit OpenAPI-Doku: Swagger UI `http://127.0.0.1:3001/api/docs`, JSON `http://127.0.0.1:3001/api/docs-json` |
+| `SWAGGER_ENABLED=true node dist/main.js` | mit OpenAPI-Doku: Swagger UI `http://127.0.0.1:3000/api/docs`, JSON `http://127.0.0.1:3000/api/docs-json` |
 
 ### 3a.7 Validierung (Zod)
 
@@ -474,7 +400,7 @@ Services injizieren die Stores mit `@Inject(<TOKEN>)`; Tests ersetzen sie per `o
 
 ### 3a.12 Datenbank (SQLite, TypeORM; Schritt 9a)
 
-- **Dateien:** Dev-DB `%LOCALAPPDATA%\wetter-heubach\weather.dev.db` (Standard von `DB_PATH`; Seeds, Fixtures, `db:reset`). Sammel-DB `…\weather.db` für den Altbestand und den stündlichen Abruf (ab 9b/9c, nur ausdrücklich über `DB_PATH`). Tests: `:memory:`; Neustart-/Reset-Tests: Dateien im Temp-Ordner. `.gitignore`: `*.db`, `*.db-wal`, `*.db-shm`, `api/backups/`.
+- **Dateien:** Dev-DB `%LOCALAPPDATA%\wetter-heubach\weather.dev.db` (Standard von `DB_PATH`; Seeds, Fixtures, `db:reset`). Sammel-DB `…\weather.db` für den Altbestand und den stündlichen Abruf (seit 9c, nur ausdrücklich über `DB_PATH`). Tests: `:memory:`; Neustart-/Reset-Tests: Dateien im Temp-Ordner. `.gitignore`: `*.db`, `*.db-wal`, `*.db-shm`, `api/backups/`.
 - **Verbindung:** `prepareDatabase` je Verbindung (WAL, `foreign_keys = ON`, `busy_timeout = 5000`, `synchronous = NORMAL`); `synchronize: false` immer; Migrationen nur per `npm run migration:run` (Ausnahme `:memory:`). Natives Modul `better-sqlite3` 12.11.1 (Prebuild für Node 24, SQLite 3.53).
 - **Tabellen und Spalten** (03 B2.3; Zeitpunkte `TEXT` `YYYY-MM-DDTHH:MM:SSZ` über `utcTransformer`, Wahrheitswerte `0/1`):
 
@@ -521,7 +447,7 @@ Befehle in `api/` (3a.6), Code in `src/legacy/` und `src/cli.ts`. Der Quellordne
 7. **Protokoll:** Das Import-Modell hat neben `counts` und `error` nur `warnings[]`; deshalb stehen dort auch die beiden Hinweise `LEGACY_TIME_RULE` (Regel) und `LEGACY_SOURCES` (Zählung je Herkunft: Tage/Stunden für `archive`, `forecast_api`, `prediction`). Sie machen den Import nicht `partial`.
 8. **Nachprüfung (B2.7 Schritt 9):** Die CLI liest danach `COUNT(*)`, `COUNT(DISTINCT local_date)`, ersten/letzten Tag und die Stunden der DST-Tage direkt aus `observation`.
 
-**Lauf gegen `backend/data` am 22.11.2026** (Temp-DB, nach `migration:run`; Sammel-DB folgt in 9c):
+**Lauf gegen `backend/data` am 22.11.2026** (Temp-DB, nach `migration:run`; der Lauf auf der Sammel-DB steht in 3a.14):
 
 | Prüfung | Ergebnis |
 |---|---|
@@ -534,6 +460,17 @@ Befehle in `api/` (3a.6), Code in `src/legacy/` und `src/cli.ts`. Der Quellordne
 | Kopie mit `2025-07-15.json` im Seed-Format | „689 Dateien gültig, 1 Fehler“, Exit-Code 1, `partial`; `inserted = 15816` (16 560 − 744 Stunden des Juli); Warnungen für 01.07.2025 (1 Stunde, aus der Juni-Datei) und 01.08.2025 (23 Stunden) |
 
 `COUNT(DISTINCT local_date)` = 690 und nicht 691: Die Regel verschiebt nur Sommerstunden über Mitternacht. Erster (01.01.2025) und letzter Tag (21.11.2026) liegen in der Winterzeit, dort ist `fixed+01:00` gleich der Berliner Zeit; die Stunde 23:00 des 21.11. bleibt am 21.11.
+
+### 3a.14 Übergabe (Schritt 9c)
+
+Express ist abgeschaltet, Nest auf Port 3000 der einzige Backend-Prozess.
+
+- **Sammel-DB:** `%LOCALAPPDATA%\wetter-heubach\weather.db`; `migration:run` ausgeführt.
+- **Archiv:** `%LOCALAPPDATA%\wetter-heubach\legacy-archiv` ist eine Kopie von `backend/data` mit erhaltenen Zeitstempeln (Herkunft und R08 hängen daran). `backend/data` bleibt als Altbestand liegen; der User löscht es selbst.
+- **Importe in die Sammel-DB:** (1) `import:legacy` aus dem Archiv: `inserted` 16 560; (2) derselbe Import nochmals: `unchanged` 16 560; (3) `POST /api/imports` mit `kind=gaps` für 19.–22.11.2026: `inserted` 24, `updated` 20. Danach ist `GET /api/gaps` leer.
+- **Zeitregel:** `fixed+01:00` (3a.13); der Import rechnet die Altzeiten richtig um.
+- **Gelöscht:** `backend/src/` (Express, Scheduler, Backfill); `backend/package.json`, `package-lock.json`, `tsconfig.json` und `node_modules` liegen vorerst noch. Der Proxy kennt nur noch `/api` → `http://localhost:3000` (4.6). Standardport von Nest: 3000 (vorher 3001).
+- **Start mit Sammel-DB und Scheduler (macht der User selbst, kein Autostart, kein Pi-Betrieb):** in `api/` `npm run build`, dann `DB_PATH=%LOCALAPPDATA%\wetter-heubach\weather.db`, `SCHEDULER_ENABLED=true`, `node dist/main.js`.
 
 ---
 
@@ -567,7 +504,7 @@ Quelle: `frontend/src/app/app.routes.ts`. Parameter gehen per `withComponentInpu
 
 Alle Seiten setzen den Seitentitel per `setPageTitle` aus einem `effect` (Rekorde: fester Titel aus der Route).
 
-Datenquelle je Seite: Seit Schritt 8 lesen alle Seiten nur von Nest: Heute/Tag (`/api/days/today`, `/api/days/:date`, `/api/forecasts`), Monat (`/api/summaries/months/:ym`, `/api/days?from&to`, `/api/summaries/years`), Jahr (`/api/summaries/years/:y`, `/api/summaries/months?year=`, `/api/summaries/years`), Rekorde (`/api/records`), Footer (`/api/status`, `/api/locations`). Es gibt keinen Aufruf mehr auf `/api/data/*`, `/api/stats` oder `/api/forecast`; Express muss für das Frontend nicht laufen.
+Datenquelle je Seite: Seit Schritt 8 lesen alle Seiten nur von Nest: Heute/Tag (`/api/days/today`, `/api/days/:date`, `/api/forecasts`), Monat (`/api/summaries/months/:ym`, `/api/days?from&to`, `/api/summaries/years`), Jahr (`/api/summaries/years/:y`, `/api/summaries/months?year=`, `/api/summaries/years`), Rekorde (`/api/records`), Footer (`/api/status`, `/api/locations`). Es gibt keinen Aufruf auf `/api/data/*`, `/api/stats` oder `/api/forecast` (Express ist seit 9c entfernt).
 
 ### 4.3 Gemeinsame Komponenten
 
@@ -620,24 +557,15 @@ Ordner `frontend/src/app/components/`. Alle Selektoren beginnen mit `app-`.
 
 Die Auswahl steht ausschließlich in der URL; Select und Datumsfeld rufen `router.navigate` auf.
 
-### 4.6 Dev-Proxy: Verteilung je Ressource
+### 4.6 Dev-Proxy
 
-Quelle: `frontend/proxy.conf.json`. Der Dev-Server nimmt den **ersten** passenden Eintrag; der Fallback `/api` steht deshalb zuletzt. Gelistet werden die Ressourcen, die Nest schon bedient (Schritt 8); alles andere geht an Express.
+Quelle: `frontend/proxy.conf.json`. Seit Schritt 9c gibt es nur noch einen Eintrag:
 
 | Pfad-Präfix | Ziel | Backend |
 |---|---|---|
-| `/api/locations` | `http://localhost:3001` | Nest |
-| `/api/status` | `http://localhost:3001` | Nest |
-| `/api/days` | `http://localhost:3001` | Nest |
-| `/api/forecasts` | `http://localhost:3001` | Nest |
-| `/api/records` | `http://localhost:3001` | Nest |
-| `/api/summaries` | `http://localhost:3001` | Nest (Monat und Jahr, Jahresauswahl) |
-| `/api/imports` | `http://localhost:3001` | Nest (noch von keiner Seite genutzt) |
-| `/api/gaps` | `http://localhost:3001` | Nest (Schritt 9a, noch von keiner Seite genutzt) |
-| `/api/health` | `http://localhost:3001` | Nest (Schritt 9a, Betriebsprüfung) |
-| `/api` (alles andere, z. B. `/api/data/*`, `/api/forecast`, `/api/stats`) | `http://localhost:3000` | Express (seit Schritt 8 von keiner Seite mehr genutzt) |
+| `/api` | `http://localhost:3000` | Nest |
 
-Die Schlüssel sind Präfixe: `/api/forecast` (Express) beginnt nicht mit `/api/forecasts` und fällt deshalb auf den Fallback; `/api/forecasts` trifft vorher den eigenen Eintrag. Fehlerantworten von Express (`{ error }`) und Proxy-Fehler (z. B. Ziel nicht gestartet) sind nicht B3.3; der `apiErrorInterceptor` übersetzt sie (4.4).
+Proxy-Fehler (z. B. Nest nicht gestartet) sind nicht B3.3; der `apiErrorInterceptor` übersetzt sie (4.4).
 
 ---
 
@@ -677,8 +605,7 @@ Regeln:
 | Umfang | 22 Spec-Dateien, 273 Tests laut letztem Lauf (Schritt 7); je Komponente, Seite, Service, Pipe und Util eine `*.spec.ts` neben der Quelle, dazu `app.spec.ts` |
 | Erster Lauf | kann wegen der langsamen Platte (jsdom laden, ca. 130 s) mit dem Worker-Timeout abbrechen; erneut starten, danach ist der Cache warm |
 | stylelint | `cd frontend && npm run lint:css` (Basis `stylelint-config-standard`, siehe `.stylelintrc.json`) |
-| Backend Express | keine automatisierten Tests |
-| Backend Nest (`api/`) | Jest + ts-jest: `cd api && npm test` (Unit: BerlinTime mit vier Tagen Zeitumstellung und Mitternacht MEZ/MESZ, Clock, Altdatenimport und DST-Stichprobe, Open-Meteo-Client mit `fetch`-Ersatz und R32-Fällen, ImportRunner mit gemocktem Client und `FixedClock` (`partial`, `UPSTREAM_INVALID`), R19, R25-Grenzen, Stores, `DaysService` mit Fake-Store, `ApiExceptionFilter`, `ContentNegotiationMiddleware`), `npm run test:e2e` (GET-Endpunkte mit importierten Altdateien bzw. Fixtures per `applySeed` und `FixedClock`; Charakterisierung gegen `backend/data` per Altdatenimport; Importe mit gemocktem `OpenMeteoClient`: 202 + `Location`, 409, 404; Fehlerformat B3.3 mit 404 `NO_DATA`, 406, 413, 415, JSON-404, 500 ohne Stacktrace). Kein Test ruft Open-Meteo wirklich auf; Testhilfen in `api/test/support/fakes.ts`. Seit Schritt 9a laufen alle Tests mit SQLite `:memory:` (`test/support/test-env.ts`), Reset- und Neustart-Tests mit Dateien im Temp-Ordner; seit 9b ohne In-Memory-Stores und ohne `useLegacyStores`. Stand 9b: 500 Unit-Tests (44 Suites), 120 e2e-Tests (8 Suites); Einzelheiten 3a.1 |
+| Backend Nest (`api/`) | Jest + ts-jest: `cd api && npm test` (Unit: BerlinTime mit vier Tagen Zeitumstellung und Mitternacht MEZ/MESZ, Clock, Altdatenimport und DST-Stichprobe, Open-Meteo-Client mit `fetch`-Ersatz und R32-Fällen, ImportRunner mit gemocktem Client und `FixedClock` (`partial`, `UPSTREAM_INVALID`), R19, R25-Grenzen, Stores, `DaysService` mit Fake-Store, `ApiExceptionFilter`, `ContentNegotiationMiddleware`), `npm run test:e2e` (GET-Endpunkte mit importierten Altdateien bzw. Fixtures per `applySeed` und `FixedClock`; Charakterisierung gegen `backend/data` per Altdatenimport; Importe mit gemocktem `OpenMeteoClient`: 202 + `Location`, 409, 404; Fehlerformat B3.3 mit 404 `NO_DATA`, 406, 413, 415, JSON-404, 500 ohne Stacktrace). Kein Test ruft Open-Meteo wirklich auf; Testhilfen in `api/test/support/fakes.ts`. Seit Schritt 9a laufen alle Tests mit SQLite `:memory:` (`test/support/test-env.ts`), Reset- und Neustart-Tests mit Dateien im Temp-Ordner; seit 9b ohne In-Memory-Stores und ohne `useLegacyStores`. Stand Schritt 9: 499 Unit-Tests (44 Suites), 120 e2e-Tests (8 Suites); Einzelheiten 3a.1 |
 | Golden Files | `api/test/characterization/golden/` (Antworten der Express-API vom 19.11.2026: `day-*`, `month-*`, `year-*`, `stats.json`). Zweck: Vergleichsstand für eine spätere neue API. Aufnehmen mit `bash api/test/characterization/capture.sh` bei laufendem Backend (`BASE` ändert die Adresse); das Skript **überschreibt** `golden/`. Bekannte Abweichungen und Hinweise stehen in `api/test/characterization/README.md` |
 | axe-core | als devDependency im Frontend vorhanden, Prüfwerkzeug für Barrierefreiheit (z. B. im Browser oder in einem Skript); in den Specs ist es derzeit nicht eingebunden |
 
@@ -688,22 +615,19 @@ Regeln:
 
 | Aufgabe | Ordner | Befehl |
 |---|---|---|
-| Backend entwickeln (Server + Scheduler) | `backend/` | `npm run dev` |
-| Backend bauen | `backend/` | `npm run build` |
-| Backend aus dem Build starten | `backend/` | `npm start` |
-| Historische Daten laden | `backend/` | `npm run backfill` oder `npm run backfill -- YYYY-MM-DD` |
 | Nest-Datenbank anlegen/aktualisieren | `api/` | `npm run migration:run` (Dev-DB oder `DB_PATH`), danach `npm run db:seed` bzw. `npm run db:seed -- --fixture <name>`; alles neu: `npm run db:reset` |
-| Nest-API starten (:3001, nur `127.0.0.1`) | `api/` | `npm start` oder `npm run start:dev` (Watch); Port/Datenbank über `PORT`, `DB_PATH` |
+| Nest-API starten (:3000, nur `127.0.0.1`, Dev-DB, ohne Scheduler) | `api/` | `npm start` oder `npm run start:dev` (Watch); Port/Datenbank über `PORT`, `DB_PATH` |
+| Nest mit Sammel-DB und Scheduler | `api/` | `npm run build`, dann `DB_PATH=%LOCALAPPDATA%\wetter-heubach\weather.db`, `SCHEDULER_ENABLED=true`, `node dist/main.js` (3a.14) |
 | Nest-API bauen / aus dem Build starten | `api/` | `npm run build` / `npm run start:prod` |
 | Nest-API testen | `api/` | `npm test` (Unit), `npm run test:e2e` |
 | Altbestand prüfen / übernehmen | `api/` | `npm run cli -- import:legacy --dir ../backend/data --dry-run`, danach ohne `--dry-run` (Ziel `DB_PATH`, vorher `migration:run`); DST-Regel prüfen: `npm run cli -- legacy:dst-check --dir ../backend/data` (3a.13) |
-| Frontend entwickeln (:4200, Proxy auf :3000 und :3001) | `frontend/` | `npm start` (= `ng serve`) |
+| Frontend entwickeln (:4200, Proxy `/api` auf :3000) | `frontend/` | `npm start` (= `ng serve`) |
 | Frontend bauen | `frontend/` | `npm run build` (Ausgabe in `frontend/dist/`) |
 | Frontend-Tests | `frontend/` | `npm test -- --watch=false` |
 | CSS prüfen | `frontend/` | `npm run lint:css` |
 | Golden Files neu aufnehmen | Repo-Wurzel | `bash api/test/characterization/capture.sh` (Backend muss laufen) |
 
-Reihenfolge für die Entwicklung: zuerst Express (`:3000`) und Nest (`:3001`), dann Frontend (`:4200`). Der Browser spricht nur mit `:4200`; `/api` verteilt der Dev-Proxy je Ressource (4.6). Läuft Nest nicht, zeigen Heute/Tag und Rekorde die Fehlerbox „Server nicht erreichbar.“ und der Footer nur den statischen Standorttext; Monat und Jahr funktionieren weiter über Express. Nest braucht Express nicht und liest seit Schritt 9a dessen Dateien nicht mehr: Nest zeigt nur, was in der Datenbank steht (Dev-DB mit Seed oder Fixture; den Altbestand bringt `npm run cli -- import:legacy` in eine DB, 3a.13). Ohne Daten für heute ist `/api/days/today` → 404.
+Reihenfolge für die Entwicklung: zuerst Nest (`:3000`), dann Frontend (`:4200`). Der Browser spricht nur mit `:4200`; `/api` leitet der Dev-Proxy an Nest (4.6). Läuft Nest nicht, zeigen alle Seiten die Fehlerbox „Server nicht erreichbar.“ und der Footer nur den statischen Standorttext. Nest zeigt nur, was in der gewählten Datenbank steht: die Sammel-DB (Altbestand, 3a.14) oder die Dev-DB (Seed oder Fixture). Ohne Daten für heute ist `/api/days/today` → 404.
 
 ---
 
@@ -712,21 +636,21 @@ Reihenfolge für die Entwicklung: zuerst Express (`:3000`) und Nest (`:3001`), d
 | Thema | Hinweis |
 |---|---|
 | USB-Platte (FAT32) | Laufwerk D: ist langsam: Installationen, Builds und der erste Testlauf dauern lange; keine rekursiven Suchen über `node_modules`. Git meldet unter Umständen „dubious ownership“; dann das Repo einmalig als `safe.directory` eintragen |
-| Windows: Kindprozesse | Nach dem Stoppen von `npm`/`ng`/`ts-node` bleiben oft Node-Kindprozesse zurück und belegen die Ports 3000/3001/4200. Von Hand beenden, z. B. mit `Get-CimInstance Win32_Process` (nach Name und Befehlszeile filtern) und `Stop-Process -Id <PID>` |
+| Windows: Kindprozesse | Nach dem Stoppen von `npm`/`ng`/`nest` bleiben oft Node-Kindprozesse zurück und belegen die Ports 3000/4200. Von Hand beenden, z. B. mit `Get-CimInstance Win32_Process` (nach Name und Befehlszeile filtern) und `Stop-Process -Id <PID>` |
 | Vitest-Worker-Timeout | siehe Abschnitt 6: Lauf wiederholen, `maxWorkers` nicht erhöhen |
-| Express und Nest nur auf `127.0.0.1` | Beide Backends sind von außen nicht erreichbar. Zugriff im Betrieb nur über den Proxy von `ng serve` |
-| Nest zeigt nicht die echten Daten | Seit Schritt 9a liest Nest nur SQLite. In der Dev-DB stehen Seeds (`db:seed`) oder Fixtures, nicht `backend/data`. Heute/Tag/Rekorde im Browser zeigen deshalb nur diese Testtage (mit echter Uhr meist 404 `NO_DATA` für heute), bis der Altbestand per `cli import:legacy` in der gewählten DB steht (Sammel-DB ab 9c). `db:seed`/`db:reset` verweigern sich danach auf dieser DB (Import `legacy`) |
+| Nest nur auf `127.0.0.1` | Das Backend ist von außen nicht erreichbar. Zugriff im Betrieb nur über den Proxy von `ng serve` |
+| Nest zeigt nicht die echten Daten | Nest liest nur SQLite. Ohne `DB_PATH` ist das die Dev-DB mit Seeds oder Fixtures (mit echter Uhr meist 404 `NO_DATA` für heute). Die echten Daten stehen in der Sammel-DB `weather.db` (3a.14); dafür `DB_PATH` setzen. `db:seed`/`db:reset` verweigern sich auf ihr (Import `legacy`) |
 | Dev-DB und Sammel-DB | Ohne `DB_PATH` arbeiten App, `migration:*`, `db:seed` und `db:reset` auf der **Dev-DB** `weather.dev.db`. Die Sammel-DB `weather.db` nur ausdrücklich wählen; `db:seed`/`db:reset` verweigern sich dort, sobald ein Import `legacy`/`scheduled` darin steht |
 | `better-sqlite3` (natives Modul) | Kommt als Prebuild für die Node-Version (hier Node 24). Wechselt die Node-Version oder blockiert npm das Install-Skript (`allow-scripts`-Warnung bei `npm install`), lädt das Modul nicht (`Could not locate the bindings file`); dann `npm rebuild better-sqlite3` |
 | Neue Migration | `migration:generate` erzeugt für SQLite unlesbare Tabellen-Umbauten (`temporary_…`). Von Hand prüfen und vereinfachen; jede Tabelle als **eine** SQL-Zeile anlegen (TypeORM liest die `CHECK`s per Regex zurück). Danach `migration:generate` erneut: „No changes“ |
 | Tests und Datenbank | Jest setzt `DB_PATH=:memory:` immer (`test/support/test-env.ts`). Ein Test, der ein Modul mit Store allein bootet (ohne `AppModule`), muss `DatabaseModule` mit importieren, sonst „Nest can't resolve dependencies of the …Repository (DataSource)“ |
 | Mehrere Prozesse auf einer DB | App und CLI (`db:seed`) dürfen gleichzeitig auf dieselbe Datei; `busy_timeout = 5000` wartet auf Sperren. Nicht auf Netzlaufwerke legen (WAL braucht `-shm` lokal, 03 B4.4) |
 | Zeitstempel ohne Offset | `time` in den Altdateien ist Ortszeit ohne Offset, aber mit **festem Offset +01:00** auch im Sommer (DST-Stichprobe, 3a.13, Befund Z1). An Tagen mit Zeitumstellung hat die Datei 24 Einträge; nach dem Import haben 30.03.2025/29.03.2026 23 und 26.10.2025/25.10.2026 25 Stunden, und jede Sommerstunde liegt eine Stunde später als in der Datei |
-| Heutige Tagesdatei | Sie enthält 24 Stunden, auch die Stunden nach der aktuellen Uhrzeit: das sind **Vorhersagewerte**. Nest kennzeichnet sie mit `isPrediction` (R08), Heute und Rekorde rechnen sie nicht mit (die Übergangslösung über `berlinHour()` ist seit Schritt 7 entfernt). Die Monats- und Jahreswerte von Express rechnen den laufenden Tag bis Schritt 8 mit Vorhersagestunden mit |
-| `backend/data/` | nicht im Git; nie löschen oder überschreiben, nur lesen |
+| Heutige Tagesdatei | Die Altdatei für heute enthielt 24 Stunden, auch die Stunden nach der aktuellen Uhrzeit: das sind **Vorhersagewerte**. Nest kennzeichnet sie mit `isPrediction` (R08); Heute und Rekorde rechnen sie nicht mit |
+| `backend/data/` | nicht im Git; Altbestand und Quelle für `import:legacy`, nur lesen; der User löscht es selbst |
 | Nest-Importe schreiben in die DB | `POST /api/imports` ruft Open-Meteo wirklich auf und schreibt in `DB_PATH` (Standard Dev-DB); Importe und Werte bleiben über einen Neustart. Ein Import mit `kind` `range`/`gaps` sperrt `db:seed` nicht, ein `scheduled`-Import schon (gesammelte Daten) |
 | Nest-Module und `exports` | Ein neuer Provider, den ein anderes Modul braucht, muss in dessen Quellmodul unter `exports` stehen und das nutzende Modul muss das Quellmodul importieren; sonst bricht der Start mit „Nest can't resolve dependencies“ ab (der Boot-Test `src/app.module.spec.ts` fängt das). Keine Pfeile nach oben (z. B. Observations → Imports), kein `forwardRef`; Zyklen prüfen mit `npx madge@8.0.0 --circular --extensions ts src` in `api/` |
-| `SCHEDULER_ENABLED=true` im Parallelbetrieb | Dann importieren Express **und** Nest stündlich bei Open-Meteo (doppelte Abrufe); Nest schreibt dann `scheduled`-Importe in `DB_PATH` (danach verweigern `db:seed`/`db:reset` diese DB), und ein laufender Scheduler-Import blockiert für seine Dauer `POST /api/imports` (409 `IMPORT_RUNNING`). Bis zur Übergabe (Schritt 9c) aus lassen. Der Wert wird beim Laden von `app.module.ts` gelesen; Umgebungsvariable vor dem Start setzen |
+| `SCHEDULER_ENABLED=true` | Nest schreibt dann stündlich `scheduled`-Importe in `DB_PATH` (danach verweigern `db:seed`/`db:reset` diese DB), und ein laufender Scheduler-Import blockiert für seine Dauer `POST /api/imports` (409 `IMPORT_RUNNING`). Mit `FAKE_NOW` nicht erlaubt. Der Wert wird beim Laden von `app.module.ts` gelesen; Umgebungsvariable vor dem Start setzen. Auf der Sammel-DB startet der User den Scheduler selbst (3a.14) |
 | Stunden UTC, Tage Berlin | Stundenwerte fragt Nest mit `timezone=GMT` ab, die Tagesvorhersage mit `timezone=Europe/Berlin`. Wer eine weitere Open-Meteo-Abfrage ergänzt, muss entscheiden, welche Regel gilt, und das passende Schema (Offset 0 bzw. 3600/7200) verwenden |
 | Offener schreibender Endpunkt | `POST /api/imports` hat noch keine Anmeldung (Schritt 10/11) und nur eine minimale Eingabeprüfung (Schritt 4: Reihenfolge, Zukunft, Höchstdauer). Deshalb nur auf `127.0.0.1` und nicht auf den Pi |
 | Altbestand um eine Stunde versetzt (Z1) | Bestätigt (DST-Stichprobe 22.11.2026, Regel `fixed+01:00`). Der Altdatenimport rechnet richtig um; Tagesmittel und -summen der Sommertage weichen deshalb von den Express-Werten ab (Stunde 23:00 der Datei gehört zum Folgetag, `expected-differences.json`, 3a.10). Wer Altdateien anders als über `import:legacy` liest, muss die Regel selbst anwenden (`legacyTimeToUtc`) |
@@ -763,6 +687,7 @@ Neueste oben.
 
 | Datum | Schritt | Commit | Änderung |
 |---|---|---|---|
+| 2026-11-22 | 9 | siehe `git log` (Merge Schritt 9) | SQLite über TypeORM (Migrationen, CHECKs, FKs, WAL), TypeORM-Stores unter den bisherigen Tokens, Revisions-Cache, `Cache-Control`/ETag, `GET /api/health` und `/api/gaps`, Seeds/Fixtures per `db:seed`, `db:reset` mit Schutz der Sammel-DB, Start-Bereinigung `INTERRUPTED`; CLI `import:legacy` (Transaktion je Monat, Herkunft Z2, `fetchedAt` je Stunde) und `legacy:dst-check` (Regel `fixed+01:00`); Tests auf der DB; In-Memory-Observation-/Forecast-Store, `LegacyFileSource`, `LEGACY_DATA_DIR`, `FIXTURE` entfernt; Übergabe: Sammel-DB mit 16 560 Stunden plus gaps-Import, Nest auf Port 3000, Proxy nur `/api` → 3000, `backend/src` gelöscht, README neu |
 | 2026-11-21 | 8 | `2099d52` | `GET /api/days?from&to`, `/api/summaries/months?year=`, `/api/summaries/years`, `GET /api/imports` mit Filter und Pagination, alle Query-Schemas `.strict()`; OpenAPI unter `/api/docs` (`SWAGGER_ENABLED`, Schemas aus Zod); Postman-Collection `docs/api/`; Monat und Jahr lesen von Nest (je 2 parallele Requests, Jahresauswahl aus der API, Chips „Unvollständig“ und „N von M Tagen“), `models/weather.ts` entfernt |
 | 2026-11-21 | 7 | `ed8d361` | AggregationService mit Fachregeln R06–R14 und R08, `/api/records`, `/api/summaries/months/:yearMonth`, `/api/summaries/years/:year`, `FAKE_NOW`/`FIXTURE` mit Fixtures, Charakterisierungstest; Heute und Rekorde lesen von Nest (Hero „Jetzt“, „bis jetzt“-Werte, Vorhersageband aus `isPrediction`, Rekorde mit Stunde und „Tag ansehen“) |
 | 2026-11-20 | 6 | `4b1955d` | Module je Ressource (Common, Legacy, Locations, Observations, Forecasts, WeatherProvider, Imports, Stats, Status, Scheduler) ohne Zyklen; `SchedulerService` mit `@nestjs/schedule`, stündlich xx:05 Berlin, R19-Überspringen, `SCHEDULER_ENABLED` (Standard `false`) |

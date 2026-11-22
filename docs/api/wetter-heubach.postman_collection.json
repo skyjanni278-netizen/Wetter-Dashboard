@@ -2,7 +2,7 @@
   "info": {
     "name": "Wetter-Dashboard Heubach",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "API-Tests je Akzeptanzkriterium (03-zielbild.md B3.7). Voraussetzung: Nest mit FAKE_NOW=2026-11-19T13:30:00Z und dem Altbestand (Daten ab 2025-01-01). Die Umgebung local nutzt http://localhost:3001/api; ab Schritt 9 wird es http://localhost:3000/api. Die Reihenfolge der Ordner ist wichtig (US07-2 vor US10, US11 nach US10). Auth-Requests kommen in Schritt 10; die Variable token und Bearer-Auth sind vorbereitet."
+    "description": "API-Tests je Akzeptanzkriterium (03-zielbild.md B3.7). Voraussetzung: Nest mit FAKE_NOW=2026-11-19T13:30:00Z auf einer eigenen Temp-DB (nicht auf der Sammel-DB): in api/ npm run migration:run und npm run cli -- import:legacy --dir <Kopie des Altbestands bis 19.11.2026 mit erhaltenen Zeitstempeln> (DB_PATH, PORT und SCHEDULER_ENABLED=false setzen). Die Umgebung local nutzt http://localhost:3000/api; ein anderer Port wird mit --env-var baseUrl=... gesetzt. Die Reihenfolge der Ordner ist wichtig (US07-2 vor US10, US11 nach US10). Auth-Requests kommen in Schritt 10; die Variable token und Bearer-Auth sind vorbereitet."
   },
   "auth": {
     "type": "bearer",

@@ -4,14 +4,7 @@ Die Dateien in `golden/` halten die Antworten der Express-API fest, wie sie am 1
 
 ## Neu aufnehmen
 
-```bash
-# Express läuft auf :3000 (cd backend && npm run dev)
-bash api/test/characterization/capture.sh
-# andere Adresse:
-BASE=http://localhost:3001 bash api/test/characterization/capture.sh
-```
-
-Das Skript überschreibt `golden/`. Für einen Vergleich kopierst du es vorher an einen anderen Ort und führst es dort aus.
+Nicht mehr möglich: Express (`backend/src`) ist seit Roadmap-Schritt 9 entfernt. `capture.sh` bleibt nur als Beleg, wie die Golden Files entstanden sind (damals gegen Express auf `:3000`). Die Golden Files sind damit eingefroren.
 
 ## Bekannte Abweichungen beim Vergleich
 

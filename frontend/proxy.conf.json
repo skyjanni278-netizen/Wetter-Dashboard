@@ -1,49 +1,4 @@
 {
-  "/api/locations": {
-    "target": "http://localhost:3001",
-    "secure": false,
-    "changeOrigin": true
-  },
-  "/api/status": {
-    "target": "http://localhost:3001",
-    "secure": false,
-    "changeOrigin": true
-  },
-  "/api/days": {
-    "target": "http://localhost:3001",
-    "secure": false,
-    "changeOrigin": true
-  },
-  "/api/forecasts": {
-    "target": "http://localhost:3001",
-    "secure": false,
-    "changeOrigin": true
-  },
-  "/api/records": {
-    "target": "http://localhost:3001",
-    "secure": false,
-    "changeOrigin": true
-  },
-  "/api/summaries": {
-    "target": "http://localhost:3001",
-    "secure": false,
-    "changeOrigin": true
-  },
-  "/api/imports": {
-    "target": "http://localhost:3001",
-    "secure": false,
-    "changeOrigin": true
-  },
-  "/api/gaps": {
-    "target": "http://localhost:3001",
-    "secure": false,
-    "changeOrigin": true
-  },
-  "/api/health": {
-    "target": "http://localhost:3001",
-    "secure": false,
-    "changeOrigin": true
-  },
   "/api": {
     "target": "http://localhost:3000",
     "secure": false,

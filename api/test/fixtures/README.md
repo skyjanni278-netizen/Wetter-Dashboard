@@ -5,7 +5,7 @@ Seit Roadmap-Schritt 9 liest die App nur noch die Datenbank. Eine Fixture kommt 
 ```bash
 cd api && npm run db:seed -- --fixture us16-ok
 FAKE_NOW=2026-11-19T13:30:00Z node dist/main.js
-curl -s http://127.0.0.1:3001/api/days/today
+curl -s http://127.0.0.1:3000/api/days/today
 ```
 
 Abweichung beim Seed: Importe mit `kind` `legacy`/`scheduled` werden als `range` angelegt. Diese Arten kennzeichnen gesammelte Daten, und der nächste `db:seed`/`db:reset` würde sich sonst verweigern; für `updateState` (R25) zählt `range` gleich. Fixtures ohne Import (`us06-records`, `us02-dst`) bekommen einen Import `range` mit `finishedAt` = `fakeNow`, weil jede Stunde einen Import braucht (`observation.import_id`).

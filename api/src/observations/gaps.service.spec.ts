@@ -73,25 +73,6 @@ describe('GapsService (US12)', () => {
     expect(await serviceWith([d], '2026-11-19T13:30:00Z').find('2026-11-10', '2026-11-10')).toEqual({ items: [] });
   });
 
-  it('Altbestand ohne timeUtc (In-Memory-Store): Zuordnung über die Ortszeit', async () => {
-    const legacy: StoredDay = {
-      date: '2026-11-10',
-      hours: Array.from({ length: 24 }, (_, h) => ({
-        timeLocal: `2026-11-10T${String(h).padStart(2, '0')}:00`,
-        timeUtc: null,
-        temperature: h === 7 ? null : 5,
-        apparentTemperature: 2,
-        precipitation: 0,
-        weatherCode: 3,
-        windSpeed: 10,
-        windDirection: 200,
-        source: null,
-      })),
-    };
-    const { items } = await serviceWith([legacy], '2026-11-19T13:30:00Z').find('2026-11-10', '2026-11-10');
-    expect(items).toEqual([expect.objectContaining({ from: '2026-11-10T07:00:00+01:00', hours: 1, reason: 'null_values' })]);
-  });
-
   it('R02: to nach heute → 400 DATE_IN_FUTURE an to', async () => {
     const error: unknown = await serviceWith([], '2026-11-19T13:30:00Z')
       .find('2026-11-19', '2026-11-20')

@@ -11,12 +11,12 @@ const API = '/api';
 export class WeatherService {
   private http = inject(HttpClient);
 
-  /** Neue API (Nest, Proxy an :3001): Datenstand ohne Fehlertext. */
+  /** Neue API (Nest, Proxy an :3000): Datenstand ohne Fehlertext. */
   getStatus(): Observable<Status> {
     return this.http.get<Status>(`${API}/status`);
   }
 
-  /** Neue API (Nest, Proxy an :3001): ein Standort. */
+  /** Neue API (Nest, Proxy an :3000): ein Standort. */
   getLocation(id: number): Observable<Location> {
     return this.http.get<Location>(`${API}/locations/${id}`);
   }
