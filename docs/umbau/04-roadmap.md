@@ -33,10 +33,10 @@ Stand: 19.11.2026 · Grundlage: `01-analyse.md` (F01–F34, S1–S12, Abschnitt 
 | 6 | Module je Ressource, Regeln zwischen Modulen | M | 5 | ✅ erledigt (`4b1955d`) |
 | 7 | Fachregeln und berechnete Felder; Heute und Rekorde auf die neue API | L | 6, 1 | ✅ erledigt (`ed8d361`) |
 | 8 | Filter, Sortierung, OpenAPI; Monat und Jahr auf die neue API | M | 7 | ✅ erledigt (`2099d52`) |
-| 9 | Datenbank, Migrationen, Altdatenimport, Übergabe des Schedulers, Express aus | L | 8 | offen |
-| 10 | Login, JWT, AuthGuard, Login-Seite (keine Registrierung) | M | 9, 1 | offen |
-| 11 | Rollen, RolesGuard, `.env`, sichere Grundeinstellungen, Admin-Bereich | L | 10 | offen |
-| 12a | Must: N01, N03, N04 | M | 11 | offen |
+| 9 | Datenbank, Migrationen, Altdatenimport, Übergabe des Schedulers, Express aus | L | 8 | ✅ erledigt (`0b6ae05`) |
+| 10 | Login, JWT, AuthGuard, Login-Seite (keine Registrierung) | M | 9, 1 | ✅ erledigt (`6d5b5c0`) |
+| 11 | Rollen, RolesGuard, `.env`, sichere Grundeinstellungen, Admin-Bereich | L | 10 | ✅ erledigt (`907f868`) |
+| 12a | Must: N01, N03, N04 | M | 11 | ✅ erledigt (`1bf0a42`) |
 | 12b | Should: N05, N06 | M | 12a | offen |
 | 12c | Could: N07 | S | 12b | offen |
 | 13 | Optional: WebSockets, Templates, Events (Entscheidung) | S | 12c | offen |
@@ -674,6 +674,32 @@ Danach:
 ## Schritt 12 – Angenommene neue Funktionen
 
 ### 12a – Must: N01, N03, N04 (N02 ist mit Schritt 11 fertig)
+
+> **Status:** ✅ Erledigt am 23.11.2026 (Backend, Frontend, Postman). 673 Unit- und 201 e2e-Tests in `api/` (zweimal hintereinander grün), 570 Frontend-Tests. newman 96 Requests / 249 Assertions. axe meldet auf allen neuen und geänderten Seiten keine Verstöße.
+>
+> **Neu und erledigt:**
+> - Migration `CorrectionUser` mit dem FK `correction.corrected_by → user` (Tabellen-Neuaufbau). Geprüft auf einer DB im Stand von Schritt 11 mit Daten, auch mit `revert`. `INDEX(corrected_at)` und `reverts_correction_id` gab es schon seit 9a.
+> - `requestedBy` wird aus dem Token gesetzt.
+> - `overwriteCorrections` ist nach R20 umgesetzt.
+>
+> **Entscheidungen:**
+> - `If-Match: *` gibt 428. Ein PATCH ohne echte Änderung gibt 200 ohne neue Version.
+> - Eine Korrektur ist „wirksam“, solange das Feld noch ihren neuen Wert hat. Nach einem überschreibenden Import ist sie nicht mehr rücknehmbar.
+> - Das Frontend holt „heute“ aus `status.today` (`DataStatusService`). Nur die Routen-Titel bleiben bei der Browser-Uhr.
+> - Die Beschriftung der Admin-Statusseite ist „Datenstand / letzte Aktualisierung“, weil R25 auch manuelle Importe zählt.
+> - Die Lückenprüfung der Admin-Statusseite beginnt nicht vor `dataFrom` (Befund des Prüfers, behoben).
+>
+> **Vorbehalt US16-5:** „seit 3 Stunden“ rechnet mit der Browser-Uhr. Mit `FAKE_NOW` stimmt der Wortlaut nur, wenn die Browser-Uhr ebenfalls auf `FAKE_NOW` steht. Sonst steht dort neutral „seitdem keine Aktualisierung“.
+>
+> **Offen:**
+> - Serverzeit `now` in `/api/status`.
+> - Der Status wird nur beim App-Start geladen.
+> - Bei `?seite=` über der letzten Seite führt „Vorherige“ auf N−1.
+> - Die Korrekturübersicht lädt `/api/status` ein zweites Mal.
+> - Ungültige `?von` erzeugen eine Konsolenwarnung.
+> - Der FK `import.requested_by → user` fehlt noch (die Importtabelle enthält Daten).
+>
+> **Für die Sammel-DB:** einmal `npm run migration:run`.
 
 **Ziel:** Gäste erkennen Vorhersage und Datenstand. Der Admin korrigiert Werte nachvollziehbar, sieht alle Korrekturen in einer Übersicht und kann eine Korrektur zurücknehmen. Gäste sehen eine Statusseite.
 **Bezug:** US06-7, US13-1 bis -18, US16-1 bis -6, US17-1 bis -5 · F13 (Anzeige) · R08, R14, R16, R17, R20, R23, R24, R25, R26, R33
