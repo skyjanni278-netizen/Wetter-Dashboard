@@ -2009,6 +2009,120 @@
       ]
     },
     {
+      "name": "US20 Hinweise (Schritt 12c)",
+      "item": [
+        {
+          "name": "US20-1 Hinweise → 200, Form der Items, nur ab heute",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200',()=>pm.response.to.have.status(200));",
+                  "const b=pm.response.json();",
+                  "pm.test('items ist Array, basedOnFetchedAt String oder null',()=>{pm.expect(b.items).to.be.an('array');pm.expect(b.basedOnFetchedAt === null || typeof b.basedOnFetchedAt === 'string').to.eql(true);});",
+                  "pm.test('Items: 7 Felder mit passenden Typen, type erlaubt, date >= 2026-11-19',()=>{b.items.forEach(i=>{pm.expect(i).to.have.all.keys('id','type','date','value','threshold','comparator','unit');pm.expect(i.id).to.be.a('string');pm.expect(['frost','heat','heavy_rain']).to.include(i.type);pm.expect(i.date).to.match(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/);pm.expect(i.date >= '2026-11-19').to.eql(true);pm.expect(i.value).to.be.a('number');pm.expect(i.threshold).to.be.a('number');pm.expect(i.comparator).to.be.a('string');pm.expect(i.unit).to.be.a('string');});});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notices",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notices"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "US20-5 ?days=3 → 400 unrecognized_keys",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400',()=>pm.response.to.have.status(400));",
+                  "const b=pm.response.json();",
+                  "pm.test('code = VALIDATION_FAILED',()=>pm.expect(b.code).to.eql('VALIDATION_FAILED'));",
+                  "pm.test('errors[0] = days / unrecognized_keys',()=>{pm.expect(b.errors[0].field).to.eql('days');pm.expect(b.errors[0].code).to.eql('unrecognized_keys');});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notices?days=3",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notices"
+              ],
+              "query": [
+                {
+                  "key": "days",
+                  "value": "3"
+                }
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "US20-R01 Accept text/html → 406",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 406',()=>pm.response.to.have.status(406));",
+                  "const b=pm.response.json();",
+                  "pm.test('code = NOT_ACCEPTABLE',()=>pm.expect(b.code).to.eql('NOT_ACCEPTABLE'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "text/html"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/notices",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notices"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "SEC Sicherheit (Schritt 11)",
       "item": [
         {
