@@ -29,13 +29,15 @@ function setup() {
   const http = TestBed.inject(HttpTestingController);
 
   /** Antwortet auf alle vier Requests (US14-1, -3). */
-  function respond(options: { status?: Partial<Status>; healthStatus?: number; imports?: ImportResource[] } = {}) {
+  function respond(
+    options: { status?: Partial<Status>; healthStatus?: number; imports?: ImportResource[]; gapsFrom?: string } = {},
+  ) {
     http.expectOne('/api/status').flush(statusOf({ today: '2026-11-22', ...options.status }));
     const imports = http.expectOne(r => r.url === '/api/imports');
     expect(imports.request.params.get('limit')).toBe('10');
     imports.flush(importList(options.imports ?? IMPORTS, { limit: 10 }));
     const gaps = http.expectOne(r => r.url === '/api/gaps');
-    expect(gaps.request.params.get('from')).toBe('2026-10-23');
+    expect(gaps.request.params.get('from')).toBe(options.gapsFrom ?? '2026-10-23');
     expect(gaps.request.params.get('to')).toBe('2026-11-22');
     gaps.flush({ items: [gap(), gap({ id: 'b', hours: 2 })] });
     const health = http.expectOne('/api/health');
@@ -72,6 +74,12 @@ describe('StatusPageComponent (US14)', () => {
     expect(el.querySelector('.status-gaps a')?.getAttribute('href')).toBe('/admin/luecken');
     expect(card('status-health')).toContain('OK');
     expect(card('status-health')).toContain('Die Datenbank ist lesbar.');
+  });
+
+  it('Lückenprüfung beginnt nicht vor dem Datenbeginn (dataFrom innerhalb der 30 Tage)', () => {
+    const { respond, card } = setup();
+    respond({ status: { dataFrom: '2026-11-15' }, gapsFrom: '2026-11-15' });
+    expect(card('status-gaps')).toContain('(15.11.2026 – 22.11.2026)');
   });
 
   it('letzter fehlgeschlagener Import mit Fehlertext und Link; Tabelle der letzten Importe', () => {

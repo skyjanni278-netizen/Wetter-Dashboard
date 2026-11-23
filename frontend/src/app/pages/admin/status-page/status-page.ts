@@ -134,7 +134,9 @@ export class StatusPageComponent {
   private load(): Observable<StatusResult> {
     return this.weather.getStatus().pipe(
       switchMap(status => {
-        const gapsFrom = addDays(status.today, -STATUS_GAP_DAYS);
+        // Nicht vor dem Datenbeginn prüfen: Stunden vor `dataFrom` sind keine Lücke (wie R26 bei gapCount).
+        const windowStart = addDays(status.today, -STATUS_GAP_DAYS);
+        const gapsFrom = status.dataFrom && status.dataFrom > windowStart ? status.dataFrom : windowStart;
         return forkJoin({
           imports: this.api.getImports({ limit: STATUS_IMPORT_LIMIT }),
           gaps: this.api.getGaps(gapsFrom, status.today),
