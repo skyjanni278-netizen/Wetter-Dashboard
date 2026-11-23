@@ -11,7 +11,8 @@ import { AUTH_STORAGE_KEY, AuthService } from './services/auth.service';
 
 const STATUS: Status = {
   locationId: 1, today: '2026-11-20', timezone: 'Europe/Berlin', dataFrom: '2025-01-01', dataTo: '2026-11-20',
-  lastSuccessfulUpdateAt: null, updateState: 'never',
+  lastSuccessfulUpdateAt: null, nextScheduledUpdateAt: null, updateState: 'never',
+  daysWithData: 690, daysComplete: 689, gapCount: 0,
 };
 
 const HEUBACH: Location = {
@@ -230,6 +231,26 @@ describe('Footer „Datenstand“ aus der neuen API (Schritt 2, US07)', () => {
 
     expect(footer().textContent).toContain('Wetterdaten für Heubach');
     expect(range().dataset['state']).toBe('error');
+  });
+
+  it('Block „Datenstand“ (E3.7.9): „Zuletzt aktualisiert: …“ aus /api/status und Link „Status“ auf /status (US17-4)', () => {
+    const { fixture, footer } = render();
+    const update = () => footer().querySelector('.footer-update') as HTMLElement;
+    expect(update().querySelector('app-skeleton')).not.toBeNull();
+    http.expectOne('/api/status').flush({ ...STATUS, lastSuccessfulUpdateAt: '2026-11-20T13:05:12Z', updateState: 'ok' });
+    http.expectOne('/api/locations/1').flush(HEUBACH);
+    fixture.detectChanges();
+    expect(update().textContent?.trim()).toBe('Zuletzt aktualisiert: 20.11.2026, 14:05 Uhr');
+    const link = Array.from(footer().querySelectorAll('a')).find(a => a.textContent?.trim() === 'Status')!;
+    expect(link.getAttribute('href')).toBe('/status');
+  });
+
+  it('Block „Datenstand“ ohne Aktualisierung (never): „Noch keine Aktualisierung“', () => {
+    const { fixture, footer } = render();
+    http.expectOne('/api/status').flush(STATUS);
+    http.expectOne('/api/locations/1').flush(HEUBACH);
+    fixture.detectChanges();
+    expect(footer().querySelector('.footer-update')?.textContent?.trim()).toBe('Noch keine Aktualisierung');
   });
 
   it('noch keine Daten (dataFrom/dataTo null): kein Zeitraum', () => {

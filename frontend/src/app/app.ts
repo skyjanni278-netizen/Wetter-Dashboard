@@ -1,37 +1,40 @@
 import { Component, DOCUMENT, computed, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
-import { Observable, catchError, filter, map, of, startWith, switchMap } from 'rxjs';
+import { Observable, catchError, combineLatest, distinctUntilChanged, filter, map, of, startWith, switchMap } from 'rxjs';
 import { SkeletonComponent } from './components/skeleton/skeleton';
 import { AuthService } from './services/auth.service';
+import { DataStatusService } from './services/data-status.service';
 import { WeatherService } from './services/weather.service';
 import { formatDateDe } from './utils/berlin-date';
+import { footerUpdateText } from './utils/data-status';
 
 /** Ort, wenn die neue API (noch) nicht antwortet: bisheriger statischer Text. */
 const FALLBACK_LOCATION_NAME = 'Heubach';
 
-/** Footer-Block „Datenstand“: Ort und Datenzeitraum aus `/api/status` (Nest). */
+/** Footer-Block „Standort“: Ort und Datenzeitraum aus `/api/status` (Nest). */
 export type FooterDataState =
   | { state: 'loading' }
   | { state: 'error' }
   | { state: 'success'; locationName: string; dataFrom: string; dataTo: string };
 
 /**
- * Status und Standort der neuen API zu einem Zustand für den Footer.
- * Fehler oder fehlender Zeitraum ergeben `error`: Der Footer zeigt dann nur den statischen Text.
+ * Status (aus dem `DataStatusService`, ein Request je App-Start) und Standort zu einem Zustand für den Footer.
+ * Der Standort wird nur bei einer neuen `locationId` geladen. Fehler oder fehlender Zeitraum ergeben `error`:
+ * Der Footer zeigt dann nur den statischen Text.
  */
-export function footerData(weather: WeatherService): Observable<FooterDataState> {
-  return weather.getStatus().pipe(
-    switchMap(status =>
-      weather.getLocation(status.locationId).pipe(
-        map((location): FooterDataState =>
-          status.dataFrom && status.dataTo
-            ? { state: 'success', locationName: location.name, dataFrom: status.dataFrom, dataTo: status.dataTo }
-            : { state: 'error' },
-        ),
-      ),
+export function footerData(dataStatus: DataStatusService, weather: WeatherService): Observable<FooterDataState> {
+  const location$ = dataStatus.results$.pipe(
+    map(status => status?.locationId ?? null),
+    distinctUntilChanged(),
+    switchMap(id => (id === null ? of(null) : weather.getLocation(id).pipe(catchError(() => of(null))))),
+  );
+  return combineLatest([dataStatus.results$, location$]).pipe(
+    map(([status, location]): FooterDataState =>
+      status && location && status.dataFrom && status.dataTo
+        ? { state: 'success', locationName: location.name, dataFrom: status.dataFrom, dataTo: status.dataTo }
+        : { state: 'error' },
     ),
-    catchError(() => of<FooterDataState>({ state: 'error' })),
     startWith<FooterDataState>({ state: 'loading' }),
   );
 }
@@ -53,12 +56,13 @@ export class App {
   private document = inject(DOCUMENT);
   private weather = inject(WeatherService);
   private auth = inject(AuthService);
+  private dataStatus = inject(DataStatusService);
 
   /** Header: „Admin“ und „Abmelden“ nur nach der Anmeldung (E3.7.1); Gäste sehen keinen Hinweis. */
   readonly loggedIn = this.auth.isLoggedIn;
 
-  /** Footer „Datenstand“; ein Request je App-Start, kein Neuladen bei Navigation. */
-  readonly footer = toSignal(footerData(this.weather), { requireSync: true });
+  /** Footer „Standort“; `/api/status` lädt einmal je App-Start (DataStatusService), kein Neuladen bei Navigation. */
+  readonly footer = toSignal(footerData(this.dataStatus, this.weather), { requireSync: true });
 
   /** Ortsname im Footer: aus `/api/locations/:id`, sonst der statische Text. */
   readonly footerLocationName = computed(() => {
@@ -78,6 +82,13 @@ export class App {
     };
   });
 
+  /** Footer „Datenstand“ (E3.7.9, N01): „Zuletzt aktualisiert: 19.11.2026, 14:05 Uhr“; `null` ohne Status. */
+  readonly footerUpdate = computed(() => {
+    const status = this.dataStatus.status();
+    return status ? footerUpdateText(status) : null;
+  });
+  readonly footerUpdateLoading = computed(() => this.dataStatus.waiting());
+
   /**
    * Nav „Heute“ ist in der ganzen Tagesansicht aktiv. routerLinkActive kann das nicht abbilden,
    * weil `/tag/...` keine Unterroute von `/` ist.
@@ -89,6 +100,11 @@ export class App {
     ),
     { initialValue: false },
   );
+
+  constructor() {
+    // Ein Request je App-Start; „heute“ laut Server für Seitenkopf, Monat und Tag (03 B4.8).
+    this.dataStatus.load();
+  }
 
   /** „Abmelden“ (US09-9): Token verwerfen (`sessionStorage`), dann zur Startseite. */
   logout(): void {

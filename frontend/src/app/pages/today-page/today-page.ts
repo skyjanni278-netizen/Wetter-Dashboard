@@ -19,11 +19,15 @@ import { LoadingComponent } from '../../components/state/loading';
 import { EmptyComponent } from '../../components/state/empty';
 import { ErrorComponent } from '../../components/state/error';
 import { getWeatherIcon, describeWeather, getWindDirection } from '../../utils/weather-icon';
-import { berlinToday, addDays, formatDateDe, formatDateLongDe, isValidIsoDate } from '../../utils/berlin-date';
+import { addDays, formatDateDe, formatDateLongDe, isValidIsoDate } from '../../utils/berlin-date';
 import { DATA_START } from '../../config/data-range';
 import { UnitPipe } from '../../pipes/unit.pipe';
 import { dayViewTitle, setPageTitle } from '../../utils/page-title';
-import { dayParamStatus } from '../../utils/route-params';
+import { DayParamStatus, dayParamStatus } from '../../utils/route-params';
+import { standText } from '../../utils/data-status';
+import { DataStatusService } from '../../services/data-status.service';
+import { AuthService } from '../../services/auth.service';
+import { UpdateNoticeComponent } from '../../components/update-notice/update-notice';
 
 const DAY_NAMES = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
 
@@ -34,6 +38,16 @@ export const KEYBOARD_COMMIT_DELAY_MS = 800;
 interface DayResult extends LoadResult<Day> {
   apiError: ApiError | null;
   fieldError: string | null;
+}
+
+/**
+ * Anfrage der Seite: `today` = `/api/days/today`, ein Datum = `/api/days/:date`, `wait` = noch kein
+ * Request (Heute laut Server steht noch aus). `status` entscheidet, ob überhaupt ein Request nötig ist.
+ */
+interface DayRequest {
+  target: 'today' | 'wait' | string;
+  status: DayParamStatus;
+  reload: number;
 }
 
 /** „14:00“ aus `2026-11-19T14:00`. */
@@ -47,12 +61,15 @@ function hourOf(timeLocal: string): string {
   imports: [
     UnitPipe, ClimateChartComponent, RouterLink, CardComponent, KpiCardComponent, ChipComponent, NoticeComponent,
     FormFieldComponent, DataTableComponent, SkeletonComponent, LoadingComponent, EmptyComponent, ErrorComponent,
+    UpdateNoticeComponent,
   ],
   templateUrl: './today-page.html',
   styleUrl: './today-page.css'
 })
 export class TodayPageComponent implements OnInit {
   private weather = inject(WeatherService);
+  private dataStatus = inject(DataStatusService);
+  private auth = inject(AuthService);
   private title = inject(Title);
   private router = inject(Router);
 
@@ -79,16 +96,31 @@ export class TodayPageComponent implements OnInit {
     { key: 'rain', label: 'Nieder\u00ADschlag', align: 'end' },
   ];
 
+  /**
+   * Heute laut Server (`/api/status.today`, auch mit `FAKE_NOW`); bis zur Antwort die Browser-Uhr (03 B4.8).
+   * Bestimmt Überschrift, Grenze `max`, ‹ ›, „Zukunft?“ und welcher Tag `/` ist.
+   */
+  readonly today = this.dataStatus.today;
+  /** Datenstand für „Stand: …“ im Seitenkopf und die Hinweisbox (N01); `null` bis `/api/status` geantwortet hat. */
+  readonly status = this.dataStatus.status;
+  /** „Stand: 14:05 Uhr“ (US16-4). */
+  readonly standText = computed(() => {
+    const status = this.status();
+    return status ? standText(status) : null;
+  });
+  /** Admins sehen den Link „Werte korrigieren“ (N03). */
+  readonly loggedIn = this.auth.isLoggedIn;
+
   /** Grenzen des Datumsfelds (V12, F19). */
   readonly minDate = DATA_START;
-  readonly maxDate = berlinToday();
+  readonly maxDate = computed(() => this.today());
 
   /** Route-Parameter `:date` aus `/tag/:date` (V08); auf `/` nicht gesetzt. */
   readonly date = input<string | undefined>();
 
-  /** Gewählter Tag, nur aus der URL abgeleitet; ohne Parameter heute (Berlin). */
-  selectedDate = computed(() => this.date() ?? berlinToday());
-  dateStatus = computed(() => dayParamStatus(this.selectedDate()));
+  /** Gewählter Tag, nur aus der URL abgeleitet; ohne Parameter heute (Berlin, laut Server). */
+  selectedDate = computed(() => this.date() ?? this.today());
+  dateStatus = computed(() => dayParamStatus(this.selectedDate(), this.today()));
   invalidDate = computed(() => this.dateStatus() === 'invalid');
 
   private dateInput = viewChild<ElementRef<HTMLInputElement>>('dateInput');
@@ -103,10 +135,10 @@ export class TodayPageComponent implements OnInit {
     const value = this.fieldInput();
     if (value === null) return null;
     if (value === '') return 'Bitte ein Datum wählen.';
-    return this.isSelectable(value) ? null : this.rangeMessage;
+    return this.isSelectable(value) ? null : this.rangeMessage();
   });
-  private readonly rangeMessage =
-    `Bitte ein Datum zwischen ${formatDateDe(DATA_START)} und ${formatDateDe(this.maxDate)} wählen.`;
+  private readonly rangeMessage = computed(() =>
+    `Bitte ein Datum zwischen ${formatDateDe(DATA_START)} und ${formatDateDe(this.maxDate())} wählen.`);
 
   /** Getippter, gültiger Tag, der noch nicht übernommen wurde (siehe onDateChange). */
   private pendingDate: string | null = null;
@@ -142,9 +174,21 @@ export class TodayPageComponent implements OnInit {
 
   /** Erhöht sich bei „Heute“ (auf `/`) und „Erneut versuchen“, damit ohne Datumswechsel neu geladen wird. */
   private reloadCount = signal(0);
-  private request = computed(() => ({ date: this.selectedDate(), reload: this.reloadCount() }));
+  /**
+   * Request-Satz: `/` lädt immer `/api/days/today` (der Server bestimmt den Tag, F06). Mit Datum hängt
+   * „Zukunft?“ (kein Request) am Heute laut Server; solange `/api/status` noch lädt, wird gewartet
+   * (`wait`), damit kein Request mit dem Browser-Datum hinausgeht (`FAKE_NOW`, Mitternacht: sonst 400).
+   */
+  private request = computed<DayRequest>(() => {
+    const reload = this.reloadCount();
+    const date = this.date() ?? null;
+    if (date === null) return { target: 'today', status: 'valid', reload };
+    if (this.dataStatus.waiting()) return { target: 'wait', status: 'valid', reload };
+    const today = this.today();
+    return { target: date === today ? 'today' : date, status: dayParamStatus(date, today), reload };
+  });
 
-  isToday  = computed(() => this.selectedDate() === berlinToday());
+  isToday  = computed(() => this.selectedDate() === this.today());
   isFuture = computed(() => this.dateStatus() === 'future');
 
   /** ‹ ist an DATA_START gesperrt, › an heute (F19); beide bei Feldfehler oder ungültigem Datum. */
@@ -217,6 +261,8 @@ export class TodayPageComponent implements OnInit {
       labels: data.hours.map(h => hourOf(h.timeLocal)),
       temperatures: data.hours.map(h => h.temperature),
       precipitations: data.hours.map(h => h.precipitation),
+      // US13-12: Chip „KORRIGIERT“ in „Werte als Tabelle“ an Stunden mit wirksamer Korrektur
+      corrected: data.hours.map(h => h.correctedAt !== null && h.correctedAt !== undefined),
     };
   });
 
@@ -234,7 +280,7 @@ export class TodayPageComponent implements OnInit {
       const max = this.unitPipe.transform(f.maxTemp, '°', '1.0-0');
       const min = this.unitPipe.transform(f.minTemp, '°', '1.0-0');
       return {
-        day: f.date === berlinToday() ? 'Heute' : label,
+        day: f.date === this.today() ? 'Heute' : label,
         weather: { icon: getWeatherIcon(f.weatherCode), text: describeWeather(f.weatherCode) },
         max,
         min,
@@ -260,8 +306,8 @@ export class TodayPageComponent implements OnInit {
     // distinctUntilChanged: genau 1 Request je Wechsel, auch wenn Router und Signal gleichzeitig melden.
     // switchMap bricht den Request für eine überholte Auswahl ab (V03, F04).
     toObservable(this.request).pipe(
-      distinctUntilChanged((a, b) => a.date === b.date && a.reload === b.reload),
-      switchMap(({ date }) => this.loadDay(date)),
+      distinctUntilChanged((a, b) => a.target === b.target && a.status === b.status && a.reload === b.reload),
+      switchMap(request => this.loadDay(request)),
       takeUntilDestroyed(),
     ).subscribe(result => this.applyResult(result));
 
@@ -354,7 +400,7 @@ export class TodayPageComponent implements OnInit {
 
   /** Tag im Bereich des Datumsfelds (DATA_START bis heute). */
   private isSelectable(value: string): boolean {
-    return isValidIsoDate(value) && value >= DATA_START && value <= this.maxDate;
+    return isValidIsoDate(value) && value >= DATA_START && value <= this.maxDate();
   }
 
   /** Setzt eine nicht übernommene Eingabe zurück; die Bindung allein ändert den DOM-Wert dabei nicht. */
@@ -376,26 +422,28 @@ export class TodayPageComponent implements OnInit {
   loadNextDay(): void {
     if (this.nextDisabled()) return;
     const date = addDays(this.navBase(), 1);
-    if (date > berlinToday()) return;
+    if (date > this.today()) return;
     this.navigateToDate(date);
   }
 
   /** Zustandswechsel nur über den Router, damit History-Einträge entstehen (V08). Heute ist `/`. */
   private navigateToDate(date: string): void {
     this.navBase.set(date);
-    this.router.navigate(date === berlinToday() ? ['/'] : ['/tag', date]);
+    this.router.navigate(date === this.today() ? ['/'] : ['/tag', date]);
   }
 
-  private loadDay(date: string): Observable<DayResult> {
-    const today = berlinToday();
-    const status = dayParamStatus(date, today);
+  private loadDay({ target, status }: DayRequest): Observable<DayResult> {
+    if (target === 'wait') {
+      return of<DayResult>({ state: 'loading', data: null, message: null, apiError: null, fieldError: null });
+    }
     // Ungültige Daten und Zukunftsdaten lösen keinen Request aus
     if (status === 'invalid' || status === 'future') {
       return of<DayResult>({ state: 'idle', data: null, message: null, apiError: null, fieldError: null });
     }
-    const obs = date === today
+    const date = target === 'today' ? this.today() : target;
+    const obs = target === 'today'
       ? this.weather.getToday()
-      : this.weather.getDay(date);
+      : this.weather.getDay(target);
     return obs.pipe(
       map((data): DayResult => data?.hours?.length
         ? { state: 'success', data, message: null, apiError: null, fieldError: null }

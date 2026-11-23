@@ -1,0 +1,10 @@
+/* Datenstand für Gäste (US17-4): Kennzahlen im Raster, darunter Zeitraum und Erklärung */
+.status-facts { margin: 0; }
+
+.status-explain {
+  max-width: 40rem;
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.status-admin-link { margin: 0; }

@@ -11,6 +11,8 @@ import { DayList, DayListItem, MonthSummary, YearList } from '../../models/api';
 import { berlinToday } from '../../utils/berlin-date';
 import { routes } from '../../app.routes';
 import { AppTitleStrategy, monthLabel } from '../../utils/page-title';
+import { DataStatusService } from '../../services/data-status.service';
+import { statusOf } from '../../testing/admin-fixtures';
 
 function daysIn(year: string, month: string): number {
   return new Date(Date.UTC(Number(year), Number(month), 0)).getUTCDate();
@@ -499,5 +501,34 @@ describe('MonthlyPageComponent gegen die neue API (HttpTestingController)', () =
     await t.settle();
     expect(t.page().state()).toBe('success');
     t.http.verify();
+  });
+});
+
+describe('MonthlyPageComponent: heute laut Server (03 B4.8, Schritt 12a)', () => {
+  it('/monat wartet auf /api/status und fragt dann den Server-Monat mit to = status.today ab (kein 400 bei FAKE_NOW)', async () => {
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(), provideHttpClientTesting(),
+        provideRouter(routes, withComponentInputBinding()),
+        { provide: TitleStrategy, useClass: AppTitleStrategy },
+      ],
+    });
+    const http = TestBed.inject(HttpTestingController);
+    TestBed.inject(DataStatusService).load(); // wie App beim Start
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/monat', MonthlyPageComponent);
+    harness.detectChanges();
+    const t = harnessHelpers(harness);
+    http.expectOne('/api/summaries/years').flush(YEARS);
+    // Solange /api/status lädt: kein Request mit dem Browser-Datum
+    http.expectNone(r => r.url.startsWith('/api/summaries/months') || r.url === '/api/days');
+    http.expectOne('/api/status').flush(statusOf({ today: '2026-11-19' }));
+    await t.settle();
+    http.expectOne('/api/summaries/months/2026-11').flush(summary('2026', '11', 6, { complete: false, daysComplete: 18 }));
+    http.expectOne('/api/days?from=2026-11-01&to=2026-11-19').flush(dayList('2026-11-01', '2026-11-19'));
+    await t.settle();
+    expect(t.page().selectedMonth()).toBe('11');
+    expect(t.page().state()).toBe('success');
+    http.verify();
   });
 });

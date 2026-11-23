@@ -1,7 +1,9 @@
 import { Routes } from '@angular/router';
 import { adminGuard } from './guards/admin.guard';
 import { berlinToday } from './utils/berlin-date';
-import { adminViewTitle, dayViewTitle, importDetailTitle, monthViewTitle, yearViewTitle } from './utils/page-title';
+import {
+  adminViewTitle, correctionDayTitle, dayViewTitle, importDetailTitle, monthViewTitle, yearViewTitle,
+} from './utils/page-title';
 
 const todayPage = () => import('./pages/today-page/today-page').then(m => m.TodayPageComponent);
 const monthlyPage = () => import('./pages/monthly-page/monthly-page').then(m => m.MonthlyPageComponent);
@@ -47,6 +49,12 @@ export const routes: Routes = [
     title: 'Rekorde',
     loadComponent: () => import('./pages/stats-page/stats-page').then(m => m.StatsPageComponent),
   },
+  // Datenstand für Gäste (N04, US17-4): erreichbar über den Footer-Link „Status“.
+  {
+    path: 'status',
+    title: 'Datenstand',
+    loadComponent: () => import('./pages/status-page/status-page').then(m => m.DataStatusPageComponent),
+  },
   // Anmeldung (US09): nur über die URL erreichbar, Gäste sehen keinen Link darauf (E3.7.1).
   // Steht vor `admin`, damit der Guard die Login-Seite nicht sperrt.
   {
@@ -81,6 +89,17 @@ export const routes: Routes = [
         path: 'luecken',
         title: adminViewTitle('Lücken'),
         loadComponent: () => import('./pages/admin/gaps-page/gaps-page').then(m => m.GapsPageComponent),
+      },
+      // Korrekturen (N03): Übersicht (US13-14) und Stunden eines Tages mit Formular und Historie (US13-2, -16)
+      {
+        path: 'korrektur',
+        title: adminViewTitle('Korrekturen'),
+        loadComponent: () => import('./pages/admin/corrections-page/corrections-page').then(m => m.CorrectionsPageComponent),
+      },
+      {
+        path: 'korrektur/:date',
+        title: route => correctionDayTitle(route.paramMap.get('date')),
+        loadComponent: () => import('./pages/admin/correction-page/correction-page').then(m => m.CorrectionPageComponent),
       },
     ],
   },

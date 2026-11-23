@@ -1,6 +1,6 @@
 import {
   FROM_REQUIRED_MESSAGE, INVALID_DATE_MESSAGE, RANGE_TOO_LONG_MESSAGE, TO_BEFORE_FROM_MESSAGE, TO_REQUIRED_MESSAGE,
-  hasDateRangeErrors, toInFutureMessage, validateDateRange,
+  hasDateRangeErrors, rangeTooLongMessage, toInFutureMessage, validateDateRange,
 } from './date-range';
 
 describe('validateDateRange (R18, US10-4/-5/-6, US12-2)', () => {
@@ -32,6 +32,12 @@ describe('validateDateRange (R18, US10-4/-5/-6, US12-2)', () => {
     expect(validateDateRange('2026-11-01', '2026-11-23', '2026-11-22')).toEqual({ to: toInFutureMessage('2026-11-22') });
     expect(toInFutureMessage('2026-11-22')).toBe('Das Enddatum darf nicht nach heute (22.11.2026) liegen.');
     expect(validateDateRange('2026-11-01', '2026-11-23', null)).toEqual({});
+  });
+
+  it('eigene Höchstspanne (Korrekturen: 366 Tage, R23)', () => {
+    expect(validateDateRange('2025-11-20', '2026-11-20', null, 366)).toEqual({});
+    expect(validateDateRange('2025-11-19', '2026-11-20', null, 366)).toEqual({ to: rangeTooLongMessage(366) });
+    expect(rangeTooLongMessage(366)).toBe('Der Zeitraum darf höchstens 366 Tage umfassen.');
   });
 
   it('hasDateRangeErrors', () => {

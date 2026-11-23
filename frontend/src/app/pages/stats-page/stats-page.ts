@@ -7,6 +7,7 @@ import { ApiError, HourRecord, Records } from '../../models/api';
 import { LoadResult, LoadState } from '../../models/load-state';
 import { apiErrorOf } from '../../interceptors/api-error.interceptor';
 import { KpiCardComponent } from '../../components/kpi-card/kpi-card';
+import { ChipComponent } from '../../components/chip/chip';
 import { NoticeComponent } from '../../components/notice/notice';
 import { LoadingComponent } from '../../components/state/loading';
 import { EmptyComponent } from '../../components/state/empty';
@@ -29,7 +30,7 @@ interface RecordsResult extends LoadResult<Records> {
 @Component({
   selector: 'app-stats-page',
   standalone: true,
-  imports: [RouterLink, KpiCardComponent, NoticeComponent, LoadingComponent, EmptyComponent, ErrorComponent],
+  imports: [RouterLink, KpiCardComponent, ChipComponent, NoticeComponent, LoadingComponent, EmptyComponent, ErrorComponent],
   templateUrl: './stats-page.html',
 })
 export class StatsPageComponent {

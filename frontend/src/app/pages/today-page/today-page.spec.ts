@@ -12,12 +12,15 @@ import { RouterTestingHarness } from '@angular/router/testing';
 import { Observable, Subject, of, throwError } from 'rxjs';
 import { KEYBOARD_COMMIT_DELAY_MS, TodayPageComponent } from './today-page';
 import { WeatherService } from '../../services/weather.service';
-import { ApiError, Day, DayHour, Forecast, ForecastList } from '../../models/api';
+import { ApiError, Day, DayHour, Forecast, ForecastList, Status } from '../../models/api';
+import { DataStatusService } from '../../services/data-status.service';
+import { AUTH_STORAGE_KEY } from '../../services/auth.service';
+import { statusOf } from '../../testing/admin-fixtures';
 import { ClimateChartComponent } from '../../components/climate-chart/climate-chart';
-import { addDays, berlinToday, formatDateDe } from '../../utils/berlin-date';
+import { addDays, berlinToday, formatDateDe, formatDateLongDe } from '../../utils/berlin-date';
 import { describeWeather } from '../../utils/weather-icon';
 import { routes } from '../../app.routes';
-import { AppTitleStrategy } from '../../utils/page-title';
+import { AppTitleStrategy, dayViewTitle } from '../../utils/page-title';
 
 // Wie in app.config.ts: Zahlen deutsch („9,6 °C“)
 registerLocaleData(localeDe);
@@ -27,6 +30,7 @@ const pad = (n: number) => String(n).padStart(2, '0');
 
 function hour(h: number, temperature: number | null, date = '2026-11-10', extra: Partial<DayHour> = {}): DayHour {
   return {
+    id: 1000 + h,
     timeLocal: `${date}T${pad(h)}:00`,
     temperature,
     apparentTemperature: 0,
@@ -972,5 +976,142 @@ describe('TodayPageComponent Aufbau nach E3.9 (F17, F23, F24, V16)', () => {
     expect(first[4]).toMatch(/0[.,]0/);
     expect(rows[1].children[1].textContent).toContain(describeWeather(61));
     expect(rows[1].children[4].textContent).toMatch(/2[.,]5/);
+  });
+});
+
+describe('TodayPageComponent: Heute und Datenstand laut Server (N01, 03 B4.8, Schritt 12a)', () => {
+  /** Server-Heute wie mit FAKE_NOW: absichtlich ein anderer Tag als die Browser-Uhr. */
+  const SERVER_TODAY = addDays(berlinToday(), -4);
+
+  async function routedWithStatus(base: Mock, url: string, options: { loggedIn?: boolean } = {}) {
+    sessionStorage.clear();
+    if (options.loggedIn) {
+      sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({
+        accessToken: 'tok', tokenType: 'Bearer', expiresIn: 3600, expiresAt: Date.now() + 3_600_000,
+        user: { id: 1, username: 'admin', roles: ['admin'] },
+      }));
+    }
+    // getStatus als Subject, damit der Zeitpunkt der Antwort steuerbar ist
+    const status = new Subject<Status>();
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: WeatherService, useValue: { ...base, getStatus: () => status.asObservable() } },
+        provideRouter(routes, withComponentInputBinding()),
+        provideLocationMocks(),
+        { provide: TitleStrategy, useClass: AppTitleStrategy },
+        GERMAN,
+      ],
+    });
+    TestBed.inject(DataStatusService).load(); // wie App beim Start
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl(url, TodayPageComponent);
+    harness.detectChanges();
+    const respond = async (overrides: Partial<Status> = {}) => {
+      status.next(statusOf({ today: SERVER_TODAY, ...overrides }));
+      await harness.fixture.whenStable();
+      harness.detectChanges();
+    };
+    return { ...harnessHelpers(harness), respond };
+  }
+
+  const liveServerDay = () => day(SERVER_TODAY, 5, { isToday: true, current: { observationId: 1, timeLocal: `${SERVER_TODAY}T12:00` } });
+
+  afterEach(() => sessionStorage.clear());
+
+  it('„/“: Überschrift, max und › folgen status.today statt der Browser-Uhr; nur ein Request /days/today', async () => {
+    const { calls, mock } = counting([], liveServerDay);
+    const t = await routedWithStatus(mock, '/');
+    await t.respond();
+    expect(t.page().selectedDate()).toBe(SERVER_TODAY);
+    expect(t.el.querySelector('h1')?.textContent?.trim()).toBe(formatDateLongDe(SERVER_TODAY));
+    expect(t.input().getAttribute('max')).toBe(SERVER_TODAY);
+    expect(t.next().disabled).toBe(true);
+    expect(calls).toEqual(['today']);
+    expect(t.title()).toBe(`${dayViewTitle(SERVER_TODAY)} – Wetter Heubach`);
+  });
+
+  it('mit Datum: kein Request, bis /api/status geantwortet hat; der Browser-Tag ist dann Zukunft (kein Request, kein 400)', async () => {
+    const { calls, mock } = counting();
+    const t = await routedWithStatus(mock, `/tag/${berlinToday()}`);
+    expect(calls).toEqual([]);
+    await t.respond();
+    expect(calls).toEqual([]);
+    expect(t.page().isFuture()).toBe(true);
+    expect(t.el.querySelector('.future-notice')).not.toBeNull();
+  });
+
+  it('mit Datum vor heute: genau ein Request nach der Antwort von /api/status', async () => {
+    const { calls, mock } = counting();
+    const date = addDays(SERVER_TODAY, -2);
+    const t = await routedWithStatus(mock, `/tag/${date}`);
+    expect(calls).toEqual([]);
+    await t.respond();
+    expect(calls).toEqual([date]);
+  });
+
+  it('US16-4: „Stand: 14:05 Uhr“ im Seitenkopf, keine Hinweisbox bei ok', async () => {
+    const t = await routedWithStatus(counting([], liveServerDay).mock, '/');
+    await t.respond({ updateState: 'ok', lastSuccessfulUpdateAt: `${SERVER_TODAY}T13:05:12Z`, nextScheduledUpdateAt: null });
+    expect(t.el.querySelector('.page-title .page-stand')?.textContent?.trim()).toBe('Stand: 14:05 Uhr');
+    expect(t.el.querySelector('app-update-notice')).toBeNull();
+  });
+
+  it('US16-5: delayed → Hinweisbox (Hinweisstil) als erstes über dem Inhalt; never → eigener Zustand', async () => {
+    const t = await routedWithStatus(counting([], liveServerDay).mock, '/');
+    await t.respond({ updateState: 'delayed', lastSuccessfulUpdateAt: `${SERVER_TODAY}T10:05:12Z` });
+    const first = t.el.querySelector('.page-stack')!.firstElementChild as HTMLElement;
+    expect(first.tagName.toLowerCase()).toBe('app-update-notice');
+    expect(first.querySelector('app-notice')?.classList).toContain('notice-info');
+    expect(first.textContent).toContain(`Stand: ${formatDateDe(SERVER_TODAY)}, 11:05 Uhr`);
+    expect(first.textContent).toContain('keine Aktualisierung');
+    expect(t.el.querySelector('.page-stand')?.textContent?.trim()).toBe('Stand: 11:05 Uhr');
+
+    TestBed.inject(DataStatusService).refresh();
+    await t.respond({ updateState: 'never', lastSuccessfulUpdateAt: null });
+    expect(t.el.querySelector('.page-stand')?.textContent?.trim()).toBe('Stand: noch keine Aktualisierung');
+    expect(t.el.querySelector('app-update-notice')?.textContent).toContain('noch nie automatisch aktualisiert');
+  });
+
+  it('US16-6: vergangener Tag ohne „Stand“, ohne Hinweisbox, ohne Vorhersage-Chip; Kicker „Rückblick“', async () => {
+    const date = addDays(SERVER_TODAY, -9);
+    const t = await routedWithStatus(counting().mock, `/tag/${date}`);
+    await t.respond({ updateState: 'delayed', lastSuccessfulUpdateAt: `${SERVER_TODAY}T10:05:12Z` });
+    expect(t.el.querySelector('.page-stand')).toBeNull();
+    expect(t.el.querySelector('app-update-notice')).toBeNull();
+    expect(t.el.querySelector('app-chip.chip-forecast')).toBeNull();
+    expect(t.el.querySelector('.page-title .kicker')?.textContent?.trim()).toBe('Rückblick');
+  });
+
+  it('Admin: Link „Werte korrigieren“ auf /admin/korrektur/:date; Gäste sehen ihn nicht', async () => {
+    const date = addDays(SERVER_TODAY, -1);
+    const admin = await routedWithStatus(counting().mock, `/tag/${date}`, { loggedIn: true });
+    await admin.respond();
+    expect(admin.el.querySelector('.page-admin-link a')?.getAttribute('href')).toBe(`/admin/korrektur/${date}`);
+    TestBed.resetTestingModule();
+
+    const guest = await routedWithStatus(counting().mock, `/tag/${date}`);
+    await guest.respond();
+    expect(guest.el.querySelector('.page-admin-link')).toBeNull();
+  });
+});
+
+describe('TodayPageComponent: Chip „KORRIGIERT“ (US13-12)', () => {
+  it('„Werte als Tabelle“: Spalte „Korrektur“ mit Chip an der korrigierten Stunde', () => {
+    const data = day('2026-11-10', 5, {
+      hours: [hour(0, 5), hour(14, 9.6, '2026-11-10', { correctedAt: '2026-11-19T13:20:00Z' })],
+    });
+    const el = setup(data).nativeElement as HTMLElement;
+    const table = el.querySelector('.chart-details table') as HTMLTableElement;
+    const heads = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent?.trim());
+    expect(heads).toContain('Korrektur');
+    const rows = Array.from(table.querySelectorAll('tbody tr'));
+    expect(rows[1].querySelector('app-chip')?.textContent?.trim()).toBe('Korrigiert');
+    expect(rows[0].querySelector('app-chip')).toBeNull();
+  });
+
+  it('ohne korrigierte Stunde: keine Spalte „Korrektur“', () => {
+    const el = setup(day('2026-11-10', 5)).nativeElement as HTMLElement;
+    const heads = Array.from(el.querySelectorAll('.chart-details thead th')).map(th => th.textContent?.trim());
+    expect(heads).not.toContain('Korrektur');
   });
 });

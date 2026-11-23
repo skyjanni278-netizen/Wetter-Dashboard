@@ -1,0 +1,7 @@
+/* Übersicht der Korrekturen: Gesamtzahl über der Tabelle */
+.corrections-filter h2 { margin: 0 0 var(--space-3); }
+
+.corrections-total {
+  margin: 0 0 var(--space-2);
+  color: var(--color-text-muted);
+}

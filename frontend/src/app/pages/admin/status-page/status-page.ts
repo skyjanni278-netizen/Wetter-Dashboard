@@ -43,9 +43,12 @@ interface StatusResult {
 }
 
 const UPDATE_STATE: Record<UpdateState, { label: string; variant: ChipVariant; text: string }> = {
-  ok: { label: 'Läuft', variant: 'success', text: 'Der stündliche Abruf läuft.' },
-  delayed: { label: 'Verzögert', variant: 'danger', text: 'Der letzte erfolgreiche Abruf liegt zu lange zurück.' },
-  never: { label: 'Noch nie', variant: 'status', text: 'Es gab noch keinen erfolgreichen Abruf.' },
+  ok: {
+    label: 'Aktuell', variant: 'success',
+    text: 'Die letzte Aktualisierung liegt höchstens 2 Stunden zurück. Es zählen der stündliche Abruf und Importe für einen Zeitraum oder für Lücken (R25).',
+  },
+  delayed: { label: 'Verzögert', variant: 'danger', text: 'Die letzte erfolgreiche Aktualisierung liegt mehr als 2 Stunden zurück.' },
+  never: { label: 'Noch nie', variant: 'status', text: 'Es gab noch keine erfolgreiche Aktualisierung, nur Altdaten.' },
 };
 
 const HEALTH: Record<HealthState, { label: string; variant: ChipVariant; text: string }> = {
@@ -55,7 +58,8 @@ const HEALTH: Record<HealthState, { label: string; variant: ChipVariant; text: s
 };
 
 /**
- * Admin-Startseite `/admin` (US14): auf einen Blick, ob der stündliche Abruf läuft, wann zuletzt ein
+ * Admin-Startseite `/admin` (US14): auf einen Blick, ob die Daten aktuell sind (R25: stündlicher Abruf oder
+ * Import `range`/`gaps`), wann der Scheduler das nächste Mal läuft, wann zuletzt ein
  * Import fehlschlug und wie viele Lücken es gibt.
  *
  * Requests (US14-1, -3): `GET /api/status`, danach parallel `GET /api/imports?limit=10`,

@@ -33,7 +33,7 @@
         (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener license">CC BY 4.0</a>)
       </p>
     </section>
-    <!-- Block „Datenstand“ (E3.7.9): Ort und Datenzeitraum aus /api/status (Nest, Schritt 2).
+    <!-- Block „Standort“: Ort und Datenzeitraum aus /api/status (Nest, Schritt 2).
          Beim Laden und bei Fehler bleibt der statische Text; die zweite Zeile behält ihre Höhe. -->
     <section class="footer-block" aria-labelledby="footer-location">
       <h2 id="footer-location" class="kicker">Standort</h2>
@@ -46,6 +46,18 @@
           <app-skeleton width="14rem" height="1em" />
         }
       </p>
+    </section>
+    <!-- Block „Datenstand“ (E3.7.9, N01/N04): letzte Aktualisierung aus /api/status und Link „Status“ (US17-4) -->
+    <section class="footer-block" aria-labelledby="footer-update">
+      <h2 id="footer-update" class="kicker">Datenstand</h2>
+      <p class="footer-update">
+        @if (footerUpdate(); as update) {
+          {{ update }}
+        } @else if (footerUpdateLoading()) {
+          <app-skeleton width="16rem" height="1em" />
+        }
+      </p>
+      <p><a routerLink="/status">Status</a></p>
     </section>
   </div>
 </footer>

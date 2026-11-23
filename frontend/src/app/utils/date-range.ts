@@ -12,7 +12,12 @@ export const FROM_REQUIRED_MESSAGE = 'Bitte ein Startdatum wählen.';
 export const TO_REQUIRED_MESSAGE = 'Bitte ein Enddatum wählen.';
 export const INVALID_DATE_MESSAGE = 'Bitte ein gültiges Datum im Format JJJJ-MM-TT angeben.';
 export const TO_BEFORE_FROM_MESSAGE = 'Das Enddatum darf nicht vor dem Startdatum liegen.';
-export const RANGE_TOO_LONG_MESSAGE = `Der Zeitraum darf höchstens ${MAX_RANGE_DAYS} Tage umfassen.`;
+export const RANGE_TOO_LONG_MESSAGE = rangeTooLongMessage(MAX_RANGE_DAYS);
+
+/** „Der Zeitraum darf höchstens 366 Tage umfassen.“ (gleicher Text wie die API). */
+export function rangeTooLongMessage(maxDays: number): string {
+  return `Der Zeitraum darf höchstens ${maxDays} Tage umfassen.`;
+}
 
 /** „Das Enddatum darf nicht nach heute (22.11.2026) liegen.“ */
 export function toInFutureMessage(today: string): string {
@@ -30,7 +35,9 @@ export interface DateRangeErrors {
  * Feld, dann `to_before_from` bzw. `range_too_long` am Feld `to`. `today` (aus `/api/status`) prüft
  * zusätzlich „nicht nach heute“ (R02); ohne `today` entfällt diese Prüfung (der Server meldet sie).
  */
-export function validateDateRange(from: string, to: string, today: string | null = null): DateRangeErrors {
+export function validateDateRange(
+  from: string, to: string, today: string | null = null, maxDays: number = MAX_RANGE_DAYS,
+): DateRangeErrors {
   const errors: DateRangeErrors = {};
   if (!from) errors.from = FROM_REQUIRED_MESSAGE;
   else if (!isValidIsoDate(from)) errors.from = INVALID_DATE_MESSAGE;
@@ -39,7 +46,7 @@ export function validateDateRange(from: string, to: string, today: string | null
   if (errors.from || errors.to) return errors;
 
   if (to < from) errors.to = TO_BEFORE_FROM_MESSAGE;
-  else if (to > addDays(from, MAX_RANGE_DAYS - 1)) errors.to = RANGE_TOO_LONG_MESSAGE;
+  else if (to > addDays(from, maxDays - 1)) errors.to = rangeTooLongMessage(maxDays);
   else if (today && isValidIsoDate(today) && to > today) errors.to = toInFutureMessage(today);
   return errors;
 }

@@ -35,6 +35,21 @@ function create(getRecords: () => Observable<Records>) {
   return { fixture, el, card, c: fixture.componentInstance };
 }
 
+describe('StatsPageComponent Chip „KORRIGIERT“ (US06-7)', () => {
+  it('coldest.corrected = true: Chip an der Karte „Kältester Tag“, nicht an „Heißester Tag“', () => {
+    const { card } = create(() => of({ ...RECORDS, coldest: { ...RECORDS.coldest!, corrected: true, observationId: 16471 } }));
+    const chip = card('record-coldest').querySelector('app-chip');
+    expect(chip?.textContent?.trim()).toBe('Korrigiert');
+    expect(chip?.classList).toContain('chip');
+    expect(card('record-hottest').querySelector('app-chip')).toBeNull();
+  });
+
+  it('ohne Korrektur: kein Chip', () => {
+    const { el } = create(() => of(RECORDS));
+    expect(el.querySelector('app-chip')).toBeNull();
+  });
+});
+
 describe('StatsPageComponent Rekorde aus /api/records (US06)', () => {
   it('vier Rekordkarten mit Wert, Datum und Stunde bei Temperatur; Trockenperiode mit Zeitraum', () => {
     const { el, card } = create(() => of(RECORDS));

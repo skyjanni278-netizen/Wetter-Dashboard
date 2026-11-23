@@ -1,0 +1,72 @@
+<div class="page-header">
+  <div class="page-title">
+    <p class="kicker">Admin</p>
+    <h1>Korrekturen</h1>
+    <p>Alle Korrekturen und Rücknahmen eines Zeitraums, neueste zuerst. Ein Klick auf die Stunde öffnet die Korrektur des Tages.</p>
+  </div>
+</div>
+
+<div class="page-stack">
+  @if (todayState() === 'error' && !range()) {
+    <app-error [message]="todayErrorMessage" (retry)="retry()" />
+  }
+
+  <!-- Filter Zeitraum (E3.7.3); „Anzeigen“ schreibt ?von&bis in die URL -->
+  <app-card class="corrections-filter">
+    <h2 id="corrections-filter-title">Zeitraum</h2>
+    <form class="admin-form" [formGroup]="form" (ngSubmit)="submit()" aria-labelledby="corrections-filter-title">
+      <div class="admin-form-fields">
+        <app-form-field label="Von" fieldId="corrections-from" [error]="fieldError('from')" [control]="form.controls.from">
+          <input id="corrections-from" name="from" type="date" formControlName="from" [attr.max]="today()" required>
+        </app-form-field>
+        <app-form-field label="Bis" fieldId="corrections-to" [error]="fieldError('to')" [control]="form.controls.to"
+                        hint="Tag der Korrektur, höchstens 366 Tage.">
+          <input id="corrections-to" name="to" type="date" formControlName="to" [attr.max]="today()" required>
+        </app-form-field>
+      </div>
+      <button type="submit" class="btn btn-secondary admin-form-submit">Anzeigen</button>
+    </form>
+  </app-card>
+
+  <!-- Übersicht (US13-14, E3.7.5): Blättern über ?seite= -->
+  <app-card class="corrections-list" [busy]="state() === 'loading' && !!list()">
+    <div class="card-head">
+      <h2>Korrekturen</h2>
+    </div>
+
+    @if (showErrorBox()) {
+      <app-error [message]="errorMessage" [details]="apiError() ? [apiError()!.message] : []" [retryable]="retryable()"
+                 (retry)="retry()" />
+    }
+
+    @if (state() === 'loading' && !list()) {
+      <app-loading label="Korrekturen werden geladen">
+        <app-skeleton height="10rem" />
+      </app-loading>
+    }
+
+    @if (list(); as l) {
+      <p class="corrections-total">
+        <span class="num">{{ total() }}</span> {{ total() === 1 ? 'Korrektur' : 'Korrekturen' }} im Zeitraum {{ shownPeriod() }}
+      </p>
+      <app-data-table [caption]="'Korrekturen ' + shownPeriod() + ', neueste zuerst'" [captionHidden]="true"
+                      [columns]="columns" [columnsNarrow]="columnsNarrow" [rows]="rows()" [emptyText]="emptyText()" />
+
+      @if (pageCount() > 1 || page() > 1) {
+        <nav class="pager" aria-label="Seiten der Korrekturen">
+          @if (hasPrevious()) {
+            <a class="btn btn-secondary" [routerLink]="[]" [queryParams]="pageQuery(page() - 1)" queryParamsHandling="merge">
+              <span aria-hidden="true">‹</span> Vorherige Seite
+            </a>
+          }
+          <p class="pager-info">Seite <span class="num">{{ page() }}</span> von <span class="num">{{ pageCount() }}</span></p>
+          @if (hasNext()) {
+            <a class="btn btn-secondary" [routerLink]="[]" [queryParams]="pageQuery(page() + 1)" queryParamsHandling="merge">
+              Nächste Seite <span aria-hidden="true">›</span>
+            </a>
+          }
+        </nav>
+      }
+    }
+  </app-card>
+</div>

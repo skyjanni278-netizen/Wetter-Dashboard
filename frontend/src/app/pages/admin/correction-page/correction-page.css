@@ -1,0 +1,73 @@
+/* Korrektur eines Tages: Liste der Stunden mit Disclosure je Stunde */
+.correction-links { align-items: center; }
+
+.correction-hours h2 { margin: 0 0 var(--space-2); }
+
+.correction-hint {
+  margin: 0 0 var(--space-3);
+  color: var(--color-text-muted);
+}
+
+.hour-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hour-item {
+  padding: var(--space-3) 0;
+  border-top: var(--line) solid var(--color-border);
+}
+
+.hour-item:last-child { border-bottom: var(--line) solid var(--color-border); }
+
+/* Kopf: Stunde, Werte, Chips, Button; mobil untereinander, ab 768 px in einer Zeile */
+.hour-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-1) var(--space-3);
+  align-items: center;
+}
+
+.hour-head h3 {
+  margin: 0;
+  font-size: var(--fs-base);
+}
+
+.hour-values,
+.hour-chips,
+.hour-locked {
+  margin: 0;
+  min-width: 0;
+}
+
+.hour-values {
+  grid-column: 1 / -1;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.hour-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.hour-chips:empty { display: none; }
+
+.hour-locked {
+  color: var(--color-text-muted);
+  font-size: var(--fs-sm);
+}
+
+.hour-toggle,
+.hour-locked { grid-column: 2; grid-row: 1; justify-self: end; }
+
+.hour-panel { padding-top: var(--space-4); }
+
+@media (min-width: 48em) {
+  .hour-head { grid-template-columns: 6rem minmax(0, 1fr) auto auto; }
+  .hour-values { grid-column: auto; }
+  .hour-toggle,
+  .hour-locked { grid-column: 4; }
+}

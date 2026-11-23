@@ -63,7 +63,9 @@ describe('StatusPageComponent (US14)', () => {
     expect(el.querySelector('app-loading')).toBeNull();
     expect(el.querySelector('h1')?.textContent?.trim()).toBe('Betriebsstatus');
 
-    expect(card('status-update')).toContain('Läuft');
+    expect(card('status-update')).toContain('Aktuell');
+    expect(card('status-update')).toContain('Datenstand / letzte Aktualisierung');
+    expect(el.querySelector('.status-next dd')?.textContent?.trim()).toBe('Scheduler aus');
     expect(card('status-update')).toContain('22.11.2026, 13:00'); // lastSuccessfulUpdateAt 12:00Z in Berlin
     expect(card('status-data')).toContain('01.01.2025 – 22.11.2026');
     expect(card('status-gaps')).toContain('2 Lücken mit zusammen 8 Stunden (23.10.2026 – 22.11.2026).');
@@ -80,6 +82,13 @@ describe('StatusPageComponent (US14)', () => {
     expect(el.querySelector('.status-failed a')?.getAttribute('href')).toBe('/admin/importe/8');
     expect(el.querySelectorAll('.status-imports tbody tr').length).toBe(2);
     expect(el.querySelector('.status-imports .card-head a')?.getAttribute('href')).toBe('/admin/importe');
+  });
+
+  it('Scheduler an: nächster geplanter Abruf in Berliner Zeit (N01)', () => {
+    const { el, respond } = setup();
+    respond({ status: { nextScheduledUpdateAt: '2026-11-22T13:05:00Z' } });
+    expect(el.querySelector('.status-next dt')?.textContent?.trim()).toBe('Nächster geplanter Abruf');
+    expect(el.querySelector('.status-next dd')?.textContent?.trim()).toBe('22.11.2026, 14:05');
   });
 
   it('Abruf verzögert: Chip „Verzögert“ (danger); nie: „Noch nie“', () => {

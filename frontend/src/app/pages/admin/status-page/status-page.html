@@ -25,12 +25,17 @@
     <div class="admin-grid">
       <app-card class="status-update" [busy]="state() === 'loading'">
         <div class="card-head">
-          <h2>Stündlicher Abruf</h2>
+          <h2>Datenstand / letzte Aktualisierung</h2>
           <app-chip [variant]="update()!.variant">{{ update()!.label }}</app-chip>
         </div>
         <p class="status-text">{{ update()!.text }}</p>
         <dl class="admin-dl">
           <div><dt>Letzte erfolgreiche Aktualisierung</dt><dd>{{ formatDateTime(d.status.lastSuccessfulUpdateAt) }}</dd></div>
+          <!-- N01: nächster Lauf des Schedulers; null = Scheduler aus (SCHEDULER_ENABLED=false, US16-3) -->
+          <div class="status-next">
+            <dt>Nächster geplanter Abruf</dt>
+            <dd>{{ d.status.nextScheduledUpdateAt ? formatDateTime(d.status.nextScheduledUpdateAt) : 'Scheduler aus' }}</dd>
+          </div>
           <div><dt>Heute (Berlin)</dt><dd>{{ formatDateDe(d.status.today) }}</dd></div>
         </dl>
       </app-card>

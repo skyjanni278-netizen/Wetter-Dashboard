@@ -2,7 +2,7 @@
   "info": {
     "name": "Wetter-Dashboard Heubach",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "API-Tests je Akzeptanzkriterium (03-zielbild.md B3.7), Stand Schritt 11. Voraussetzung: ein eigener Nest auf einer eigenen Temp-DB (nicht auf der Sammel-DB), Konfiguration nur über Umgebungsvariablen (api/.env nicht nötig): NODE_ENV=development, DB_PATH=<Temp-DB, voller Pfad>, JWT_SECRET=<mindestens 32 Zeichen>, PORT (z. B. 3002), FAKE_NOW=2026-11-19T13:30:00Z und SCHEDULER_ENABLED=false (FAKE_NOW geht nur ohne Scheduler). Daten: in api/ npm run migration:run, dann npm run cli -- import:legacy --dir <Kopie des Altbestands bis 19.11.2026 mit erhaltenen Zeitstempeln>, dann den Admin mit ADMIN_INITIAL_PASSWORD=<mindestens 12 Zeichen> npm run cli -- admin:create --username admin anlegen. Die Umgebung local nutzt http://localhost:3000/api; ein anderer Port wird mit --env-var baseUrl=... gesetzt. Passwort per --env-var adminPassword=... (kein Passwort im Repo). Für SEC-4/SEC-5 (Token ohne Rolle, 403) zusätzlich --env-var jwtSecret=<dasselbe JWT_SECRET wie Nest>; das Pre-request-Script signiert damit ein HS256-Token per CryptoJS. Ohne jwtSecret schlagen nur diese zwei Requests fehl (401 statt 403). Die Reihenfolge der Ordner ist wichtig (US07-2 vor US10, US11 nach US10). Frisch starten: Das Login-Limit (5 Versuche je 60 s und IP) zählt jede Anfrage an /auth/tokens, und das globale Limit (120 Anfragen je 60 s und IP) zählt alle Anfragen; ein Lauf bleibt mit rund 70 Requests darunter, ein zweiter Lauf direkt danach nicht. Den Test des globalen Limits (121. Anfrage → 429 mit Retry-After) deckt der e2e-Test ab, nicht Postman. Die Collection hat Bearer-Auth mit {{token}}; der Ordner US09 Anmelden speichert das Token, die Gast-Ordner US01-US07 und SEC haben noauth. Der Ordner US09-7 mit den Fehlversuchen läuft zuletzt."
+    "description": "API-Tests je Akzeptanzkriterium (03-zielbild.md B3.7), Stand Schritt 12a. Voraussetzung: ein eigener Nest auf einer eigenen Temp-DB (nicht auf der Sammel-DB), Konfiguration nur über Umgebungsvariablen (api/.env nicht nötig): NODE_ENV=development, DB_PATH=<Temp-DB, voller Pfad>, JWT_SECRET=<mindestens 32 Zeichen>, PORT (z. B. 3002), FAKE_NOW=2026-11-19T13:30:00Z und SCHEDULER_ENABLED=false (FAKE_NOW geht nur ohne Scheduler). Daten: in api/ npm run migration:run (legt auch die Migration CorrectionUser an, den Fremdschlüssel correction.corrected_by → user; ohne sie scheitern PATCH und Rücknahme), dann npm run cli -- import:legacy --dir <Kopie des Altbestands bis 19.11.2026 mit erhaltenen Zeitstempeln>, dann den Admin mit ADMIN_INITIAL_PASSWORD=<mindestens 12 Zeichen> npm run cli -- admin:create --username admin anlegen. Die Umgebung local nutzt http://localhost:3000/api; ein anderer Port wird mit --env-var baseUrl=... gesetzt. Passwort per --env-var adminPassword=... (kein Passwort im Repo). Für SEC-4/SEC-5 (Token ohne Rolle, 403) zusätzlich --env-var jwtSecret=<dasselbe JWT_SECRET wie Nest>; das Pre-request-Script signiert damit ein HS256-Token per CryptoJS. Ohne jwtSecret schlagen nur diese zwei Requests fehl (401 statt 403). Die Reihenfolge der Ordner ist wichtig (US07-2 vor US10, US11 nach US10). Frisch starten: Das Login-Limit (5 Versuche je 60 s und IP) zählt jede Anfrage an /auth/tokens, und das globale Limit (120 Anfragen je 60 s und IP) zählt alle Anfragen; ein Lauf bleibt mit rund 100 Requests darunter, ein zweiter Lauf direkt danach nicht. Den Test des globalen Limits (121. Anfrage → 429 mit Retry-After) deckt der e2e-Test ab, nicht Postman. Die Collection hat Bearer-Auth mit {{token}}; der Ordner US09 Anmelden speichert das Token, die Gast-Ordner US01-US07 und SEC haben noauth. Der Ordner US13 Korrektur ändert eine Stunde (10.11., 07:00 Uhr) und nimmt die Korrektur wieder zurück; der Wert ist danach wieder der alte, nur version und die Historie bleiben. Der range-Import über eine korrigierte Stunde (skippedCorrected = 1, R20) steht nicht in Postman, weil jeder Import den echten Open-Meteo-Dienst abruft; den deckt der e2e-Test ab. US13-1b setzt Cache-Control: max-age=0, weil Postman sonst no-cache sendet und Express dann kein 304 liefert. Der Ordner US09-7 mit den Fehlversuchen läuft zuletzt."
   },
   "auth": {
     "type": "bearer",
@@ -1302,7 +1302,7 @@
       "name": "US06 Rekorde",
       "item": [
         {
-          "name": "US06-1 Rekorde → 200",
+          "name": "US06-1 Rekorde → 200 (mit corrected)",
           "event": [
             {
               "listen": "test",
@@ -1312,7 +1312,8 @@
                   "pm.test('Status 200',()=>pm.response.to.have.status(200));",
                   "const b=pm.response.json();",
                   "pm.test('Pflichtfelder',()=>pm.expect(b).to.include.keys('hottest','coldest','wettestDay','longestDryPeriod','daysCounted'));",
-                  "pm.test('ohne Vorhersage',()=>pm.expect(b.excludesPredictions).to.eql(true));"
+                  "pm.test('ohne Vorhersage',()=>pm.expect(b.excludesPredictions).to.eql(true));",
+                  "pm.test('corrected ist boolean',()=>{pm.expect(b.hottest.corrected).to.be.a('boolean');pm.expect(b.coldest.corrected).to.be.a('boolean');});"
                 ]
               }
             }
@@ -1500,6 +1501,118 @@
       "auth": {
         "type": "noauth"
       }
+    },
+    {
+      "name": "US16 Aktualisierungsstatus (Schritt 12a)",
+      "item": [
+        {
+          "name": "US16-3 Status: updateState und nextScheduledUpdateAt (Scheduler aus) → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200',()=>pm.response.to.have.status(200));",
+                  "const b=pm.response.json();",
+                  "pm.test('updateState gültig',()=>pm.expect(b.updateState).to.be.oneOf(['ok','delayed','never']));",
+                  "pm.test('nextScheduledUpdateAt = null (SCHEDULER_ENABLED=false)',()=>pm.expect(b.nextScheduledUpdateAt).to.eql(null));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "status"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "US17 Datenstand (Schritt 12a)",
+      "item": [
+        {
+          "name": "US17-1 Status: Kennzahlen → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200',()=>pm.response.to.have.status(200));",
+                  "const b=pm.response.json();",
+                  "pm.test('daysWithData, daysComplete, gapCount sind Ganzzahlen',()=>{['daysWithData','daysComplete','gapCount'].forEach(k=>pm.expect(Number.isInteger(b[k]),k).to.eql(true));});",
+                  "pm.test('daysComplete <= daysWithData',()=>pm.expect(b.daysComplete).to.be.at.most(b.daysWithData));",
+                  "pm.test('ohne Fehlertext',()=>pm.expect(b).to.not.have.any.keys('error','message','reason','lastError'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "status"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "US17-3 Status mit Accept text/html → 406",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 406',()=>pm.response.to.have.status(406));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "text/html"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "status"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        }
+      ]
     },
     {
       "name": "SEC Sicherheit (Schritt 11)",
@@ -2294,6 +2407,1148 @@
               "path": [
                 "gaps"
               ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "US13 Korrektur (Schritt 12a)",
+      "item": [
+        {
+          "name": "US13-0 Stunde suchen (10.11., 07:00 Uhr, vergangen, nicht vorhergesagt)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200',()=>pm.response.to.have.status(200));",
+                  "const h=pm.response.json().hours.find(x=>x.timeLocal==='2026-11-10T07:00');",
+                  "pm.test('Stunde vergangen und nicht vorhergesagt',()=>{pm.expect(h).to.be.an('object');pm.expect(h.isPrediction).to.eql(false);pm.expect(h.correctedAt).to.eql(null);});",
+                  "pm.collectionVariables.set('obsId',String(h.id));",
+                  "pm.collectionVariables.set('obsTemp',String(h.temperature));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/days/2026-11-10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "days",
+                "2026-11-10"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "US13-0b Vorhersagestunde suchen (19.11.)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200',()=>pm.response.to.have.status(200));",
+                  "const h=pm.response.json().hours.find(x=>x.isPrediction===true);",
+                  "pm.test('Vorhersagestunde vorhanden',()=>pm.expect(h).to.be.an('object'));",
+                  "pm.collectionVariables.set('predId',String(h.id));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/days/2026-11-19",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "days",
+                "2026-11-19"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "US13-1 Beobachtung → 200 mit ETag",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200',()=>pm.response.to.have.status(200));",
+                  "const etag=pm.response.headers.get('ETag');",
+                  "pm.test('ETag in Anführungszeichen',()=>pm.expect(etag).to.match(/^\"\\d+\"$/));",
+                  "pm.test('ETag = version',()=>pm.expect(etag).to.eql('\"'+pm.response.json().version+'\"'));",
+                  "pm.collectionVariables.set('etag0',etag);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/observations/{{obsId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "observations",
+                "{{obsId}}"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "US13-1b If-None-Match mit aktuellem ETag → 304",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 304',()=>pm.response.to.have.status(304));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "If-None-Match",
+                "value": "{{etag0}}"
+              },
+              {
+                "key": "Cache-Control",
+                "value": "max-age=0"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/observations/{{obsId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "observations",
+                "{{obsId}}"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "US13-3 PATCH ohne If-Match → 428",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.request.body.raw=JSON.stringify({temperature:Math.round((Number(pm.collectionVariables.get('obsTemp'))+3)*10)/10,reason:'Ausreißer, Nachbarstunden prüfen'});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 428',()=>pm.response.to.have.status(428));",
+                  "pm.test('code = PRECONDITION_REQUIRED',()=>pm.expect(pm.response.json().code).to.eql('PRECONDITION_REQUIRED'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/merge-patch+json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/observations/{{obsId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "observations",
+                "{{obsId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"temperature\": 0,\n  \"reason\": \"x\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "US13-2 PATCH mit If-Match → 200, ETag n+1",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.request.body.raw=JSON.stringify({temperature:Math.round((Number(pm.collectionVariables.get('obsTemp'))+3)*10)/10,reason:'Ausreißer, Nachbarstunden prüfen'});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200',()=>pm.response.to.have.status(200));",
+                  "const b=pm.response.json();const etag=pm.response.headers.get('ETag');const n=Number(JSON.parse(pm.collectionVariables.get('etag0')));",
+                  "pm.test('ETag n+1',()=>pm.expect(etag).to.eql('\"'+(n+1)+'\"'));",
+                  "pm.test('Wert geändert, correctedAt gesetzt',()=>{pm.expect(b.temperature).to.not.eql(Number(pm.collectionVariables.get('obsTemp')));pm.expect(b.correctedAt).to.be.a('string');pm.expect(b.version).to.eql(n+1);});",
+                  "pm.collectionVariables.set('etag1',etag);",
+                  "pm.collectionVariables.set('corrTemp',String(b.temperature));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/merge-patch+json"
+              },
+              {
+                "key": "If-Match",
+                "value": "{{etag0}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/observations/{{obsId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "observations",
+                "{{obsId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"temperature\": 0,\n  \"reason\": \"x\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "US13-4 PATCH mit altem ETag → 412",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 412',()=>pm.response.to.have.status(412));",
+                  "pm.test('code = PRECONDITION_FAILED',()=>pm.expect(pm.response.json().code).to.eql('PRECONDITION_FAILED'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/merge-patch+json"
+              },
+              {
+                "key": "If-Match",
+                "value": "{{etag0}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/observations/{{obsId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "observations",
+                "{{obsId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"temperature\": 9.7,\n  \"reason\": \"veraltet\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "US13-5 temperature 51 → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400',()=>pm.response.to.have.status(400));",
+                  "pm.test('Feld temperature',()=>pm.expect(pm.response.json().errors[0].field).to.eql('temperature'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "If-Match",
+                "value": "{{etag1}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/observations/{{obsId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "observations",
+                "{{obsId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"temperature\": 51,\n  \"reason\": \"zu heiß\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "US13-6 unbekanntes Feld source → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400',()=>pm.response.to.have.status(400));",
+                  "pm.test('code = VALIDATION_FAILED',()=>pm.expect(pm.response.json().code).to.eql('VALIDATION_FAILED'));",
+                  "pm.test('unrecognized_keys',()=>pm.expect(pm.response.json().errors[0]).to.include({field:'source',code:'unrecognized_keys'}));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "If-Match",
+                "value": "{{etag1}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/observations/{{obsId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "observations",
+                "{{obsId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"temperature\": 9.6,\n  \"source\": \"archive\",\n  \"reason\": \"Zusatzfeld\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "US13-7 nur Begründung → 400 missing_measurement",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400',()=>pm.response.to.have.status(400));",
+                  "pm.test('missing_measurement',()=>pm.expect(pm.response.json().errors[0].code).to.eql('missing_measurement'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "If-Match",
+                "value": "{{etag1}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/observations/{{obsId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "observations",
+                "{{obsId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"nur Begründung\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "US13-8 Vorhersagestunde → 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 409',()=>pm.response.to.have.status(409));",
+                  "pm.test('code = OBSERVATION_IS_PREDICTION',()=>pm.expect(pm.response.json().code).to.eql('OBSERVATION_IS_PREDICTION'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "If-Match",
+                "value": "\"1\""
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/observations/{{predId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "observations",
+                "{{predId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"temperature\": 9.6,\n  \"reason\": \"Vorhersage\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "US13-9 PATCH ohne Token → 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401',()=>pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "If-Match",
+                "value": "{{etag1}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/observations/{{obsId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "observations",
+                "{{obsId}}"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"temperature\": 9.6,\n  \"reason\": \"ohne Token\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "US13-10 text/plain → 415",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 415',()=>pm.response.to.have.status(415));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "text/plain"
+              },
+              {
+                "key": "If-Match",
+                "value": "{{etag1}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/observations/{{obsId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "observations",
+                "{{obsId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "temperature=9.6",
+              "options": {
+                "raw": {
+                  "language": "text"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "US13-13 Jahr 2026 nach der Korrektur → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200',()=>pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/summaries/years/2026",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "summaries",
+                "years",
+                "2026"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "US13-11 Historie → 200 mit Eintrag",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200',()=>pm.response.to.have.status(200));",
+                  "const it=pm.response.json().items;",
+                  "pm.test('1 Eintrag mit Feldern',()=>{pm.expect(it).to.have.length(1);pm.expect(it[0]).to.include.keys('field','oldValue','newValue','reason','correctedBy');pm.expect(it[0].field).to.eql('temperature');pm.expect(it[0].newValue).to.eql(Number(pm.collectionVariables.get('corrTemp')));pm.expect(it[0].oldValue).to.eql(Number(pm.collectionVariables.get('obsTemp')));});",
+                  "pm.collectionVariables.set('corrId',String(it[0].id));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/observations/{{obsId}}/corrections",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "observations",
+                "{{obsId}}",
+                "corrections"
+              ]
+            }
+          }
+        },
+        {
+          "name": "US13-14 Korrekturen eines Tages → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200',()=>pm.response.to.have.status(200));",
+                  "const b=pm.response.json();",
+                  "pm.test('items und meta',()=>{pm.expect(b.meta).to.include.keys('page','limit','total');pm.expect(b.meta.total).to.be.at.least(1);});",
+                  "pm.test('Eintrag aus US13-2',()=>{const e=b.items.find(x=>String(x.id)===String(pm.collectionVariables.get('corrId')));pm.expect(e).to.be.an('object');pm.expect(String(e.observationId)).to.eql(pm.collectionVariables.get('obsId'));pm.expect(e.observationTimeLocal).to.be.a('string');});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/corrections?from=2026-11-19&to=2026-11-19&page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "corrections"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "2026-11-19"
+                },
+                {
+                  "key": "to",
+                  "value": "2026-11-19"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "US13-15a Korrekturen ohne Token → 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401',()=>pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/corrections",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "corrections"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "US13-15b to vor from → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400',()=>pm.response.to.have.status(400));",
+                  "pm.test('to_before_from',()=>pm.expect(pm.response.json().errors[0]).to.include({field:'to',code:'to_before_from'}));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/corrections?from=2026-11-19&to=2026-11-01",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "corrections"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "2026-11-19"
+                },
+                {
+                  "key": "to",
+                  "value": "2026-11-01"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "US13-15c limit 101 → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400',()=>pm.response.to.have.status(400));",
+                  "pm.test('Feld limit',()=>pm.expect(pm.response.json().errors[0].field).to.eql('limit'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/corrections?from=2026-11-19&to=2026-11-19&limit=101",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "corrections"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "2026-11-19"
+                },
+                {
+                  "key": "to",
+                  "value": "2026-11-19"
+                },
+                {
+                  "key": "limit",
+                  "value": "101"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "US13-18a Rücknahme ohne If-Match → 428",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 428',()=>pm.response.to.have.status(428));",
+                  "pm.test('code = PRECONDITION_REQUIRED',()=>pm.expect(pm.response.json().code).to.eql('PRECONDITION_REQUIRED'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/observations/{{obsId}}/corrections/{{corrId}}/reversal",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "observations",
+                "{{obsId}}",
+                "corrections",
+                "{{corrId}}",
+                "reversal"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Rücknahme: Wert war plausibel\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "US13-18b Rücknahme mit veraltetem If-Match → 412",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 412',()=>pm.response.to.have.status(412));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "If-Match",
+                "value": "{{etag0}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/observations/{{obsId}}/corrections/{{corrId}}/reversal",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "observations",
+                "{{obsId}}",
+                "corrections",
+                "{{corrId}}",
+                "reversal"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"veraltet\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "US13-18c unbekannte Korrektur → 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404',()=>pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "If-Match",
+                "value": "{{etag1}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/observations/{{obsId}}/corrections/999999/reversal",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "observations",
+                "{{obsId}}",
+                "corrections",
+                "999999",
+                "reversal"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"unbekannte Korrektur\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "US13-18d Rücknahme ohne reason → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400',()=>pm.response.to.have.status(400));",
+                  "pm.test('Feld reason',()=>pm.expect(pm.response.json().errors[0].field).to.eql('reason'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "If-Match",
+                "value": "{{etag1}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/observations/{{obsId}}/corrections/{{corrId}}/reversal",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "observations",
+                "{{obsId}}",
+                "corrections",
+                "{{corrId}}",
+                "reversal"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "US13-16 Rücknahme → 200, Wert zurück, ETag n+1",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200',()=>pm.response.to.have.status(200));",
+                  "const b=pm.response.json();const n=Number(JSON.parse(pm.collectionVariables.get('etag1')));",
+                  "pm.test('ETag n+1',()=>pm.expect(pm.response.headers.get('ETag')).to.eql('\"'+(n+1)+'\"'));",
+                  "pm.test('alter Wert, correctedAt = null',()=>{pm.expect(b.temperature).to.eql(Number(pm.collectionVariables.get('obsTemp')));pm.expect(b.correctedAt).to.eql(null);});",
+                  "pm.collectionVariables.set('etag2',pm.response.headers.get('ETag'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "If-Match",
+                "value": "{{etag1}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/observations/{{obsId}}/corrections/{{corrId}}/reversal",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "observations",
+                "{{obsId}}",
+                "corrections",
+                "{{corrId}}",
+                "reversal"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Rücknahme: Wert war plausibel\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "US13-16b Historie hat 2 Einträge",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200',()=>pm.response.to.have.status(200));",
+                  "const it=pm.response.json().items;",
+                  "pm.test('2 Einträge, Rücknahme verweist auf die Korrektur',()=>{pm.expect(it).to.have.length(2);const r=it.find(x=>x.revertsCorrectionId!==null);pm.expect(String(r.revertsCorrectionId)).to.eql(pm.collectionVariables.get('corrId'));pm.expect(r.oldValue).to.eql(Number(pm.collectionVariables.get('corrTemp')));pm.expect(r.newValue).to.eql(Number(pm.collectionVariables.get('obsTemp')));});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/observations/{{obsId}}/corrections",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "observations",
+                "{{obsId}}",
+                "corrections"
+              ]
+            }
+          }
+        },
+        {
+          "name": "US13-17 zweite Rücknahme → 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 409',()=>pm.response.to.have.status(409));",
+                  "pm.test('code = CORRECTION_NOT_REVERSIBLE',()=>pm.expect(pm.response.json().code).to.eql('CORRECTION_NOT_REVERSIBLE'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "If-Match",
+                "value": "{{etag2}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/observations/{{obsId}}/corrections/{{corrId}}/reversal",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "observations",
+                "{{obsId}}",
+                "corrections",
+                "{{corrId}}",
+                "reversal"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"nochmal\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
           }
         }

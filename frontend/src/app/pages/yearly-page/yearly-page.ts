@@ -8,7 +8,7 @@ import { MonthSummary, YearList, YearSummary } from '../../models/api';
 import { LoadResult, LoadState } from '../../models/load-state';
 import { apiErrorOf } from '../../interceptors/api-error.interceptor';
 import { ClimateChartComponent, ClimateChartDataset } from '../../components/climate-chart/climate-chart';
-import { berlinToday } from '../../utils/berlin-date';
+import { DataStatusService } from '../../services/data-status.service';
 import { DATA_START } from '../../config/data-range';
 import { CardComponent } from '../../components/card/card';
 import { KpiCardComponent } from '../../components/kpi-card/kpi-card';
@@ -51,16 +51,17 @@ export class YearlyPageComponent {
   private weather = inject(WeatherService);
   private title = inject(Title);
   private router = inject(Router);
-  private today = berlinToday();
-  private currentYear = this.today.slice(0, 4);
+  /** Heute laut Server (`/api/status.today`), bis zur Antwort die Browser-Uhr (03 B4.8). */
+  private today = inject(DataStatusService).today;
+  private currentYear = computed(() => this.today().slice(0, 4));
   readonly dataStartYear = DATA_START.slice(0, 4);
 
   /** Route-Parameter aus `/jahr/:year` (V08); auf `/jahr` nicht gesetzt. */
   readonly year = input<string | undefined>();
 
   /** Auswahl, nur aus der URL abgeleitet; ohne Parameter das aktuelle Berliner Jahr. */
-  selectedYear = computed(() => this.year() ?? this.currentYear);
-  invalid = computed(() => !isValidYearParam(this.selectedYear(), this.today));
+  selectedYear = computed(() => this.year() ?? this.currentYear());
+  invalid = computed(() => !isValidYearParam(this.selectedYear(), this.today()));
   yearData = signal<YearData | null>(null);
   state = signal<LoadState>('idle');
   loading = computed(() => this.state() === 'loading');
@@ -73,7 +74,7 @@ export class YearlyPageComponent {
 
   /** Jahre aus `GET /api/summaries/years` (F20), einmal je Seitenaufruf geladen; neuestes zuerst. */
   private yearList = signal<YearList | null>(null);
-  years = computed(() => yearOptions(this.yearList(), this.invalid() ? null : this.selectedYear(), this.today));
+  years = computed(() => yearOptions(this.yearList(), this.invalid() ? null : this.selectedYear(), this.today()));
 
   /** Kennzahlen aus der Jahreszusammenfassung: Ø nach R12 aus der API, nicht Mittel der Monatsmittel (F28). */
   summary = computed(() => this.yearData()?.summary ?? null);
@@ -145,7 +146,7 @@ export class YearlyPageComponent {
   /** Zwei parallele Requests: Jahreszusammenfassung und Monate des Jahres (US05). */
   private loadYear(year: string): Observable<YearResult> {
     // Ungültige Parameter lösen keinen Request aus
-    if (!isValidYearParam(year, this.today)) {
+    if (!isValidYearParam(year, this.today())) {
       return of<YearResult>({ state: 'idle', data: null, message: null, retryable: true });
     }
     return forkJoin({

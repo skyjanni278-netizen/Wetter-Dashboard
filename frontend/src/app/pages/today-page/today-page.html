@@ -5,8 +5,17 @@
         <p class="kicker">{{ kicker }}</p>
       }
       <h1>{{ headline() }}</h1>
+      <!-- Datenstand (N01, US16-4): nur am laufenden Tag; Zeiten laut Server (status.today) -->
+      @if (isToday() && standText(); as stand) {
+        <p class="page-stand">{{ stand }}</p>
+      }
       @if (loading() && dayData()) {
         <p><app-chip>Lädt {{ formatDateDe(selectedDate()) }} …</app-chip></p>
+      }
+      @if (loggedIn() && dayData(); as day) {
+        <p class="page-admin-link">
+          <a class="btn btn-text" [routerLink]="['/admin/korrektur', day.date]">Werte korrigieren <span aria-hidden="true">→</span></a>
+        </p>
       }
     </div>
 
@@ -16,7 +25,7 @@
       <app-form-field class="controls" label="Tag wählen" fieldId="date-input"
                       [hint]="'Daten ab ' + formatDateDe(minDate)" [error]="shownFieldError()">
         <button type="button" class="btn btn-secondary btn-icon" (click)="loadPreviousDay()" [disabled]="prevDisabled()" aria-label="Vorheriger Tag">&#8249;</button>
-        <input #dateInput id="date-input" type="date" [min]="minDate" [max]="maxDate" [value]="selectedDate()"
+        <input #dateInput id="date-input" type="date" [min]="minDate" [max]="maxDate()" [value]="selectedDate()"
                (change)="onDateChange($event)" (keydown)="onDateKeydown($event)" (blur)="onDateBlur()" />
         <button type="button" class="btn btn-secondary btn-icon" (click)="loadNextDay()" [disabled]="nextDisabled()" aria-label="Nächster Tag">&#8250;</button>
         <button type="button" class="btn btn-secondary" (click)="loadToday()">Heute</button>
@@ -25,6 +34,12 @@
   </div>
 
   <div class="page-stack">
+    <!-- Veraltete Daten (US16-5, E3.7.8): Hinweisbox über dem Inhalt, Daten bleiben darunter stehen -->
+    @if (isToday() && status(); as s) {
+      @if (s.updateState !== 'ok') {
+        <app-update-notice [status]="s" />
+      }
+    }
     @if (isFuture()) {
       <app-notice class="future-notice" variant="forecast" [kicker]="'Vorhersage für den ' + formatDateDe(selectedDate())">
         <p>Für dieses Datum liegen noch keine Messdaten vor.</p>

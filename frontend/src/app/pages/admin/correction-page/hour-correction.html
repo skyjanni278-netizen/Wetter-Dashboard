@@ -1,0 +1,124 @@
+<!-- Rückmeldung (E3.7.7): Fokus springt nach jeder Aktion hierher (tabindex="-1") -->
+<div class="hour-feedback" #feedbackBox tabindex="-1">
+  @if (feedback(); as f) {
+    @switch (f.type) {
+      @case ('success') {
+        <app-notice variant="success" [announce]="true">
+          <p>{{ f.text }}</p>
+        </app-notice>
+      }
+      @case ('reloaded') {
+        <app-notice variant="info" [announce]="true">
+          <p>{{ reloadedMessage }}</p>
+        </app-notice>
+      }
+      @case ('conflict') {
+        <!-- 412 (B5.2): die Version ist veraltet -->
+        <app-notice variant="error" kicker="Konflikt" [announce]="true">
+          <p>{{ conflictMessage }}</p>
+          <button type="button" class="btn btn-primary hour-reload" (click)="reload()">Neu laden</button>
+        </app-notice>
+      }
+      @case ('error') {
+        <app-notice variant="error" [announce]="true">
+          <p>{{ f.text }}</p>
+        </app-notice>
+      }
+    }
+  }
+</div>
+
+@if (loadState() === 'error') {
+  <app-error [message]="loadErrorMessage" [details]="loadErrorDetail() ? [loadErrorDetail()!] : []" (retry)="load()" />
+}
+
+@if (loadState() === 'loading' && !observation()) {
+  <app-loading [label]="'Stunde ' + label() + ' wird geladen'">
+    <app-skeleton height="10rem" />
+  </app-loading>
+}
+
+@if (observation(); as obs) {
+  <form class="admin-form hour-form" [formGroup]="form" (ngSubmit)="submit()" [attr.aria-label]="'Korrektur ' + label()"
+        [attr.aria-busy]="loadState() === 'loading' ? 'true' : null">
+    <p class="hour-form-hint">
+      Nur geänderte Werte werden gespeichert. Ein leeres Feld setzt den Wert auf „unbekannt“. Version {{ obs.version }}.
+    </p>
+
+    <div class="admin-form-fields">
+      @for (spec of fields; track spec.field) {
+        <app-form-field [label]="spec.label + ' (' + spec.unit + ')'" [fieldId]="fieldId(spec.field)"
+                        [error]="fieldError(spec.field)" [control]="form.controls[spec.field]">
+          <input [id]="fieldId(spec.field)" type="text" inputmode="decimal" autocomplete="off"
+                 [formControlName]="spec.field">
+        </app-form-field>
+      }
+      <app-form-field label="Wetter" [fieldId]="fieldId('weatherCode')" [control]="form.controls.weatherCode">
+        <select [id]="fieldId('weatherCode')" formControlName="weatherCode">
+          <option value="">unbekannt</option>
+          @for (code of weatherCodes; track code.value) {
+            <option [value]="code.value">{{ code.label }}</option>
+          }
+        </select>
+      </app-form-field>
+    </div>
+
+    <app-form-field label="Grund" [fieldId]="fieldId('reason')" [error]="fieldError('reason')" [control]="form.controls.reason"
+                    hint="Pflichtfeld, 3 bis 500 Zeichen, z. B. „Ausreißer, Nachbarstunden 9,4/9,8 °C“.">
+      <textarea [id]="fieldId('reason')" rows="2" [attr.maxlength]="reasonMax" formControlName="reason" required></textarea>
+    </app-form-field>
+
+    <button type="submit" class="btn btn-primary admin-form-submit"
+            [attr.aria-disabled]="pending() ? 'true' : null" [attr.aria-busy]="pending() ? 'true' : null">
+      {{ pending() ? 'Wird gespeichert …' : 'Korrektur speichern' }}
+    </button>
+  </form>
+
+  <!-- Historie (US13-11) mit „Zurücknehmen“ (R33, US13-16) -->
+  <section class="hour-history" [attr.aria-label]="'Historie ' + label()">
+    <h4>Historie</h4>
+    @if (history().length === 0) {
+      <p class="hour-history-empty">Noch keine Korrekturen an dieser Stunde.</p>
+    } @else {
+      <ol class="history-list">
+        @for (item of history(); track item.id) {
+          <li class="history-item">
+            <p class="history-change">
+              <strong>{{ fieldLabel[item.field] }}</strong>:
+              {{ formatValue(item.field, item.oldValue) }} → {{ formatValue(item.field, item.newValue) }}
+              @if (item.revertsCorrectionId !== null) {
+                <app-chip>Rücknahme von #{{ item.revertsCorrectionId }}</app-chip>
+              }
+            </p>
+            <p class="history-meta">
+              #{{ item.id }} · {{ formatTime(item.correctedAt) }} Uhr · Grund: {{ item.reason }}
+            </p>
+
+            @if (reversingId() === item.id) {
+              <div class="history-reversal" role="group" [attr.aria-label]="'Korrektur #' + item.id + ' zurücknehmen'">
+                <app-form-field label="Grund der Rücknahme" [fieldId]="reversalFieldId(item.id)" [error]="reversalError()"
+                                [control]="reversalReason" hint="Pflichtfeld, 3 bis 500 Zeichen.">
+                  <textarea [id]="reversalFieldId(item.id)" rows="2" [attr.maxlength]="reasonMax" [formControl]="reversalReason"
+                            required></textarea>
+                </app-form-field>
+                <div class="history-actions">
+                  <button type="button" class="btn btn-primary" (click)="submitReversal()"
+                          [attr.aria-disabled]="reversalPending() ? 'true' : null" [attr.aria-busy]="reversalPending() ? 'true' : null">
+                    {{ reversalPending() ? 'Wird zurückgenommen …' : 'Rücknahme speichern' }}
+                  </button>
+                  <button type="button" class="btn btn-secondary" (click)="cancelReversal()">Abbrechen</button>
+                </div>
+              </div>
+            } @else if (reversible().has(item.id)) {
+              <button type="button" class="btn btn-secondary history-revert" [id]="revertButtonId(item.id)"
+                      (click)="startReversal(item.id)"
+                      [attr.aria-label]="'Zurücknehmen: Korrektur #' + item.id + ' (' + fieldLabel[item.field] + ')'">
+                Zurücknehmen
+              </button>
+            }
+          </li>
+        }
+      </ol>
+    }
+  </section>
+}

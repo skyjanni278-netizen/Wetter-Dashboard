@@ -1,4 +1,7 @@
-import { adminViewTitle, dayViewTitle, fullTitle, importDetailTitle, longDateLabel, monthLabel, monthViewTitle, viewTitle, yearViewTitle } from './page-title';
+import {
+  adminViewTitle, correctionDayTitle, dayViewTitle, fullTitle, importDetailTitle, longDateLabel, monthLabel, monthViewTitle, viewTitle,
+  yearViewTitle,
+} from './page-title';
 
 describe('page-title (V10)', () => {
   it('Monat: „November 2026 – Monat – Wetter Heubach“', () => {
@@ -42,5 +45,7 @@ describe('page-title (V10)', () => {
     expect(importDetailTitle('12')).toBe('Import #12 – Admin');
     expect(importDetailTitle('0')).toBe('Ungültiger Import – Admin');
     expect(importDetailTitle(null)).toBe('Ungültiger Import – Admin');
+    expect(correctionDayTitle('2026-11-19')).toBe('Korrektur 19.11.2026 – Admin');
+    expect(correctionDayTitle('2026-02-30')).toBe('Ungültiges Datum – Admin');
   });
 });

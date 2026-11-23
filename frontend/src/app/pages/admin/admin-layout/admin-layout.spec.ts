@@ -56,13 +56,13 @@ describe('Admin-Bereich: Navigation und Routen (Schritt 11)', () => {
     sessionStorage.clear();
   });
 
-  it('Unternavigation „Status“, „Importe“, „Lücken“ mit Namen; auf /admin ist nur „Status“ aktiv', async () => {
+  it('Unternavigation „Status“, „Importe“, „Lücken“, „Korrekturen“ mit Namen; auf /admin ist nur „Status“ aktiv', async () => {
     storeSession(NOW + 3_600_000);
     const { nav, link, harness } = await setup('/admin');
     expect(harness.routeDebugElement?.componentInstance).toBeInstanceOf(AdminLayoutComponent);
     expect(nav()?.getAttribute('aria-label')).toBe('Admin-Bereich');
     expect(Array.from(nav()!.querySelectorAll('a')).map(a => [a.textContent?.trim(), a.getAttribute('href')])).toEqual([
-      ['Status', '/admin'], ['Importe', '/admin/importe'], ['Lücken', '/admin/luecken'],
+      ['Status', '/admin'], ['Importe', '/admin/importe'], ['Lücken', '/admin/luecken'], ['Korrekturen', '/admin/korrektur'],
     ]);
     expect(link('Status').getAttribute('aria-current')).toBe('page');
     expect(link('Importe').getAttribute('aria-current')).toBeNull();
@@ -88,6 +88,22 @@ describe('Admin-Bereich: Navigation und Routen (Schritt 11)', () => {
     expect(TestBed.inject(Title).getTitle()).toBe('Import #12 – Admin – Wetter Heubach');
     await harness.navigateByUrl('/admin/importe/abc');
     expect(TestBed.inject(Title).getTitle()).toBe('Ungültiger Import – Admin – Wetter Heubach');
+  });
+
+  it('„Korrekturen“: Übersicht und Tagesseite halten den Punkt aktiv, Titel mit Datum (N03)', async () => {
+    storeSession(NOW + 3_600_000);
+    const { router, link, click, harness } = await setup('/admin');
+    await click('Korrekturen');
+    expect(router.url).toBe('/admin/korrektur');
+    expect(link('Korrekturen').getAttribute('aria-current')).toBe('page');
+    expect(TestBed.inject(Title).getTitle()).toBe('Korrekturen – Admin – Wetter Heubach');
+
+    await harness.navigateByUrl('/admin/korrektur/2026-11-19');
+    harness.detectChanges();
+    expect(link('Korrekturen').getAttribute('aria-current')).toBe('page');
+    expect(TestBed.inject(Title).getTitle()).toBe('Korrektur 19.11.2026 – Admin – Wetter Heubach');
+    await harness.navigateByUrl('/admin/korrektur/2026-02-30');
+    expect(TestBed.inject(Title).getTitle()).toBe('Ungültiges Datum – Admin – Wetter Heubach');
   });
 
   it('Gast: jede Admin-Seite führt zur Anmeldung mit returnUrl (inkl. Query)', async () => {

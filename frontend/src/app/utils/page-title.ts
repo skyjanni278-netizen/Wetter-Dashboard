@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { Title } from '@angular/platform-browser';
 import { RouterStateSnapshot, TitleStrategy } from '@angular/router';
 import { parseImportId } from './admin-format';
-import { isValidIsoDate } from './berlin-date';
+import { formatDateDe, isValidIsoDate } from './berlin-date';
 import { isValidMonthParam, isValidYearParam } from './route-params';
 
 export const SITE_TITLE = 'Wetter Heubach';
@@ -75,4 +75,9 @@ export class AppTitleStrategy extends TitleStrategy {
   override updateTitle(snapshot: RouterStateSnapshot): void {
     this.title.setTitle(fullTitle(this.buildTitle(snapshot) ?? ''));
   }
+}
+
+/** Korrektur eines Tages: „Korrektur 19.11.2026 – Admin“, bei ungültigem Datum „Ungültiges Datum – Admin“. */
+export function correctionDayTitle(date: string | null | undefined): string {
+  return adminViewTitle(isValidIsoDate(date) ? `Korrektur ${formatDateDe(date!)}` : 'Ungültiges Datum');
 }

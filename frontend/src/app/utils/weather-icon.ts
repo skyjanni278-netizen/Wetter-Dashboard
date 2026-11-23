@@ -32,6 +32,9 @@ const WEATHER_CODES: Record<number, { icon: string; description: string }> = {
 
 const UNKNOWN_ICON = '❓';
 
+/** Die 28 gültigen WMO-Codes aufsteigend (R15), z. B. für die Auswahl im Korrekturformular. */
+export const WEATHER_CODE_VALUES: readonly number[] = Object.keys(WEATHER_CODES).map(Number).sort((a, b) => a - b);
+
 export function getWeatherIcon(code: number | null): string {
   if (code === null || code === undefined) return UNKNOWN_ICON;
   return WEATHER_CODES[code]?.icon ?? UNKNOWN_ICON;

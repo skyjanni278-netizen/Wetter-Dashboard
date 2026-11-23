@@ -159,7 +159,8 @@ main {
 .footer-block p { margin: 0; }
 
 /* Datenzeitraum: Zeile behält ihre Höhe beim Laden und bei Fehler (kein Layoutsprung) */
-.footer-range { min-height: 1lh; }
+.footer-range,
+.footer-update { min-height: 1lh; }
 
 .site-footer a {
   display: inline-block;

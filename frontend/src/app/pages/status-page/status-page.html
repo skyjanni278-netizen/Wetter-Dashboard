@@ -1,0 +1,71 @@
+<div class="page">
+  <div class="page-header">
+    <div class="page-title">
+      <p class="kicker">Status</p>
+      <h1>Datenstand</h1>
+      <p>Wie aktuell und wie vollständig die Wetterdaten für Heubach sind.</p>
+    </div>
+  </div>
+
+  <div class="page-stack">
+    <!-- Eigene Meldung, kein Text des Backends (US17-4) -->
+    @if (state() === 'error') {
+      <app-error [message]="errorMessage" (retry)="retry()" />
+    }
+
+    @if (loading() && !status()) {
+      <app-loading label="Datenstand wird geladen">
+        <div class="kpi-grid">
+          @for (kicker of skeletonKickers; track kicker) {
+            <app-kpi-card [kicker]="kicker" [loading]="true" />
+          }
+        </div>
+      </app-loading>
+    }
+
+    @if (status(); as s) {
+      @if (s.updateState !== 'ok') {
+        <app-update-notice [status]="s" />
+      }
+
+      <!-- Kennzahl-Karten (US17-4, E3.7.4) -->
+      <div class="kpi-grid">
+        <app-kpi-card class="status-last" kicker="Zuletzt aktualisiert" [value]="lastUpdate()?.time ?? null"
+                      [unit]="lastUpdate() ? 'Uhr' : null" [meta]="lastUpdateMeta()" [busy]="loading()" [reveal]="true">
+          @if (updateChip(); as chip) {
+            <app-chip [variant]="chip.variant">{{ chip.label }}</app-chip>
+          }
+        </app-kpi-card>
+        <app-kpi-card class="status-days" kicker="Tage mit Daten" [value]="s.daysWithData" [digits]="0"
+                      [meta]="period() ?? 'noch keine Daten'" [busy]="loading()" [reveal]="true" [revealIndex]="1" />
+        <app-kpi-card class="status-complete" kicker="Vollständige Tage" [value]="s.daysComplete" [digits]="0"
+                      [meta]="completeMeta()" [busy]="loading()" [reveal]="true" [revealIndex]="2" />
+        <app-kpi-card class="status-gaps" kicker="Lücken" [value]="s.gapCount" [digits]="0"
+                      [meta]="gapMeta()" [busy]="loading()" [reveal]="true" [revealIndex]="3" />
+      </div>
+
+      <dl class="status-facts admin-dl">
+        <div>
+          <dt>Zeitraum</dt>
+          <dd>{{ period() ?? 'Es sind noch keine Wetterdaten gespeichert.' }}</dd>
+        </div>
+        <div>
+          <dt>Nächste automatische Aktualisierung</dt>
+          <dd>{{ nextUpdate() ?? 'Keine geplant' }}</dd>
+        </div>
+      </dl>
+
+      <p class="status-explain">
+        Ein Tag ist vollständig, wenn für jede seiner Stunden Werte vorliegen. Eine Lücke ist ein Zeitraum mit
+        fehlenden oder leeren Stunden. Vorhersagen zählen nicht mit.
+      </p>
+
+      <!-- US17-5: nur für angemeldete Admins -->
+      @if (loggedIn()) {
+        <p class="status-admin-link">
+          <a class="btn btn-text" routerLink="/admin/importe">Importprotokoll ansehen <span aria-hidden="true">→</span></a>
+        </p>
+      }
+    }
+  </div>
+</div>

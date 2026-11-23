@@ -17,6 +17,11 @@ export interface ClimateChartDataset {
   /** `null` = keine Daten; die Linie ist an dieser Stelle unterbrochen (V21). */
   temperatures: (number | null)[];
   precipitations: (number | null)[];
+  /**
+   * Optional (Tagesansicht, US13-12): `true` = Wert korrigiert. Ist mindestens ein Eintrag `true`, bekommt
+   * „Werte als Tabelle“ die Spalte „Korrektur“ mit dem Chip „KORRIGIERT“.
+   */
+  corrected?: boolean[];
 }
 
 type ChartKind = 'bar' | 'line';
@@ -133,18 +138,24 @@ export class ClimateChartComponent {
       { key: 'precipitation', label: 'Niederschlag', align: 'end' },
     ];
     if (this.hasPrediction()) columns.push({ key: 'kind', label: 'Art' });
+    if (this.hasCorrections()) columns.push({ key: 'corrected', label: 'Korrektur' });
     return columns;
   });
+
+  /** Mindestens ein korrigierter Wert (US13-12): Spalte „Korrektur“ in der Tabelle. */
+  readonly hasCorrections = computed(() => this.data()?.corrected?.some(Boolean) ?? false);
 
   readonly tableRows = computed<DataTableRow[]>(() => {
     const d = this.data();
     if (!d) return [];
     const p = this.predictionFrom();
+    const corrections = this.hasCorrections();
     return d.labels.map((label, i) => ({
       label,
       temperature: formatTemp(d.temperatures[i]),
       precipitation: formatPrecip(d.precipitations[i]),
       ...(p !== null ? { kind: i >= p ? { chip: 'Vorhersage', variant: 'forecast' as const } : 'Rückblick' } : {}),
+      ...(corrections ? { corrected: d.corrected?.[i] ? { chip: 'Korrigiert' } : null } : {}),
     }));
   });
 

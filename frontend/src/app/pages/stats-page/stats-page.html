@@ -41,12 +41,19 @@
         <app-kpi-card class="record-hottest" kicker="Heißester Tag" [value]="r.hottest?.value" unit="°C"
                       [meta]="r.hottest ? recordTime(r.hottest) : 'Noch keine Daten'" [busy]="loading()" [reveal]="true">
           @if (r.hottest; as rec) {
+            <!-- US06-7: Rekordstunde mit wirksamer Korrektur -->
+            @if (rec.corrected) {
+              <app-chip class="record-corrected">Korrigiert</app-chip>
+            }
             <a class="btn btn-text" [routerLink]="['/tag', rec.date]">Tag ansehen <span aria-hidden="true">→</span><span class="visually-hidden"> (heißester Tag, {{ formatDate(rec.date) }})</span></a>
           }
         </app-kpi-card>
         <app-kpi-card class="record-coldest" kicker="Kältester Tag" [value]="r.coldest?.value" unit="°C"
                       [meta]="r.coldest ? recordTime(r.coldest) : 'Noch keine Daten'" [busy]="loading()" [reveal]="true" [revealIndex]="1">
           @if (r.coldest; as rec) {
+            @if (rec.corrected) {
+              <app-chip class="record-corrected">Korrigiert</app-chip>
+            }
             <a class="btn btn-text" [routerLink]="['/tag', rec.date]">Tag ansehen <span aria-hidden="true">→</span><span class="visually-hidden"> (kältester Tag, {{ formatDate(rec.date) }})</span></a>
           }
         </app-kpi-card>

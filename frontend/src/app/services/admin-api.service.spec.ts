@@ -1,9 +1,10 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { AdminApiService } from './admin-api.service';
+import { AdminApiService, MERGE_PATCH_CONTENT_TYPE } from './admin-api.service';
 import { apiErrorInterceptor, apiErrorOf } from '../interceptors/api-error.interceptor';
-import { importResource } from '../testing/admin-fixtures';
+import { apiErrorBody, correction, importResource, observation } from '../testing/admin-fixtures';
+import type { VersionedObservation } from '../models/api';
 
 describe('AdminApiService (US10–US14)', () => {
   let service: AdminApiService;
@@ -89,5 +90,75 @@ describe('AdminApiService (US10–US14)', () => {
       { status: 503, statusText: 'Service Unavailable' },
     );
     expect(status).toBe(503);
+  });
+
+  describe('Korrekturen (US13, B3.4)', () => {
+    it('getObservation: GET /api/observations/:id liefert die Stunde und den ETag-Header (US13-1)', () => {
+      let result = null as VersionedObservation | null;
+      service.getObservation(16503).subscribe(r => (result = r));
+      const req = http.expectOne('/api/observations/16503');
+      expect(req.request.method).toBe('GET');
+      req.flush(observation(), { headers: { ETag: '"3"' } });
+      expect(result!.etag).toBe('"3"');
+      expect(result!.observation.temperature).toBe(19.6);
+    });
+
+    it('getObservation ohne ETag-Header: etag = null', () => {
+      let result = null as VersionedObservation | null;
+      service.getObservation(1).subscribe(r => (result = r));
+      http.expectOne('/api/observations/1').flush(observation({ id: 1 }));
+      expect(result!.etag).toBeNull();
+    });
+
+    it('patchObservation: PATCH mit If-Match, Content-Type application/merge-patch+json und Body unverändert (US13-2)', () => {
+      let result = null as VersionedObservation | null;
+      service.patchObservation(16503, { temperature: 9.6, reason: 'Ausreißer' }, '"3"').subscribe(r => (result = r));
+      const req = http.expectOne('/api/observations/16503');
+      expect(req.request.method).toBe('PATCH');
+      expect(req.request.headers.get('If-Match')).toBe('"3"');
+      expect(req.request.headers.get('Content-Type')).toBe(MERGE_PATCH_CONTENT_TYPE);
+      expect(req.request.body).toEqual({ temperature: 9.6, reason: 'Ausreißer' });
+      req.flush(observation({ temperature: 9.6, version: 4, correctedAt: '2026-11-19T13:20:00Z' }), { headers: { ETag: '"4"' } });
+      expect(result!.etag).toBe('"4"');
+      expect(result!.observation.version).toBe(4);
+    });
+
+    it('patchObservation: 412 kommt als Fehler mit apiError beim Aufrufer an (US13-4)', () => {
+      let status = 0;
+      service.patchObservation(16503, { temperature: 9.6, reason: 'Ausreißer' }, '"3"').subscribe({ error: e => (status = apiErrorOf(e).statusCode) });
+      http.expectOne('/api/observations/16503').flush(
+        apiErrorBody(412, 'PRECONDITION_FAILED', 'Die Stunde wurde inzwischen geändert.'), { status: 412, statusText: 'Precondition Failed' },
+      );
+      expect(status).toBe(412);
+    });
+
+    it('getCorrectionHistory: GET /api/observations/:id/corrections (US13-11)', () => {
+      let count = -1;
+      service.getCorrectionHistory(16503).subscribe(h => (count = h.items.length));
+      http.expectOne('/api/observations/16503/corrections').flush({ items: [correction()] });
+      expect(count).toBe(1);
+    });
+
+    it('reverseCorrection: POST …/corrections/:correctionId/reversal mit If-Match und { reason } (US13-16)', () => {
+      let result = null as VersionedObservation | null;
+      service.reverseCorrection(16503, 3, 'Rücknahme: Wert war plausibel', '"4"').subscribe(r => (result = r));
+      const req = http.expectOne('/api/observations/16503/corrections/3/reversal');
+      expect(req.request.method).toBe('POST');
+      expect(req.request.headers.get('If-Match')).toBe('"4"');
+      expect(req.request.body).toEqual({ reason: 'Rücknahme: Wert war plausibel' });
+      req.flush(observation({ version: 5 }), { headers: { ETag: '"5"' } });
+      expect(result!.etag).toBe('"5"');
+    });
+
+    it('getCorrections: GET /api/corrections?from&to&page&limit (US13-14)', () => {
+      let total = -1;
+      service.getCorrections({ from: '2026-11-19', to: '2026-11-19', page: 2, limit: 20 }).subscribe(l => (total = l.meta.total));
+      http.expectOne('/api/corrections?from=2026-11-19&to=2026-11-19&page=2&limit=20')
+        .flush({ items: [correction()], meta: { page: 2, limit: 20, total: 21 } });
+      expect(total).toBe(21);
+
+      service.getCorrections({ from: '2026-11-01', to: '2026-11-19' }).subscribe();
+      http.expectOne('/api/corrections?from=2026-11-01&to=2026-11-19').flush({ items: [], meta: { page: 1, limit: 20, total: 0 } });
+    });
   });
 });

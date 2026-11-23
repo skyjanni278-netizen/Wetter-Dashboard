@@ -1,0 +1,80 @@
+<div class="page-header">
+  <div class="page-title">
+    <p class="kicker">Admin</p>
+    <h1>{{ dateLabel() ? 'Korrektur ' + dateLabel() : 'Korrektur' }}</h1>
+    <p>Stundenwerte korrigieren und Korrekturen zurücknehmen. Jede Änderung braucht einen Grund und steht in der Historie.</p>
+  </div>
+  <div class="page-controls correction-links">
+    <a class="btn btn-text" routerLink="/admin/korrektur"><span aria-hidden="true">←</span> Alle Korrekturen</a>
+    @if (validDate(); as date) {
+      <a class="btn btn-text" [routerLink]="['/tag', date]">Tag ansehen <span aria-hidden="true">→</span></a>
+    }
+  </div>
+</div>
+
+<div class="page-stack">
+  @if (!validDate()) {
+    <app-notice variant="error" kicker="Ungültiges Datum">
+      <p>Die Adresse enthält kein gültiges Datum (Format JJJJ-MM-TT).</p>
+      <a class="btn btn-text" routerLink="/admin/korrektur">Zur Übersicht der Korrekturen</a>
+    </app-notice>
+  }
+
+  @if (state() === 'error') {
+    <app-error [message]="errorMessage" [details]="apiError() ? [apiError()!.message] : []" [retryable]="retryable()"
+               (retry)="reloadDay()" />
+  }
+
+  @if (state() === 'empty') {
+    <app-empty [message]="'Für den ' + dateLabel() + ' liegen keine Stunden vor.'" />
+  }
+
+  @if (state() === 'loading' && !day()) {
+    <app-loading label="Stunden werden geladen">
+      <app-skeleton height="20rem" />
+    </app-loading>
+  }
+
+  @if (day(); as d) {
+    <app-card class="correction-hours" [busy]="state() === 'loading'">
+      <h2>Stunden am {{ dateLabel() }}</h2>
+      <p class="correction-hint">
+        Vorhersagestunden lassen sich nicht korrigieren. Korrigierte Stunden überschreibt ein Import nicht.
+      </p>
+      <ol class="hour-list">
+        @for (hour of d.hours; track hour.id) {
+          <li class="hour-item" [class.hour-open]="isOpen(hour)">
+            <div class="hour-head">
+              <h3>{{ hourLabel(hour.timeLocal) }}</h3>
+              <p class="hour-values num">{{ summary(hour) }}</p>
+              <p class="hour-chips">
+                @if (hour.isPrediction) {
+                  <app-chip variant="forecast" />
+                }
+                @if (hour.correctedAt) {
+                  <app-chip>Korrigiert</app-chip>
+                }
+              </p>
+              @if (hour.isPrediction) {
+                <p class="hour-locked">Nicht korrigierbar</p>
+              } @else {
+                <button type="button" class="btn btn-secondary hour-toggle" (click)="toggle(hour)"
+                        [attr.aria-expanded]="isOpen(hour)" [attr.aria-controls]="panelId(hour)">
+                  {{ isOpen(hour) ? 'Schließen' : 'Korrigieren' }}
+                  <span class="visually-hidden"> ({{ hourLabel(hour.timeLocal) }})</span>
+                </button>
+              }
+            </div>
+            @if (!hour.isPrediction) {
+              <div class="hour-panel" [id]="panelId(hour)" [hidden]="!isOpen(hour)">
+                @if (isOpen(hour)) {
+                  <app-hour-correction [observationId]="hour.id" [label]="hourLabel(hour.timeLocal)" (changed)="reloadDay()" />
+                }
+              </div>
+            }
+          </li>
+        }
+      </ol>
+    </app-card>
+  }
+</div>

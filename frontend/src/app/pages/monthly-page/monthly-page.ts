@@ -8,7 +8,7 @@ import { DayListItem, MonthSummary, YearList } from '../../models/api';
 import { LoadResult, LoadState } from '../../models/load-state';
 import { apiErrorOf } from '../../interceptors/api-error.interceptor';
 import { ClimateChartComponent, ClimateChartDataset } from '../../components/climate-chart/climate-chart';
-import { berlinToday } from '../../utils/berlin-date';
+import { DataStatusService } from '../../services/data-status.service';
 import { DATA_START } from '../../config/data-range';
 import { CardComponent } from '../../components/card/card';
 import { KpiCardComponent } from '../../components/kpi-card/kpi-card';
@@ -38,6 +38,9 @@ interface MonthResult extends LoadResult<MonthData> {
   retryable: boolean;
 }
 
+/** Heute laut Server steht noch aus: Ladezustand ohne Request. */
+const WAITING: MonthResult = { state: 'loading', data: null, message: null, retryable: true };
+
 /** Anzahl der Tage eines Monats (Kalenderrechnung in UTC). */
 function daysIn(year: string, month: string): number {
   return new Date(Date.UTC(Number(year), Number(month), 0)).getUTCDate();
@@ -56,7 +59,9 @@ export class MonthlyPageComponent {
   private weather = inject(WeatherService);
   private title = inject(Title);
   private router = inject(Router);
-  private today = berlinToday();
+  private dataStatus = inject(DataStatusService);
+  /** Heute laut Server (`/api/status.today`), bis zur Antwort die Browser-Uhr (03 B4.8). */
+  private today = this.dataStatus.today;
   readonly dataStartYear = DATA_START.slice(0, 4);
 
   /** Route-Parameter aus `/monat/:year/:month` (V08); auf `/monat` nicht gesetzt. */
@@ -64,10 +69,10 @@ export class MonthlyPageComponent {
   readonly month = input<string | undefined>();
 
   /** Auswahl, nur aus der URL abgeleitet; ohne Parameter der aktuelle Berliner Monat. */
-  selectedYear = computed(() => this.year() ?? this.today.slice(0, 4));
-  selectedMonth = computed(() => this.month() ?? this.today.slice(5, 7));
+  selectedYear = computed(() => this.year() ?? this.today().slice(0, 4));
+  selectedMonth = computed(() => this.month() ?? this.today().slice(5, 7));
   /** Ungültiger Teil zeigt in seinem Select den Platzhalter „–“, der gültige Teil bleibt gewählt. */
-  yearValid = computed(() => isValidYearParam(this.selectedYear(), this.today));
+  yearValid = computed(() => isValidYearParam(this.selectedYear(), this.today()));
   monthValid = computed(() => isValidMonthParam(this.selectedMonth()));
   invalid = computed(() => !this.yearValid() || !this.monthValid());
 
@@ -79,7 +84,14 @@ export class MonthlyPageComponent {
 
   /** „Erneut versuchen“ erhöht den Zähler und lädt dieselbe Auswahl neu (B5.2). */
   private reloadCount = signal(0);
-  private request = computed(() => ({ year: this.selectedYear(), month: this.selectedMonth(), reload: this.reloadCount() }));
+  /**
+   * Request-Satz: Auswahl, Zähler und Heute laut Server (`to = min(Monatsende, heute)`). Solange `/api/status`
+   * noch lädt (`wait`), geht kein Request hinaus, sonst stünde das Browser-Datum in `to` (400 `DATE_IN_FUTURE`).
+   */
+  private request = computed(() => ({
+    year: this.selectedYear(), month: this.selectedMonth(), reload: this.reloadCount(),
+    today: this.today(), wait: this.dataStatus.waiting(),
+  }));
 
   /** Überschrift: „November 2026“; bei ungültiger Auswahl nur „Monat“. */
   headline = computed(() => this.invalid() ? 'Monat' : monthLabel(this.selectedYear(), this.selectedMonth()));
@@ -96,7 +108,7 @@ export class MonthlyPageComponent {
 
   /** Jahre aus `GET /api/summaries/years` (F20), einmal je Seitenaufruf geladen; neuestes zuerst. */
   private yearList = signal<YearList | null>(null);
-  years = computed(() => yearOptions(this.yearList(), this.yearValid() ? this.selectedYear() : null, this.today));
+  years = computed(() => yearOptions(this.yearList(), this.yearValid() ? this.selectedYear() : null, this.today()));
   months = Array.from({ length: 12 }, (_, i) => ({
     value: String(i + 1).padStart(2, '0'),
     label: MONTH_NAMES[i]
@@ -131,8 +143,10 @@ export class MonthlyPageComponent {
     // distinctUntilChanged: genau 1 Request-Satz je Wechsel, auch wenn Router und Signal gleichzeitig melden.
     // switchMap bricht die Requests für eine überholte Auswahl ab (V03, F04).
     toObservable(this.request).pipe(
-      distinctUntilChanged((a, b) => a.year === b.year && a.month === b.month && a.reload === b.reload),
-      switchMap(({ year, month }) => this.loadMonth(year, month).pipe(map(result => ({ result, year, month })))),
+      distinctUntilChanged((a, b) =>
+        a.year === b.year && a.month === b.month && a.reload === b.reload && a.today === b.today && a.wait === b.wait),
+      switchMap(({ year, month, wait }) => (wait ? of(WAITING) : this.loadMonth(year, month))
+        .pipe(map(result => ({ result, year, month })))),
       takeUntilDestroyed(),
     ).subscribe(({ result, year, month }) => this.applyResult(result, year, month));
   }
@@ -143,12 +157,12 @@ export class MonthlyPageComponent {
 
   /** Auswahlfelder navigieren über den Router (V08); ein ungültiger Rest fällt auf den aktuellen Monat zurück. */
   onYearChange(event: Event): void {
-    const month = this.monthValid() ? this.selectedMonth() : this.today.slice(5, 7);
+    const month = this.monthValid() ? this.selectedMonth() : this.today().slice(5, 7);
     this.router.navigate(['/monat', (event.target as HTMLSelectElement).value, month]);
   }
 
   onMonthChange(event: Event): void {
-    const year = this.yearValid() ? this.selectedYear() : this.today.slice(0, 4);
+    const year = this.yearValid() ? this.selectedYear() : this.today().slice(0, 4);
     this.router.navigate(['/monat', year, (event.target as HTMLSelectElement).value]);
   }
 
@@ -158,18 +172,18 @@ export class MonthlyPageComponent {
    */
   private loadMonth(year: string, month: string): Observable<MonthResult> {
     // Ungültige Parameter lösen keinen Request aus
-    if (!isValidYearParam(year, this.today) || !isValidMonthParam(month)) {
+    if (!isValidYearParam(year, this.today()) || !isValidMonthParam(month)) {
       return of<MonthResult>({ state: 'idle', data: null, message: null, retryable: true });
     }
     const yearMonth = `${year}-${month}`;
     // Monat nach dem laufenden (nur per URL erreichbar): kein Request, Leerzustand
-    if (yearMonth > this.today.slice(0, 7)) {
+    if (yearMonth > this.today().slice(0, 7)) {
       return of<MonthResult>({
         state: 'empty', data: null, message: `Für ${monthLabel(year, month)} liegen noch keine Daten vor.`, retryable: true,
       });
     }
     const monthEnd = `${yearMonth}-${String(daysIn(year, month)).padStart(2, '0')}`;
-    const to = monthEnd < this.today ? monthEnd : this.today;
+    const to = monthEnd < this.today() ? monthEnd : this.today();
     return forkJoin({
       summary: this.weather.getMonthSummary(yearMonth),
       days: this.weather.getDays(`${yearMonth}-01`, to),

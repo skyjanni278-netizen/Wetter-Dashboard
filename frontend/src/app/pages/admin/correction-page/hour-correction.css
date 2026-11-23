@@ -1,0 +1,63 @@
+/* Korrektur einer Stunde: Rückmeldung, Formular, Historie */
+:host {
+  display: grid;
+  gap: var(--space-4);
+}
+
+/* Fokusziel der Rückmeldung: ohne eigenen Rahmen, die Box darin ist sichtbar genug */
+.hour-feedback:empty { display: none; }
+.hour-feedback:focus { outline: none; }
+.hour-feedback:focus-visible app-notice { outline: var(--focus-width) solid var(--color-focus); outline-offset: var(--focus-offset); }
+
+.hour-form-hint {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.hour-form textarea {
+  width: 100%;
+  min-height: calc(2 * var(--target-min));
+  resize: vertical;
+}
+
+.hour-history h4 { margin: 0 0 var(--space-2); }
+
+.hour-history-empty { margin: 0; color: var(--color-text-muted); }
+
+.history-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.history-item {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: start;
+  padding: var(--space-3) 0;
+  border-bottom: var(--line) solid var(--color-border);
+}
+
+.history-item:first-child { border-top: var(--line) solid var(--color-border); }
+
+.history-change,
+.history-meta {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.history-meta { color: var(--color-text-muted); font-size: var(--fs-sm); }
+
+.history-reversal {
+  display: grid;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+.history-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
