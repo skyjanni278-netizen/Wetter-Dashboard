@@ -14,7 +14,7 @@ import type { CorrectionHistory, CorrectionList } from '../observations/correcti
 import type { ObservationResource } from '../observations/observation-resource';
 import type { Records } from '../records/record';
 import type { Status } from '../status/status';
-import type { MonthSummary, MonthSummaryList, YearList, YearSummary } from '../summaries/summary';
+import type { MonthSummary, MonthSummaryList, PeriodSummary, YearList, YearSummary } from '../summaries/summary';
 import type { UserResource } from '../users/user';
 
 /**
@@ -142,6 +142,17 @@ export const ForecastListSchema = z.object({
   fetchedAt: utc().nullable(),
 });
 
+/** R27 (US18, seit Schritt 12b): Kenntage über die vollständigen Tage; `dryDays` steht oben (B2.2). */
+const SummaryIndicatorsSchema = z
+  .object({
+    frostDays: z.number().int().describe('Tage mit Min < 0 °C'),
+    iceDays: z.number().int().describe('Tage mit Max < 0 °C'),
+    summerDays: z.number().int().describe('Tage mit Max ≥ 25 °C (heiße Tage eingeschlossen)'),
+    hotDays: z.number().int().describe('Tage mit Max ≥ 30 °C'),
+    precipitationDays: z.number().int().describe('Tage mit mindestens 0,1 mm; precipitationDays + dryDays = daysComplete'),
+  })
+  .describe('Kenntage, nur vollständige Tage (R27)');
+
 const summaryBase = {
   locationId: z.number().int(),
   daysExpected: z.number().int(),
@@ -150,6 +161,7 @@ const summaryBase = {
   temperature: DayTemperatureSchema,
   precipitationSum: num(),
   dryDays: z.number().int(),
+  indicators: SummaryIndicatorsSchema,
   meanMethod: z.literal('mean_of_daily_means'),
 };
 
@@ -167,6 +179,14 @@ export const YearSummarySchema = z.object({
   year: z.number().int(),
   ...summaryBase,
   monthsWithData: z.number().int(),
+});
+
+/** R28 (US19, seit Schritt 12b): freier Zeitraum in der Form der Jahreszusammenfassung. */
+export const PeriodSummarySchema = z.object({
+  id: z.string().describe('{from}..{to}, z. B. 2025-01-01..2025-11-18'),
+  from: ymd(),
+  to: ymd(),
+  ...summaryBase,
 });
 
 export const YearListSchema = z.object({
@@ -331,6 +351,7 @@ export type ResponseSchemaChecks = [
   Assert<Equals<z.infer<typeof MonthSummaryListSchema>, MonthSummaryList>>,
   Assert<Equals<z.infer<typeof YearSummarySchema>, YearSummary>>,
   Assert<Equals<z.infer<typeof YearListSchema>, YearList>>,
+  Assert<Equals<z.infer<typeof PeriodSummarySchema>, PeriodSummary>>,
   Assert<Equals<z.infer<typeof RecordsSchema>, Records>>,
   Assert<Equals<z.infer<typeof StatusSchema>, Status>>,
   Assert<Equals<z.infer<typeof ImportResourceSchema>, ImportResource>>,

@@ -296,6 +296,7 @@ describe('Schritt 10: Login, JWT, JwtAuthGuard (US09, US10-1, US11-5, US12-4)', 
     '/api/summaries/months/:yearMonth': '/api/summaries/months/2026-11',
     '/api/summaries/years': '/api/summaries/years',
     '/api/summaries/years/:year': '/api/summaries/years/2026',
+    '/api/summaries/periods': '/api/summaries/periods?from=2026-11-01&to=2026-11-19',
   };
   const PROTECTED_GET = [
     '/api/auth/me',

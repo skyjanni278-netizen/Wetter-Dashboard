@@ -171,6 +171,47 @@ runWithData('Schritt 8: Listen und Zusammenfassungen mit backend/data (Fertig-Kr
     expect(empty.body).toMatchObject({ code: 'NO_DATA', details: { dataFrom: '2025-01-01' } });
   });
 
+  it('Schritt 12b, US18-1: GET /api/summaries/months/2025-01 → indicators als Ganzzahlen ≥ 0, Beziehungen nach R27', async () => {
+    const { body } = await get('/api/summaries/months/2025-01').expect(200);
+    expect(Object.keys(body.indicators)).toEqual(['frostDays', 'iceDays', 'summerDays', 'hotDays', 'precipitationDays']);
+    for (const value of Object.values(body.indicators as Record<string, number>)) {
+      expect(Number.isInteger(value) && value >= 0).toBe(true);
+    }
+    expect(body.indicators.iceDays).toBeLessThanOrEqual(body.indicators.frostDays);
+    expect(body.indicators.hotDays).toBeLessThanOrEqual(body.indicators.summerDays);
+    expect(body.indicators.precipitationDays + body.dryDays).toBe(body.daysComplete);
+  });
+
+  it('Schritt 12b, US18-4: Kenntage des Jahres 2025 = Summe der Monate aus GET /api/summaries/months?year=2025', async () => {
+    const year = (await get('/api/summaries/years/2025').expect(200)).body;
+    const months = (await get('/api/summaries/months?year=2025').expect(200)).body.items as { indicators: Record<string, number> }[];
+    for (const key of Object.keys(year.indicators)) {
+      expect([key, months.reduce((sum, m) => sum + m.indicators[key], 0)]).toEqual([key, year.indicators[key]]);
+    }
+    expect(year.indicators.precipitationDays + year.dryDays).toBe(year.daysComplete);
+  });
+
+  it('Schritt 12b, US19-1: GET /api/summaries/periods?from=2025-01-01&to=2025-11-18 → 200, daysExpected 322', async () => {
+    const res = await get('/api/summaries/periods?from=2025-01-01&to=2025-11-18').expect(200);
+    expect(res.body).toMatchObject({
+      id: '2025-01-01..2025-11-18',
+      from: '2025-01-01',
+      to: '2025-11-18',
+      daysExpected: 322,
+      daysComplete: 322,
+      complete: true,
+      meanMethod: 'mean_of_daily_means',
+    });
+    expect(res.body.indicators.precipitationDays + res.body.dryDays).toBe(322);
+  });
+
+  it('Schritt 12b, R28: Zeitraum 2025-01-01..2025-12-31 hat dieselben Werte wie GET /api/summaries/years/2025', async () => {
+    const { id: _id, year: _year, monthsWithData: _months, ...yearValues } = (await get('/api/summaries/years/2025').expect(200)).body;
+    const { id, from: _from, to: _to, ...periodValues } = (await get('/api/summaries/periods?from=2025-01-01&to=2025-12-31').expect(200)).body;
+    expect(id).toBe('2025-01-01..2025-12-31');
+    expect(periodValues).toEqual(yearValues);
+  });
+
   it('US11-4: GET /api/imports?limit=500 / ?limit=0 / ?page=0 → 400 an limit / limit / page', async () => {
     expect((await adminGet('/api/imports?limit=500').expect(400)).body.errors).toEqual([
       { field: 'limit', code: 'too_big', message: expect.any(String) },

@@ -4,7 +4,7 @@ import path from 'node:path';
 import { FIXTURE_DIR, FixtureConfigError, loadFixture } from './fixture';
 
 describe('Fixtures (db:seed --fixture, e2e-Tests)', () => {
-  it.each(['us16-ok', 'us16-delayed', 'us20-frost', 'us06-records', 'us02-dst', 'us06-corrected'])(
+  it.each(['us16-ok', 'us16-delayed', 'us20-frost', 'us06-records', 'us02-dst', 'us06-corrected', 'us18-indicators'])(
     'die mitgelieferte Fixture %s ist gültig',
     name => {
       expect(loadFixture(name, FIXTURE_DIR).name).toBe(name);

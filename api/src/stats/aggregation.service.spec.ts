@@ -1,6 +1,16 @@
 import { hoursInDay, localDateTime } from '../common/berlin-time';
 import type { ObservationHour, ObservationSource } from '../observations/observation';
-import { AggregationService, daysInMonth, daysInYear, isPredictionHour } from './aggregation.service';
+import {
+  AggregationService,
+  daysInMonth,
+  daysInRange,
+  daysInYear,
+  FROST_DAY_MIN_BELOW_C,
+  HOT_DAY_MAX_FROM_C,
+  ICE_DAY_MAX_BELOW_C,
+  isPredictionHour,
+  SUMMER_DAY_MAX_FROM_C,
+} from './aggregation.service';
 import type { DayAggregate } from './aggregation.service';
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -260,6 +270,104 @@ describe('AggregationService: Zusammenfassung (R12, R13)', () => {
       day('2026-11-02', berlinDay('2026-11-02')),
     ];
     expect(service.summarize(days, 3)).toMatchObject({ dryDays: 2, monthsWithData: 2, complete: true });
+  });
+});
+
+describe('AggregationService: Kenntage (R27, US18)', () => {
+  /** Vollständiger Tag mit Min um 05:00 und Max um 14:00, sonst die Mitte; Niederschlag nur um 12:00. */
+  const shaped = (date: string, min: number, max: number, precipitation = 0) =>
+    day(
+      date,
+      berlinDay(date, h => ({
+        temperature: h === 5 ? min : h === 14 ? max : (min + max) / 2,
+        precipitation: h === 12 ? precipitation : 0,
+      })),
+    );
+  const indicatorsOf = (...days: DayAggregate[]) => service.summarize(days, days.length).indicators;
+
+  it('Schwellen als Konstanten: Frost Min < 0, Eis Max < 0, Sommer Max ≥ 25, heiß Max ≥ 30', () => {
+    expect([FROST_DAY_MIN_BELOW_C, ICE_DAY_MAX_BELOW_C, SUMMER_DAY_MAX_FROM_C, HOT_DAY_MAX_FROM_C]).toEqual([0, 0, 25, 30]);
+  });
+
+  it.each([
+    ['Min −0,1 → Frosttag', -0.1, 5, { frostDays: 1 }],
+    ['Min 0,0 → kein Frosttag', 0, 5, { frostDays: 0 }],
+    ['Max −0,1 → Eistag (und Frosttag)', -3, -0.1, { iceDays: 1, frostDays: 1 }],
+    ['Max 0,0 → kein Eistag', -3, 0, { iceDays: 0, frostDays: 1 }],
+    ['Max 24,9 → kein Sommertag', 12, 24.9, { summerDays: 0 }],
+    ['Max 25,0 → Sommertag', 12, 25, { summerDays: 1, hotDays: 0 }],
+    ['Max 29,9 → Sommertag, kein heißer Tag', 15, 29.9, { summerDays: 1, hotDays: 0 }],
+    ['Max 30,0 → heißer Tag und Sommertag', 15, 30, { summerDays: 1, hotDays: 1 }],
+  ])('Grenze: %s (ungerundet verglichen)', (_name, min, max, expected) => {
+    expect(indicatorsOf(shaped('2026-07-01', min, max))).toMatchObject(expected);
+  });
+
+  it('ungerundet: Max 24,96 wäre gerundet 25,0, ist aber kein Sommertag; Min −0,04 (gerundet −0,0) ist Frost', () => {
+    expect(indicatorsOf(shaped('2026-07-01', -0.04, 24.96))).toMatchObject({ summerDays: 0, frostDays: 1 });
+  });
+
+  it.each([
+    ['0,09 mm → Trockentag', 0.09, { precipitationDays: 0 }, 1],
+    ['0,1 mm → Niederschlagstag', 0.1, { precipitationDays: 1 }, 0],
+  ])('Grenze: %s', (_name, precipitation, expected, dryDays) => {
+    const result = service.summarize([shaped('2026-07-01', 10, 20, precipitation)], 1);
+    expect(result.indicators).toMatchObject(expected);
+    expect(result.dryDays).toBe(dryDays);
+  });
+
+  it('US18-2: sechs vollständige Tage → frost 2, eis 1, sommer 2, heiß 1', () => {
+    const days = [
+      shaped('2026-10-01', -0.1, 5),
+      shaped('2026-10-02', 0, 6),
+      shaped('2026-10-03', 12, 25),
+      shaped('2026-10-04', 12, 24.9),
+      shaped('2026-10-05', 15, 30),
+      shaped('2026-10-06', -3, -0.1),
+    ];
+    expect(indicatorsOf(...days)).toEqual({ frostDays: 2, iceDays: 1, summerDays: 2, hotDays: 1, precipitationDays: 0 });
+  });
+
+  it('US18-3: ein unvollständiger Tag mit Min −5 °C zählt in keiner Kennzahl', () => {
+    const partial = day('2026-10-07', berlinDay('2026-10-07', h => ({ temperature: h === 5 ? -5 : 31, precipitation: 1 })).slice(1));
+    expect(partial.complete).toBe(false);
+    expect(service.summarize([partial], 31).indicators).toEqual({
+      frostDays: 0,
+      iceDays: 0,
+      summerDays: 0,
+      hotDays: 0,
+      precipitationDays: 0,
+    });
+  });
+
+  it('US18-1: precipitationDays + dryDays = daysComplete; ein heißer Tag ist auch ein Sommertag; Eistag ≤ Frosttag', () => {
+    const days = [
+      shaped('2026-07-01', 15, 31, 0),
+      shaped('2026-07-02', 15, 26, 0.1),
+      shaped('2026-07-03', 15, 20, 0.09),
+      shaped('2026-07-04', -4, -1, 2),
+      day('2026-07-05', berlinDay('2026-07-05', () => ({ precipitation: 3 })).slice(3)), // unvollständig
+    ];
+    const result = service.summarize(days, 31);
+    expect(result.indicators.precipitationDays + result.dryDays).toBe(result.daysComplete);
+    expect(result).toMatchObject({ daysComplete: 4, dryDays: 2 });
+    expect(result.indicators).toEqual({ frostDays: 1, iceDays: 1, summerDays: 2, hotDays: 1, precipitationDays: 2 });
+  });
+
+  it('kein vollständiger Tag → alle Kennzahlen 0 (nie null)', () => {
+    expect(service.summarize([], 30).indicators).toEqual({
+      frostDays: 0,
+      iceDays: 0,
+      summerDays: 0,
+      hotDays: 0,
+      precipitationDays: 0,
+    });
+  });
+
+  it('daysInRange: beide Tage mitgezählt (R28)', () => {
+    expect(daysInRange('2025-01-01', '2025-11-18')).toBe(322);
+    expect(daysInRange('2025-11-18', '2025-11-18')).toBe(1);
+    expect(daysInRange('2025-01-01', '2026-01-01')).toBe(366);
+    expect(daysInRange('2026-03-01', '2026-03-31')).toBe(31); // über die Zeitumstellung
   });
 });
 

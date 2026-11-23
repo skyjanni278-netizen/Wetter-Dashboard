@@ -17,6 +17,7 @@ const EXPECTED_PATHS: Record<string, string[]> = {
   '/api/summaries/months/{yearMonth}': ['get'],
   '/api/summaries/years': ['get'],
   '/api/summaries/years/{year}': ['get'],
+  '/api/summaries/periods': ['get'],
   '/api/records': ['get'],
   '/api/status': ['get'],
   '/api/locations': ['get'],
@@ -175,6 +176,25 @@ describe('OpenAPI (B3.7) mit SWAGGER_ENABLED=true', () => {
     expect(Object.keys(status.properties)).toEqual(
       expect.arrayContaining(['nextScheduledUpdateAt', 'daysWithData', 'daysComplete', 'gapCount']),
     );
+  });
+
+  it('Schritt 12b: /api/summaries/periods mit from/to, 400/404; indicators in Monat, Jahr und Zeitraum', () => {
+    const periods = doc.paths['/api/summaries/periods'].get;
+    expect(periods.parameters.map((p: any) => [p.in, p.name, p.required])).toEqual([
+      ['query', 'from', true],
+      ['query', 'to', true],
+    ]);
+    expect(Object.keys(periods.responses)).toEqual(expect.arrayContaining(['200', '400', '404', '406']));
+    expect(periods.responses['401']).toBeUndefined();
+    const schemaOf = (p: string) => doc.paths[p].get.responses['200'].content['application/json'].schema;
+    const period = schemaOf('/api/summaries/periods');
+    expect(Object.keys(period.properties)).toEqual(expect.arrayContaining(['id', 'from', 'to', 'indicators', 'meanMethod']));
+    for (const p of ['/api/summaries/periods', '/api/summaries/months/{yearMonth}', '/api/summaries/years/{year}']) {
+      expect([p, Object.keys(schemaOf(p).properties.indicators.properties)]).toEqual([
+        p,
+        ['frostDays', 'iceDays', 'summerDays', 'hotDays', 'precipitationDays'],
+      ]);
+    }
   });
 
   it('GET /api/docs/ mit Accept: text/html → 200 HTML, kein 406 (B3.1)', async () => {

@@ -5,10 +5,13 @@ import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import {
   MonthSummaryListSchema,
   MonthSummarySchema,
+  PeriodSummarySchema,
   YearListSchema,
   YearSummarySchema,
 } from '../openapi/response.schemas';
 import { ApiErrors, ApiZodParams, ApiZodQuery, ApiZodResponse } from '../openapi/zod-openapi';
+import { PeriodsQuerySchema } from './dto/periods-query.schema';
+import type { PeriodsQuery } from './dto/periods-query.schema';
 import { MonthsQuerySchema, YearsQuerySchema } from './dto/summaries-query.schema';
 import type { MonthsQuery, YearsQuery } from './dto/summaries-query.schema';
 import { YearMonthParamSchema } from './dto/year-month-param.schema';
@@ -16,11 +19,12 @@ import type { YearMonthParam } from './dto/year-month-param.schema';
 import { YearParamSchema } from './dto/year-param.schema';
 import type { YearParam } from './dto/year-param.schema';
 import { SummariesService } from './summaries.service';
-import type { MonthSummary, MonthSummaryList, YearList, YearSummary } from './summary';
+import type { MonthSummary, MonthSummaryList, PeriodSummary, YearList, YearSummary } from './summary';
 
 /**
- * US04, US05: Zusammenfassungen je Monat und Jahr und ihre Listen (fest aufsteigend sortiert, B3.1).
- * R04/R05 (Format, ≥ 1940) und R22 prüft die Pipe, R02/R03 der Service.
+ * US04, US05: Zusammenfassungen je Monat und Jahr und ihre Listen (fest aufsteigend sortiert, B3.1); seit
+ * Schritt 12b der freie Zeitraum (US19, R28). R04/R05 (Format, ≥ 1940), R28 (Spanne) und R22 prüft die Pipe,
+ * R02/R03 der Service.
  */
 @ApiTags('summaries')
 @Public()
@@ -71,5 +75,17 @@ export class SummariesController {
   })
   findYear(@Param(new ZodValidationPipe(YearParamSchema)) { year }: YearParam): Promise<YearSummary> {
     return this.service.findYear(year);
+  }
+
+  @Get('periods')
+  @ApiOperation({ summary: 'Zusammenfassung eines freien Zeitraums, höchstens 366 Tage (US19, R28)' })
+  @ApiZodQuery(PeriodsQuerySchema)
+  @ApiZodResponse(200, PeriodSummarySchema, 'Zeitraum in der Form der Jahreszusammenfassung, nur vollständige Tage (R12, R13, R27)')
+  @ApiErrors({
+    400: 'VALIDATION_FAILED (`invalid_date`, `to_before_from`/`range_too_long` an `to`, `unrecognized_keys` z. B. `compare`) oder DATE_IN_FUTURE an `to`',
+    404: 'NO_DATA: keine Stunde im Zeitraum (`details.dataFrom`)',
+  })
+  findPeriod(@Query(new ZodValidationPipe(PeriodsQuerySchema)) { from, to }: PeriodsQuery): Promise<PeriodSummary> {
+    return this.service.findPeriod(from, to);
   }
 }

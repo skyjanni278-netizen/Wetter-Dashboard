@@ -1,6 +1,15 @@
 import type { DayTemperature } from '../days/day';
 import type { MEAN_METHOD } from '../stats/aggregation.service';
 
+/** R27 (US18): Kenntage über die vollständigen Tage; `dryDays` steht oben in der Zusammenfassung (B2.2). */
+export interface SummaryIndicators {
+  frostDays: number;
+  iceDays: number;
+  summerDays: number;
+  hotDays: number;
+  precipitationDays: number;
+}
+
 /** Gemeinsame Felder der Zusammenfassungen (03 B2.2); Werte gerundet (R11), `meanMethod` nach R12. */
 interface SummaryBase {
   locationId: number;
@@ -12,6 +21,8 @@ interface SummaryBase {
   temperature: DayTemperature;
   precipitationSum: number | null;
   dryDays: number;
+  /** Seit Schritt 12b (R27, US18). */
+  indicators: SummaryIndicators;
   meanMethod: typeof MEAN_METHOD;
 }
 
@@ -27,6 +38,16 @@ export interface YearSummary extends SummaryBase {
   id: string;
   year: number;
   monthsWithData: number;
+}
+
+/**
+ * `GET /api/summaries/periods?from&to` (R28, US19, seit Schritt 12b): freier Zeitraum in der Form der
+ * Jahreszusammenfassung (B2.2 „period summary“), `id = "{from}..{to}"`, dazu `from` und `to`.
+ */
+export interface PeriodSummary extends SummaryBase {
+  id: string;
+  from: string;
+  to: string;
 }
 
 /** `GET /api/summaries/months?year=`: Monate des Jahres mit Daten, aufsteigend (US05-2). */

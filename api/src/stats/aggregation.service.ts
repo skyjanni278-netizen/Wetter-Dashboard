@@ -17,6 +17,17 @@ export const DRY_DAY_THRESHOLD_MM = 0.1;
  */
 const SUM_TOLERANCE = 1e-9;
 
+/**
+ * R27 (Kenntage, DWD-nahe Schwellen in °C, nur vollständige Tage): Frosttag Min < 0, Eistag Max < 0,
+ * Sommertag Max ≥ 25, heißer Tag Max ≥ 30. Min und Max sind die Extremwerte der Stundenwerte; verglichen
+ * wird ungerundet (−0,1 ist Frost, 0,0 nicht; 24,9 kein Sommertag, 25,0 schon). Ein heißer Tag ist auch ein
+ * Sommertag, ein Eistag auch ein Frosttag. Niederschlagstag = vollständiger Tag mit `isDryDay = false` (R09).
+ */
+export const FROST_DAY_MIN_BELOW_C = 0;
+export const ICE_DAY_MAX_BELOW_C = 0;
+export const SUMMER_DAY_MAX_FROM_C = 25;
+export const HOT_DAY_MAX_FROM_C = 30;
+
 /** R12: Monats- und Jahresmittel = Mittel der Tagesmittel vollständiger Tage. */
 export const MEAN_METHOD = 'mean_of_daily_means';
 
@@ -62,6 +73,16 @@ export interface DayAggregate {
   hours: AggregatedHour[];
 }
 
+/** R27: Zahl der Kenntage eines Zeitraums (nur vollständige Tage, R13). `dryDays` steht im Zeitraum selbst (B2.2). */
+export interface ClimateIndicators {
+  frostDays: number;
+  iceDays: number;
+  summerDays: number;
+  hotDays: number;
+  /** Vollständige Tage mit `isDryDay = false`; zusammen mit `dryDays` gleich `daysComplete` (US18-1). */
+  precipitationDays: number;
+}
+
 export interface PeriodAggregate {
   daysExpected: number;
   daysWithData: number;
@@ -71,6 +92,7 @@ export interface PeriodAggregate {
   temperature: TemperatureStats;
   precipitationSum: number | null;
   dryDays: number;
+  indicators: ClimateIndicators;
 }
 
 export interface HourRecord {
@@ -140,10 +162,29 @@ function temperatureStats(hours: readonly ObservationHour[]): TemperatureStats {
   return stats;
 }
 
+/** R27: Kenntage über die vollständigen Tage (ein unvollständiger Tag zählt in keiner Kennzahl). */
+function climateIndicators(completeDays: readonly DayAggregate[]): ClimateIndicators {
+  const indicators: ClimateIndicators = { frostDays: 0, iceDays: 0, summerDays: 0, hotDays: 0, precipitationDays: 0 };
+  for (const day of completeDays) {
+    const { min, max } = day.observed.temperature;
+    if (min !== null && min < FROST_DAY_MIN_BELOW_C) indicators.frostDays++;
+    if (max !== null && max < ICE_DAY_MAX_BELOW_C) indicators.iceDays++;
+    if (max !== null && max >= SUMMER_DAY_MAX_FROM_C) indicators.summerDays++;
+    if (max !== null && max >= HOT_DAY_MAX_FROM_C) indicators.hotDays++;
+    if (day.observed.isDryDay === false) indicators.precipitationDays++;
+  }
+  return indicators;
+}
+
 /** Tage eines Monats `YYYY-MM` (28–31, R13). */
 export function daysInMonth(yearMonth: string): number {
   const [year, month] = yearMonth.split('-').map(Number);
   return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+/** Kalendertage von `from` bis `to` (`YYYY-MM-DD`), beide mitgezählt (R28: 2025-01-01..2025-11-18 → 322). */
+export function daysInRange(from: string, to: string): number {
+  return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1;
 }
 
 /** Tage eines Jahres (365/366). */
@@ -205,8 +246,9 @@ export class AggregationService {
   }
 
   /**
-   * Zusammenfassung eines Zeitraums (Monat, Jahr) aus Tagesaggregaten (R12, R13). Summen, Mittel,
-   * Extremwerte und Trockentage zählen nur vollständige Tage; das Mittel ist das Mittel der Tagesmittel.
+   * Zusammenfassung eines Zeitraums (Monat, Jahr, freier Zeitraum) aus Tagesaggregaten (R12, R13, R27).
+   * Summen, Mittel, Extremwerte, Trockentage und Kenntage zählen nur vollständige Tage; das Mittel ist das
+   * Mittel der Tagesmittel.
    */
   summarize(days: readonly DayAggregate[], daysExpected: number): PeriodAggregate {
     const completeDays = days.filter(day => day.complete);
@@ -239,6 +281,7 @@ export class AggregationService {
       temperature,
       precipitationSum: sumOrNull(completeDays.map(day => day.observed.precipitationSum)),
       dryDays: completeDays.filter(day => day.observed.isDryDay === true).length,
+      indicators: climateIndicators(completeDays),
     };
   }
 

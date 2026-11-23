@@ -7,7 +7,7 @@ import { Clock, FixedClock } from '../src/common/clock';
 import { loadFixture } from '../src/fixtures/fixture';
 import type { Fixture } from '../src/fixtures/fixture';
 import { createTestApp } from './support/app';
-import { fixtureOf, seedApp } from './support/seed';
+import { dayObservations, fixtureOf, seedApp } from './support/seed';
 
 /** 14:30 MEZ am 19.11.2026 (03 B1.2). */
 const NOW = '2026-11-19T13:30:00Z';
@@ -256,5 +256,170 @@ describe('Fachregeln und berechnete Felder (Schritt 7, e2e mit Fixtures und Fixe
     } finally {
       await h.close();
     }
+  });
+});
+
+describe('Schritt 12b: Kenntage (R27, US18) und freier Zeitraum (R28, US19), e2e mit Fixtures und FixedClock', () => {
+  /** Kennzahlen der Fixture us18-indicators für Oktober 2026 (Beschreibung in test/fixtures/README.md). */
+  const OCTOBER_INDICATORS = { frostDays: 2, iceDays: 1, summerDays: 2, hotDays: 1, precipitationDays: 2 };
+
+  describe('Fixture us18-indicators (sechs vollständige Tage 01.–06.10.2026, 07.10. unvollständig mit Min −5)', () => {
+    let h: Harness;
+    const get = (url: string) => request(h.app.getHttpServer()).get(url);
+    beforeAll(async () => {
+      h = await startWith(loadFixture('us18-indicators'));
+    });
+    afterAll(() => h.close());
+
+    it('US18-2: GET /api/summaries/months/2026-10 → frostDays 2, iceDays 1, summerDays 2, hotDays 1', async () => {
+      const res = await get('/api/summaries/months/2026-10').expect(200);
+      expect(res.body).toMatchObject({ daysExpected: 31, daysComplete: 6, complete: false, dryDays: 4 });
+      expect(res.body.indicators).toEqual(OCTOBER_INDICATORS);
+      // Reihenfolge wie B2.2: indicators zwischen dryDays und meanMethod, dryDays nicht doppelt
+      expect(Object.keys(res.body).slice(-3)).toEqual(['dryDays', 'indicators', 'meanMethod']);
+    });
+
+    it('US18-3: der unvollständige 07.10. mit Min −5 °C zählt nicht in frostDays (complete = false)', async () => {
+      const day = await get('/api/days/2026-10-07').expect(200);
+      expect(day.body).toMatchObject({ complete: false, hoursObserved: 23, observed: { temperature: { min: -5 } } });
+      const month = await get('/api/summaries/months/2026-10').expect(200);
+      expect(month.body.temperature.min).toBe(-3);
+      expect(month.body.indicators.frostDays).toBe(2);
+    });
+
+    it('US18-1: Ganzzahlen ≥ 0, iceDays ≤ frostDays, hotDays ≤ summerDays, precipitationDays + dryDays = daysComplete', async () => {
+      const { body } = await get('/api/summaries/months/2026-10').expect(200);
+      for (const value of Object.values(body.indicators as Record<string, number>)) {
+        expect(Number.isInteger(value) && value >= 0).toBe(true);
+      }
+      expect(body.indicators.iceDays).toBeLessThanOrEqual(body.indicators.frostDays);
+      expect(body.indicators.hotDays).toBeLessThanOrEqual(body.indicators.summerDays);
+      expect(body.indicators.precipitationDays + body.dryDays).toBe(body.daysComplete);
+    });
+
+    it('US18-4: Jahr und Monatsliste tragen indicators; frostDays des Jahres = Summe der Monate', async () => {
+      const year = await get('/api/summaries/years/2026').expect(200);
+      expect(year.body.indicators).toEqual(OCTOBER_INDICATORS);
+      expect(Object.keys(year.body).slice(-3)).toEqual(['dryDays', 'indicators', 'meanMethod']);
+      const months = await get('/api/summaries/months?year=2026').expect(200);
+      const items = months.body.items as { id: string; indicators: { frostDays: number } }[];
+      expect(items.map(m => m.id)).toEqual(['2026-10']);
+      expect(items.reduce((sum, m) => sum + m.indicators.frostDays, 0)).toBe(year.body.indicators.frostDays);
+    });
+
+    it('R28: GET /api/summaries/periods?from=2026-10-01&to=2026-10-06 → vollständig, Form wie B2.2 „period summary“', async () => {
+      const res = await get('/api/summaries/periods?from=2026-10-01&to=2026-10-06').expect(200);
+      expect(Object.keys(res.body)).toEqual([
+        'id', 'from', 'to', 'locationId', 'daysExpected', 'daysComplete', 'complete',
+        'temperature', 'precipitationSum', 'dryDays', 'indicators', 'meanMethod',
+      ]);
+      expect(res.body).toEqual({
+        id: '2026-10-01..2026-10-06',
+        from: '2026-10-01',
+        to: '2026-10-06',
+        locationId: 1,
+        daysExpected: 6,
+        daysComplete: 6,
+        complete: true,
+        temperature: { mean: expect.any(Number), min: -3, max: 30, minAt: '2026-10-06T05:00', maxAt: '2026-10-05T14:00' },
+        precipitationSum: 2.6,
+        dryDays: 4,
+        indicators: OCTOBER_INDICATORS,
+        meanMethod: 'mean_of_daily_means',
+      });
+    });
+
+    it('R28: ein ganzer Monat als Zeitraum ergibt dieselben Werte wie die Monatszusammenfassung', async () => {
+      const month = (await get('/api/summaries/months/2026-10').expect(200)).body;
+      const period = (await get('/api/summaries/periods?from=2026-10-01&to=2026-10-31').expect(200)).body;
+      const { id: _m, year: _y, month: _mo, ...monthValues } = month;
+      const { id, from: _f, to: _t, ...periodValues } = period;
+      expect(id).toBe('2026-10-01..2026-10-31');
+      expect(periodValues).toEqual(monthValues);
+    });
+
+    it('R28-Grenze: from = to → 200, ein Tag', async () => {
+      const res = await get('/api/summaries/periods?from=2026-10-03&to=2026-10-03').expect(200);
+      expect(res.body).toMatchObject({ id: '2026-10-03..2026-10-03', daysExpected: 1, daysComplete: 1, complete: true });
+      expect(res.body.indicators).toEqual({ frostDays: 0, iceDays: 0, summerDays: 1, hotDays: 0, precipitationDays: 1 });
+    });
+
+    it('nur der unvollständige Tag → 200, alle Kennzahlen 0, Werte null', async () => {
+      const res = await get('/api/summaries/periods?from=2026-10-07&to=2026-10-07').expect(200);
+      expect(res.body).toMatchObject({ daysComplete: 0, complete: false, precipitationSum: null, dryDays: 0 });
+      expect(res.body.indicators).toEqual({ frostDays: 0, iceDays: 0, summerDays: 0, hotDays: 0, precipitationDays: 0 });
+    });
+  });
+
+  describe('freier Zeitraum mit Daten am 01.03.2025 und 01.01.2026 (jetzt 19.11.2026 14:30 MEZ)', () => {
+    let h: Harness;
+    const get = (url: string) => request(h.app.getHttpServer()).get(url);
+    beforeAll(async () => {
+      h = await startWith(fixtureOf([...dayObservations('2025-03-01'), ...dayObservations('2026-01-01')]));
+    });
+    afterAll(() => h.close());
+
+    it('US19-1: from=2025-01-01&to=2025-11-18 → 200, id, daysExpected 322, indicators und meanMethod', async () => {
+      const res = await get('/api/summaries/periods?from=2025-01-01&to=2025-11-18').expect(200);
+      expect(res.body).toMatchObject({
+        id: '2025-01-01..2025-11-18',
+        from: '2025-01-01',
+        to: '2025-11-18',
+        locationId: 1,
+        daysExpected: 322,
+        daysComplete: 1,
+        complete: false,
+        dryDays: 1,
+        indicators: { frostDays: 0, iceDays: 0, summerDays: 0, hotDays: 0, precipitationDays: 0 },
+        meanMethod: 'mean_of_daily_means',
+      });
+    });
+
+    it('US19-2: from=2025-11-18&to=2025-01-01 → 400 to_before_from an to', async () => {
+      const res = await get('/api/summaries/periods?from=2025-11-18&to=2025-01-01').expect(400);
+      expect(res.body).toMatchObject({ code: 'VALIDATION_FAILED', errors: [{ field: 'to', code: 'to_before_from' }] });
+    });
+
+    it('US19-3: genau 366 Tage (2025-01-01..2026-01-01) → 200; 367 Tage (to=2026-01-02) → 400 range_too_long an to', async () => {
+      const ok = await get('/api/summaries/periods?from=2025-01-01&to=2026-01-01').expect(200);
+      expect(ok.body).toMatchObject({ daysExpected: 366, daysComplete: 2 });
+      const res = await get('/api/summaries/periods?from=2025-01-01&to=2026-01-02').expect(400);
+      expect(res.body).toMatchObject({ code: 'VALIDATION_FAILED', errors: [{ field: 'to', code: 'range_too_long' }] });
+    });
+
+    it('US19-4: from=2024-01-01&to=2024-11-18 → 404 NO_DATA mit details.dataFrom', async () => {
+      const res = await get('/api/summaries/periods?from=2024-01-01&to=2024-11-18').expect(404);
+      expect(res.body).toMatchObject({
+        code: 'NO_DATA',
+        message: 'Für den Zeitraum 01.01.2024 bis 18.11.2024 liegen keine Daten vor. Daten gibt es ab 01.03.2025.',
+        details: { dataFrom: '2025-03-01' },
+      });
+    });
+
+    it('US19-5: to=2026-11-20 (morgen) → 400 DATE_IN_FUTURE an to; to = heute ist erlaubt (hier ohne Daten → 404)', async () => {
+      const res = await get('/api/summaries/periods?from=2026-11-01&to=2026-11-20').expect(400);
+      expect(res.body).toMatchObject({ code: 'DATE_IN_FUTURE', errors: [{ field: 'to', code: 'too_big' }] });
+      const today = await get('/api/summaries/periods?from=2026-11-01&to=2026-11-19').expect(404);
+      expect(today.body.code).toBe('NO_DATA');
+    });
+
+    it('US19-6: …&compare=previous → 400 VALIDATION_FAILED, errors[0] = compare / unrecognized_keys', async () => {
+      const res = await get('/api/summaries/periods?from=2025-01-01&to=2025-11-18&compare=previous').expect(400);
+      expect(res.body).toMatchObject({ code: 'VALIDATION_FAILED' });
+      expect(res.body.errors[0]).toMatchObject({ field: 'compare', code: 'unrecognized_keys' });
+    });
+
+    it.each([
+      ['/api/summaries/periods?from=2025-1-01&to=2025-11-18', 'from', 'invalid_date'],
+      ['/api/summaries/periods?from=2025-01-01&to=2025-02-30', 'to', 'invalid_date'],
+      ['/api/summaries/periods?from=2025-01-01', 'to', 'invalid_type'],
+    ])('R28 Format: %s → 400 an %s (%s)', async (url, field, code) => {
+      const res = await get(url).expect(400);
+      expect(res.body).toMatchObject({ code: 'VALIDATION_FAILED', errors: [{ field, code }] });
+    });
+
+    it('Accept: text/html → 406 (B3.1)', async () => {
+      await get('/api/summaries/periods?from=2025-01-01&to=2025-11-18').set('Accept', 'text/html').expect(406);
+    });
   });
 });

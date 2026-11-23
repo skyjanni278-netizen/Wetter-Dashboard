@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ApiException } from '../common/api.exception';
-import { ApiValidationException } from '../common/api-validation.exception';
+import { formatDateDe } from '../common/api-error';
+import { ApiValidationException, assertNotInFuture } from '../common/api-validation.exception';
 import { localDate } from '../common/berlin-time';
 import { Clock } from '../common/clock';
 import { round1 } from '../common/round';
@@ -8,10 +9,10 @@ import { toDayTemperature } from '../days/day.mapper';
 import { HEUBACH } from '../locations/location';
 import { OBSERVATION_STORE } from '../observations/observation.store';
 import type { ObservationStore } from '../observations/observation.store';
-import { AggregationService, daysInMonth, daysInYear, MEAN_METHOD } from '../stats/aggregation.service';
+import { AggregationService, daysInMonth, daysInRange, daysInYear, MEAN_METHOD } from '../stats/aggregation.service';
 import type { DayAggregate, PeriodAggregate } from '../stats/aggregation.service';
 import { RevisionCache } from '../stats/revision-cache';
-import type { MonthSummary, MonthSummaryList, YearList, YearSummary } from './summary';
+import type { MonthSummary, MonthSummaryList, PeriodSummary, YearList, YearSummary } from './summary';
 
 const MONTH_NAMES = [
   'Januar',
@@ -37,9 +38,15 @@ function summaryValues(period: PeriodAggregate) {
   };
 }
 
+/** R27 (US18): Kenntage als Kopie (ganze Zahlen, nichts zu runden). */
+function indicatorValues(period: PeriodAggregate) {
+  const { frostDays, iceDays, summerDays, hotDays, precipitationDays } = period.indicators;
+  return { frostDays, iceDays, summerDays, hotDays, precipitationDays };
+}
+
 /**
  * US04-1/-3/-4/-5/-6/-8, US05-1 bis -6: Monats- und Jahreszusammenfassungen und ihre Listen aus
- * Tagesaggregaten (R12, R13).
+ * Tagesaggregaten (R12, R13); seit Schritt 12b mit `indicators` (R27, US18) und dem freien Zeitraum (R28, US19).
  * Format (R04, R05) prüft die Pipe; Zukunft (R02) und „keine Daten“ (R03) prüft dieser Service.
  */
 @Injectable()
@@ -100,6 +107,33 @@ export class SummariesService {
       temperature: toDayTemperature(period.temperature),
       precipitationSum: round1(period.precipitationSum),
       dryDays: period.dryDays,
+      indicators: indicatorValues(period),
+      meanMethod: MEAN_METHOD,
+    };
+  }
+
+  /**
+   * R28 (US19-1 bis -6): freier Zeitraum in der Form der Jahreszusammenfassung. Format, `from ≤ to`, höchstens
+   * 366 Tage und unbekannte Parameter prüft die Pipe (`PeriodsQuerySchema`); `to` nach heute → 400
+   * `DATE_IN_FUTURE` an `to` (R02), keine einzige Stunde im Zeitraum → 404 `NO_DATA` (R03).
+   * `daysExpected` = Kalendertage von `from` bis `to`; nicht gecacht, wie `findYear` (beliebige Schlüssel).
+   */
+  async findPeriod(from: string, to: string): Promise<PeriodSummary> {
+    const today = localDate(this.clock.now());
+    assertNotInFuture('to', to, today);
+
+    const label = `den Zeitraum ${formatDateDe(from)} bis ${formatDateDe(to)}`;
+    const period = await this.summarize(from, to, daysInRange(from, to), label);
+    return {
+      id: `${from}..${to}`,
+      from,
+      to,
+      ...summaryValues(period),
+      complete: period.complete,
+      temperature: toDayTemperature(period.temperature),
+      precipitationSum: round1(period.precipitationSum),
+      dryDays: period.dryDays,
+      indicators: indicatorValues(period),
       meanMethod: MEAN_METHOD,
     };
   }
@@ -157,6 +191,7 @@ function toMonthSummary(yearMonth: string, period: PeriodAggregate): MonthSummar
     temperature: toDayTemperature(period.temperature),
     precipitationSum: round1(period.precipitationSum),
     dryDays: period.dryDays,
+    indicators: indicatorValues(period),
     meanMethod: MEAN_METHOD,
   };
 }
