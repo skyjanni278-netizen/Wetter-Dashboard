@@ -17,6 +17,8 @@
     "migration:revert": "npm run build && typeorm migration:revert -d dist/database/data-source.js",
     "db:seed": "npm run build && node dist/database/db-cli.js seed",
     "db:reset": "npm run build && node dist/database/db-cli.js reset",
+    "db:backup": "npm run build && node dist/database/db-cli.js backup",
+    "db:restore": "npm run build && node dist/database/db-cli.js restore",
     "cli": "npm run build && node dist/cli.js"
   },
   "dependencies": {

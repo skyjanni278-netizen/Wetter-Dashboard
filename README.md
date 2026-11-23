@@ -120,11 +120,30 @@ Das Dashboard ist erreichbar unter `http://localhost:4200`. Nest muss laufen. Di
 | `npm run cli -- admin:create --username <name>` | ersten Admin anlegen (Passwort aus `ADMIN_INITIAL_PASSWORD` oder Abfrage) |
 | `npm run db:seed [-- --fixture <name>]` | Dev-Daten bzw. Fixture einspielen (ersetzt alle Daten der DB) |
 | `npm run db:reset` | DB neu aufbauen; verweigert sich bei `NODE_ENV=production` und bei gesammelten Daten (Importe `legacy`/`scheduled`), außer mit `-- --force-delete-collected-data`; sichert vorher per `VACUUM INTO` |
+| `npm run db:backup` | `DB_PATH` sichern (`VACUUM INTO`, auch bei laufendem Nest) nach `BACKUP_DIR`, prüfen, die neuesten `BACKUP_KEEP` (14) behalten |
+| `npm run db:restore -- --from <datei> --yes` | Sicherung zurückspielen (Nest vorher stoppen); sichert vorher den aktuellen Stand, ohne `--yes` nur Prüfung und Warnung |
 | `npm run cli -- import:legacy --dir <pfad> [--dry-run]` | Altbestand (JSON) in die DB übernehmen; `--dry-run` prüft nur. Kopien des Ordners nur mit erhaltenen Dateizeitstempeln anlegen |
 | `npm run cli -- legacy:dst-check --dir <pfad>` | DST-Stichprobe gegen Open-Meteo (Zeitregel des Altbestands) |
 | `npm test` / `npm run test:e2e` | Unit- bzw. e2e-Tests |
 
 Im Ordner `frontend/`: `npm test -- --watch=false`, `npm run lint:css`, `npm run build`.
+
+---
+
+## Betrieb und Backup
+
+Das Dashboard läuft auf dem eigenen Windows-PC (kein Raspberry Pi, kein Autostart): Nest wird von Hand gestartet und gestoppt.
+
+```powershell
+cd api
+powershell -ExecutionPolicy Bypass -File scripts\start.ps1   # baut, sichert die DB (db:backup), startet Nest; Stopp mit Strg+C
+```
+
+- **Sicherungen** liegen standardmäßig in `%LOCALAPPDATA%\wetter-heubach\backups\weather-<UTC-Zeit>.db`; die neuesten 14 bleiben (`BACKUP_DIR`, `BACKUP_KEEP` in `api/.env`). Ab und zu die neueste Sicherung auf einen anderen Datenträger kopieren.
+- **Wiederherstellen:** Nest stoppen, dann `npm run db:restore -- --from <datei> --yes`.
+- **PC war aus:** Der Scheduler holt nach dem Start gestern und heute nach; längere Lücken als Admin unter `/admin/luecken` mit „Nachladen“ schließen.
+
+Einzelheiten (Start und Stopp, Backup-Routine, Wiederherstellung Schritt für Schritt, Wiederherstellungstest): [`docs/PROJEKTDOKU.md`](docs/PROJEKTDOKU.md), Abschnitt 7a.
 
 ---
 

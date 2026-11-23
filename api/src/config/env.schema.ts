@@ -52,6 +52,19 @@ export const OpenMeteoEnvSchema = EnvObjectSchema.pick({
   OPEN_METEO_TIMEOUT_MS: true,
 });
 
+/** Standard für `BACKUP_KEEP`: 14 Sicherungen (03 C5: „14 Tageskopien behalten“). */
+export const DEFAULT_BACKUP_KEEP = 14;
+
+/**
+ * `db:backup`, `db:restore` (Schritt 14c): `NODE_ENV`, `DB_PATH` und zwei Werte **nur für die CLI** (nicht im
+ * `EnvSchema`, Nest braucht sie nicht): `BACKUP_DIR` (Ordner der Sicherungen; fehlt er, `backups` neben der DB)
+ * und `BACKUP_KEEP` (so viele Sicherungen von `db:backup` bleiben, ältere werden gelöscht).
+ */
+export const BackupEnvSchema = DatabaseEnvSchema.extend({
+  BACKUP_DIR: z.string().min(1).optional(),
+  BACKUP_KEEP: z.coerce.number().int().min(1).max(1000).default(DEFAULT_BACKUP_KEEP),
+});
+
 /** Ungültige Konfiguration: Die Meldung nennt jedes Feld, aber **nie** einen Wert (Secrets, Passwörter). */
 export class EnvConfigError extends Error {
   constructor(readonly fields: string[], details: string[]) {

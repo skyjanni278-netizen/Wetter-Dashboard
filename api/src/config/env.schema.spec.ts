@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { envSourceOptions, loadEnv } from './config';
 import {
+  BackupEnvSchema,
   DatabaseEnvSchema,
   EnvConfigError,
   EnvSchema,
@@ -168,6 +169,21 @@ describe('Teilschemas der CLI (kein JWT_SECRET)', () => {
     expect(configError(() => parseEnv(SeedEnvSchema, { NODE_ENV: 'development', DB_PATH: 'x.db', DEV_ADMIN_PASSWORD: 'kurz' })).fields).toEqual([
       'DEV_ADMIN_PASSWORD',
     ]);
+  });
+
+  it('BackupEnvSchema (db:backup, db:restore): BACKUP_DIR optional, BACKUP_KEEP Standard 14, ganze Zahl ab 1', () => {
+    const base = { NODE_ENV: 'development', DB_PATH: 'x.db' };
+    expect(parseEnv(BackupEnvSchema, base)).toEqual({ ...base, BACKUP_KEEP: 14 });
+    expect(parseEnv(BackupEnvSchema, { ...base, BACKUP_DIR: 'C:\\Sicherung', BACKUP_KEEP: '30' })).toEqual({
+      ...base,
+      BACKUP_DIR: 'C:\\Sicherung',
+      BACKUP_KEEP: 30,
+    });
+    for (const BACKUP_KEEP of ['0', '2.5', 'viele']) {
+      expect(configError(() => parseEnv(BackupEnvSchema, { ...base, BACKUP_KEEP })).fields).toEqual(['BACKUP_KEEP']);
+    }
+    expect(configError(() => parseEnv(BackupEnvSchema, { ...base, BACKUP_DIR: '' })).fields).toEqual(['BACKUP_DIR']);
+    expect(configError(() => parseEnv(BackupEnvSchema, { NODE_ENV: 'development' })).fields).toEqual(['DB_PATH']);
   });
 
   it('OpenMeteoEnvSchema (legacy:dst-check): nur Standardwerte, nichts Pflicht', () => {
