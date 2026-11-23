@@ -1,6 +1,6 @@
 # Projektdokumentation – Wetter-Dashboard Heubach
 
-> Stand: 23.11.2026 · Roadmap-Schritt 12a · Pflege: siehe Abschnitt „11. Pflege dieser Datei“
+> Stand: 23.11.2026 · Roadmap-Schritt 12b · Pflege: siehe Abschnitt „11. Pflege dieser Datei“
 
 Diese Datei ist eine Landkarte des **aktuellen** Systems: was es gibt, wo es liegt, wie es zusammenhängt. Sie enthält keinen Code und keine Planung (die steht in `docs/umbau/`).
 
@@ -933,6 +933,7 @@ Neueste oben.
 
 | Datum | Schritt | Commit | Änderung |
 |---|---|---|---|
+| 2026-11-23 | 12b | `5b90f21` | N05: `indicators` (Frost-, Eis-, Sommer-, heiße, Niederschlagstage; R27, nur vollständige Tage) in Monat, Monatsliste, Jahr und Zeitraum; Fixture `us18-indicators`. N06: `GET /api/summaries/periods?from&to` (R28, ≤ 366 Tage). Frontend: Kenntag-Karten (`app-indicator-cards`), Schalter-Chip „Vorjahr vergleichen“ (`app-toggle-chip`, `?vergleich=vorjahr`), `utils/compare-period.ts` (R29), gestrichelte Vorjahreslinie `--chart-compare` mit Differenztext; Postman US18/US19 |
 | 2026-11-23 | 12a | `1bf0a42` | N03: `GET/PATCH /api/observations/:id` (ETag, `If-Match`, merge-patch, Transaktion mit `correction` je Feld), Historie, Rücknahme (R33), `GET /api/corrections`; Migration `CorrectionUser` (FK auf `user`); R20 mit `overwriteCorrections`; `requestedBy` aus dem Token; `records.corrected`, `hours[].id`/`correctedAt`. N01/N04: `/api/status` mit `updateState`, `nextScheduledUpdateAt`, `daysWithData`, `daysComplete`, `gapCount`. Frontend: `/admin/korrektur` und `/admin/korrektur/:date`, Chip „KORRIGIERT“, „Stand: …“ mit Hinweisbox, Footer-Datenstand, öffentliche Seite `/status`, „heute“ aus `status.today`; Postman US13/US16/US17 |
 | 2026-11-22 | 11 | siehe `git log` (Merge Schritt 11) | `RolesGuard` als drittes `APP_GUARD` (ohne Dekorator 403, e2e prüft jede Route auf genau `@Public`/`@Roles`), `@Roles('admin')` an `imports`/`gaps`; `ConfigModule` mit `EnvSchema` (B4.8), `api/.env` + `.env.example`, Teilschemas für die CLI; Helmet (eigene CSP für Swagger), CORS nur mit `CORS_ORIGINS`, `trust proxy`, ohne `X-Powered-By`, Swagger nur bei `SWAGGER_ENABLED`; globales Limit 120/60 s je IP mit `Retry-After`; Log-Ereignisse nach A09 ohne IP/Token/Passwort; Frontend: Admin-Layout mit Status-, Import-, Importdetail- (Polling 2 s) und Lückenseite („Nachladen“); Postman-Ordner SEC, README auf `.env` |
 | 2026-11-22 | 10 | siehe `git log` (Merge Schritt 10) | Anmeldung: `POST /api/auth/tokens` (Zod-`LoginSchema`, bcrypt 12, Dummy-compare, 5 Versuche/min), `GET /api/auth/me`, JWT HS256 mit `iss`/`aud`, globaler `ThrottlerGuard` + `JwtAuthGuard`, `@Public()` auf den Gast-Endpunkten, `@Roles('admin')` vorbereitet; `user`/`role`/`user_role` mit Migrationen, CLI `admin:create`/`admin:set-password`, Dev-Admin per `db:seed` mit `DEV_ADMIN_PASSWORD`; `JWT_SECRET` Pflicht beim Start; Frontend: `AuthService` (`sessionStorage`, Ablauf-Timer), `authInterceptor`, `adminGuard`, Seiten `/admin/anmeldung` und `/admin`, Header mit „Admin“/„Abmelden“; Postman-Ordner US09/US12; Express-Reste in `backend/` gelöscht |

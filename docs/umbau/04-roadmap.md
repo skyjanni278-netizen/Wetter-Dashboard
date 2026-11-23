@@ -37,7 +37,7 @@ Stand: 19.11.2026 · Grundlage: `01-analyse.md` (F01–F34, S1–S12, Abschnitt 
 | 10 | Login, JWT, AuthGuard, Login-Seite (keine Registrierung) | M | 9, 1 | ✅ erledigt (`6d5b5c0`) |
 | 11 | Rollen, RolesGuard, `.env`, sichere Grundeinstellungen, Admin-Bereich | L | 10 | ✅ erledigt (`907f868`) |
 | 12a | Must: N01, N03, N04 | M | 11 | ✅ erledigt (`1bf0a42`) |
-| 12b | Should: N05, N06 | M | 12a | offen |
+| 12b | Should: N05, N06 | M | 12a | ✅ erledigt (`5b90f21`) |
 | 12c | Could: N07 | S | 12b | offen |
 | 13 | Optional: WebSockets, Templates, Events (Entscheidung) | S | 12c | offen |
 | 14 | Tests, Barrierefreiheit, Deployment auf den Pi, Dokumentation | L | 13 | offen |
@@ -737,6 +737,26 @@ Danach:
 **Aufwand:** M · **Größtes Risiko:** Lost Update zwischen Import und Korrektur. Abgesichert durch die Version und die Regel R20 im Upsert.
 
 ### 12b – Should: N05, N06
+
+> **Status:** ✅ Erledigt am 23.11.2026 (Backend, Frontend, Postman). 706 Unit- und 224 e2e-Tests in `api/`, 637 Frontend-Tests, newman 106 Requests / 275 Assertions grün. axe meldet auf Monat und Jahr, mit und ohne Vergleich, keine Verstöße.
+>
+> **Entscheidungen nach 03:**
+> - `dryDays` bleibt auf oberster Ebene (nicht in `indicators`).
+> - Die Jahresliste hat keine `indicators`.
+> - `periods` hat die Form wie das Beispiel in B2.2, ohne `monthsWithData`, und wird nicht gecacht.
+> - `compare` ist ein unbekannter Parameter (`unrecognized_keys`).
+> - Fixture `us18-indicators`.
+>
+> **Frontend:**
+> - „Vollständig“ heißt zeitlich abgelaufen.
+> - Die Vorjahreslinie zeigt den ganzen Vorjahreszeitraum, die Differenz nur gleiche Kalendertage. Dafür kommt ein zusätzlicher Request (`/days` bzw. `/summaries/months?year=`) dazu.
+> - Ohne Vorjahr ist der Chip schon vor dem Klick deaktiviert.
+>
+> **Offen:**
+> - Ein abgelaufener Zeitraum mit Datenlücken wird ohne Hinweis gegen das volle Vorjahr verglichen.
+> - Ein vollständiger Tag mit allen Niederschlagswerten `null` zählt weder als Niederschlags- noch als Trockentag. Das kommt im Bestand nicht vor.
+> - Mobil stehen die 6 Kenntag-Karten untereinander (Designfrage an den User).
+> - Negative Werte zeigen teils „-“ statt „−“.
 
 **Bezug:** US18-1 bis -5, US19-1 bis -9 · R27, R28, R29
 
