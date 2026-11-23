@@ -57,14 +57,23 @@
 
     @if (summary(); as s) {
       <div class="card-stack">
+        <!-- Vorjahresvergleich (N06, R29): Zustand in der URL (?vergleich=vorjahr), Vorjahr ohne Daten → deaktiviert -->
+        <div class="compare-bar">
+          <app-toggle-chip [pressed]="compareRequested()" [disabled]="compareUnavailable()" describedBy="compare-hint"
+                           (pressedChange)="setCompare($event)">Vorjahr vergleichen</app-toggle-chip>
+          <p id="compare-hint" class="compare-hint" aria-live="polite">{{ compareHint() }}</p>
+        </div>
+
         <div class="kpi-grid">
           <app-kpi-card kicker="Ø Jahrestemperatur" [value]="s.temperature.mean" unit="°C"
+                        [meta]="compareTexts()?.temperature ?? null"
                         [busy]="loading()" [reveal]="true" />
           <app-kpi-card kicker="Wärmster Monat (Ø)" [value]="maxTemp()" unit="°C" [meta]="warmestMonthName()"
                         [busy]="loading()" [reveal]="true" [revealIndex]="1" />
           <app-kpi-card kicker="Kältester Monat (Ø)" [value]="minTemp()" unit="°C" [meta]="coldestMonthName()"
                         [busy]="loading()" [reveal]="true" [revealIndex]="2" />
-          <app-kpi-card kicker="Jahresniederschlag" [value]="s.precipitationSum" unit="mm" [digits]="0"
+          <app-kpi-card kicker="Jahresniederschlag" [value]="s.precipitationSum" unit="mm" [digits]="precipDigits"
+                        [meta]="compareTexts()?.precipitation ?? null"
                         [busy]="loading()" [reveal]="true" [revealIndex]="3" />
         </div>
 
@@ -73,6 +82,9 @@
             <app-climate-chart [title]="'Klimadiagramm ' + selectedYear()" [data]="chart" labelHeading="Monat" />
           </app-card>
         }
+
+        <!-- Kenntage (N05, R27): nur vollständige Tage -->
+        <app-indicator-cards [summary]="s" [busy]="loading()" [revealIndex]="5" />
       </div>
     }
   </div>

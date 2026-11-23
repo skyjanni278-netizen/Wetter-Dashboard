@@ -60,6 +60,9 @@
 
 .swatch-dashed { border-top-style: dashed; }
 
+/* Vorjahreslinie (N06): --chart-compare, gestrichelt */
+.swatch-compare { border-top-color: var(--chart-compare); }
+
 /* Muster wie im Diagramm: Linien --chart-precip auf --color-surface, 1,5-px-Rand */
 .swatch-hatched {
   border: 1.5px solid var(--chart-precip);

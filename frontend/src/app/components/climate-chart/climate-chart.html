@@ -11,6 +11,9 @@
   <!-- Legende als HTML statt Chart.js-Legende (E3.8) -->
   <ul class="chart-legend">
     <li><span class="swatch swatch-line" aria-hidden="true"></span>Temperatur (°C), Linie</li>
+    @if (compare(); as c) {
+      <li><span class="swatch swatch-line swatch-dashed swatch-compare" aria-hidden="true"></span>Temperatur {{ c.label }} (°C), gestrichelte Linie</li>
+    }
     <li><span class="swatch swatch-bar" aria-hidden="true"></span>Niederschlag (mm), Balken</li>
     @if (hasPrediction()) {
       <li>

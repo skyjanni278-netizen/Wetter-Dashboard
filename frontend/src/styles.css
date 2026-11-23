@@ -191,6 +191,28 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .card-head h2 { margin: 0; }
 
+/* Vorjahresvergleich (N06, Monat und Jahr): Schalter-Chip, daneben Hinweis bzw. verglichener Zeitraum */
+.compare-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+.compare-hint { margin: 0; color: var(--color-text-muted); font-size: var(--fs-sm); }
+
+/* Kenntage (N05): Überschrift, Hinweis „nur vollständige Tage“, Kennzahl-Raster */
+.kpi-section { display: grid; gap: var(--space-2); }
+.kpi-section h2 { margin: 0; }
+.kpi-section-hint { margin: 0 0 var(--space-1); color: var(--color-text-muted); font-size: var(--fs-sm); }
+
+/* Sechs Karten: breiter als das normale Raster, damit „NIEDERSCHLAGSTAGE“ nicht im Wort umbricht;
+   ab 768 px genau drei Spalten (2 Reihen statt 5 + 1) */
+.kpi-section .kpi-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); }
+
+@media (min-width: 48em) {
+  .kpi-section .kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
 /* Diagrammkarte: schmale Innenränder, damit das Canvas bei 320 px möglichst breit ist */
 app-card.chart-card { padding-inline: var(--space-2); }
 

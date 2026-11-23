@@ -29,6 +29,7 @@ describe('WeatherService', () => {
     ['getMonthSummaries', () => service.getMonthSummaries('2025'), '/api/summaries/months?year=2025'],
     ['getYearSummary', () => service.getYearSummary('2026'), '/api/summaries/years/2026'],
     ['getYearList', () => service.getYearList(), '/api/summaries/years'],
+    ['getPeriod', () => service.getPeriod('2025-11-01', '2025-11-18'), '/api/summaries/periods?from=2025-11-01&to=2025-11-18'],
   ];
 
   it('keine Express-Pfade mehr für Tag, Vorschau und Rekorde (Schritt 7)', () => {
@@ -57,6 +58,18 @@ describe('WeatherService', () => {
     let status = 0;
     service.getMonthSummary('2024-12').subscribe({ error: (e: { status: number }) => (status = e.status) });
     http.expectOne('/api/summaries/months/2024-12').flush(
+      { statusCode: 404, error: 'Not Found', code: 'NO_DATA', message: 'x', errors: [], details: { dataFrom: '2025-01-01' } },
+      { status: 404, statusText: 'Not Found' },
+    );
+    expect(status).toBe(404);
+  });
+
+  it('getPeriod gibt 404 NO_DATA an den Aufrufer weiter (Vorjahr ohne Daten, R29)', () => {
+    let status = 0;
+    service.getPeriod('2024-01-01', '2024-11-18').subscribe({ error: (e: { status: number }) => (status = e.status) });
+    const req = http.expectOne('/api/summaries/periods?from=2024-01-01&to=2024-11-18');
+    expect(req.request.params.keys()).toEqual(['from', 'to']);
+    req.flush(
       { statusCode: 404, error: 'Not Found', code: 'NO_DATA', message: 'x', errors: [], details: { dataFrom: '2025-01-01' } },
       { status: 404, statusText: 'Not Found' },
     );

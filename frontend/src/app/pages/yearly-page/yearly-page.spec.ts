@@ -7,10 +7,12 @@ import { RouterTestingHarness } from '@angular/router/testing';
 import { Observable, Subject, of, throwError } from 'rxjs';
 import { YEAR_EMPTY_MESSAGE, YEAR_ERROR_MESSAGE, YearlyPageComponent } from './yearly-page';
 import { WeatherService } from '../../services/weather.service';
-import { MonthSummary, MonthSummaryList, YearList, YearSummary } from '../../models/api';
+import { MonthSummary, MonthSummaryList, PeriodSummary, YearList, YearSummary } from '../../models/api';
 import { berlinToday } from '../../utils/berlin-date';
 import { routes } from '../../app.routes';
 import { AppTitleStrategy } from '../../utils/page-title';
+import { DataStatusService } from '../../services/data-status.service';
+import { statusOf } from '../../testing/admin-fixtures';
 
 const temperature = (mean: number | null) => ({ mean, min: null, max: null, minAt: null, maxAt: null });
 
@@ -18,7 +20,9 @@ const temperature = (mean: number | null) => ({ mean, min: null, max: null, minA
 function yearSummary(year: string, mean: number, overrides: Partial<YearSummary> = {}): YearSummary {
   return {
     id: year, year: Number(year), locationId: 1, daysExpected: 365, daysComplete: 365, monthsWithData: 12, complete: true,
-    temperature: temperature(mean), precipitationSum: 812.4, dryDays: 140, meanMethod: 'mean_of_daily_means',
+    temperature: temperature(mean), precipitationSum: 812.4, dryDays: 140,
+    indicators: { frostDays: 60, iceDays: 12, summerDays: 40, hotDays: 8, precipitationDays: 225 },
+    meanMethod: 'mean_of_daily_means',
     ...overrides,
   };
 }
@@ -27,7 +31,8 @@ function monthSummary(year: string, month: number, mean: number | null, precip: 
   return {
     id: `${year}-${String(month).padStart(2, '0')}`, year: Number(year), month, locationId: 1,
     daysExpected: 31, daysComplete: 31, complete: true, temperature: temperature(mean), precipitationSum: precip,
-    dryDays: 10, meanMethod: 'mean_of_daily_means',
+    dryDays: 10, indicators: { frostDays: 0, iceDays: 0, summerDays: 0, hotDays: 0, precipitationDays: 21 },
+    meanMethod: 'mean_of_daily_means',
   };
 }
 
@@ -108,7 +113,9 @@ describe('YearlyPageComponent', () => {
     expect(fixture.componentInstance.years()).toEqual(['2026', '2025']);
     const options = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('#year-select option')).map(o => o.textContent?.trim());
     expect(options).toEqual(['2026', '2025']);
-    expect((fixture.nativeElement as HTMLElement).querySelector('button')).toBeNull();
+    // Einziger Button ist der Schalter-Chip des Vorjahresvergleichs (N06)
+    expect(Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('button')).map(b => b.textContent?.trim()))
+      .toEqual(['Vorjahr vergleichen']);
   });
 
   it('Jahresliste fehlgeschlagen: Übergang von 2025 bis zum aktuellen Berliner Jahr (V18)', () => {
@@ -282,6 +289,22 @@ describe('YearlyPageComponent Jahresachse, Kennzahlen und Chips (V21, F28, R13)'
     const fixture = create(y => of(yearSummary(y, 5)));
     expect((fixture.nativeElement as HTMLElement).querySelector('.page-title app-chip')).toBeNull();
   });
+
+  it('Kenntag-Karten (N05, US18-4) aus indicators und dryDays der Jahreszusammenfassung', () => {
+    const fixture = create(y => of(yearSummary(y, 11.6, { complete: false, daysComplete: 322, daysExpected: 365 })));
+    const section = (fixture.nativeElement as HTMLElement).querySelector('app-indicator-cards section')!;
+    expect(section.querySelector('h2')?.textContent?.trim()).toBe('Kenntage');
+    const values = Array.from(section.querySelectorAll('.kpi-value .num')).map(v => v.textContent?.trim());
+    expect(values).toEqual(['60', '12', '40', '8', '225', '140']);
+    expect(section.querySelector('.kpi-section-hint')?.textContent).toContain('322 vollständigen Tage von 365');
+  });
+
+  it('Leerzustand: keine Kenntag-Karten, kein Schalter-Chip', () => {
+    const fixture = create(() => throwError(() => ({ status: 404 })));
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('app-indicator-cards')).toBeNull();
+    expect(el.querySelector('app-toggle-chip')).toBeNull();
+  });
 });
 
 describe('YearlyPageComponent gegen die neue API (HttpTestingController)', () => {
@@ -359,6 +382,150 @@ describe('YearlyPageComponent gegen die neue API (HttpTestingController)', () =>
     again[1].flush(months('2025'));
     await t.settle();
     expect(t.page().state()).toBe('success');
+    t.http.verify();
+  });
+});
+
+describe('YearlyPageComponent: Vorjahresvergleich (N06, R29, US19-7/-8)', () => {
+  const YEARS_WITH_2024: YearList = { items: [{ id: '2024', year: 2024, complete: true, daysComplete: 366 }, ...YEARS.items] };
+
+  /** Zeitraum wie `GET /api/summaries/periods?from&to`. */
+  function period(from: string, to: string, mean: number, precipitationSum: number): PeriodSummary {
+    const { year: _year, monthsWithData: _months, ...rest } = yearSummary(from.slice(0, 4), mean, { precipitationSum });
+    return { ...rest, id: `${from}..${to}`, from, to };
+  }
+
+  async function routedHttp(url: string) {
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(), provideHttpClientTesting(),
+        provideRouter(routes, withComponentInputBinding()),
+        { provide: TitleStrategy, useClass: AppTitleStrategy },
+      ],
+    });
+    const http = TestBed.inject(HttpTestingController);
+    // Heute laut Server wie mit FAKE_NOW=2026-11-19T13:30:00Z
+    TestBed.inject(DataStatusService).status.set(statusOf({ today: '2026-11-19' }));
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl(url, YearlyPageComponent);
+    harness.detectChanges();
+    const t = harnessHelpers(harness);
+    return {
+      http, ...t,
+      chip: () => t.el.querySelector('app-toggle-chip button') as HTMLButtonElement,
+      hint: () => t.el.querySelector('#compare-hint')?.textContent?.trim() ?? '',
+      metas: () => Array.from(t.el.querySelectorAll('.kpi-grid')[0].querySelectorAll('.kpi-meta')).map(m => m.textContent?.trim()),
+      /** Alle offenen Requests (werden dabei aus dem Controller genommen und hier beantwortet). */
+      pending: () => http.match(() => true),
+    };
+  }
+
+  type Harness = Awaited<ReturnType<typeof routedHttp>>;
+
+  async function year2026(url = '/jahr/2026') {
+    const t = await routedHttp(url);
+    t.http.expectOne('/api/summaries/years').flush(YEARS);
+    t.http.expectOne('/api/summaries/years/2026').flush(yearSummary('2026', 11.6, { complete: false, daysComplete: 322, precipitationSum: 701.6 }));
+    t.http.expectOne('/api/summaries/months?year=2026').flush(months('2026'));
+    await t.settle();
+    return t;
+  }
+
+  /** Genau diese Requests sind offen (in dieser Reihenfolge); gibt sie zum Beantworten zurück. */
+  function expectPending(t: Harness, urls: string[]) {
+    const pending = t.pending();
+    expect(pending.map(r => r.request.urlWithParams)).toEqual(urls);
+    return pending;
+  }
+
+  /** US19-7: genau 2 × `/periods` (01.01. bis gestern, beide Jahre) und die Monate des Vorjahres für die Linie. */
+  async function flushYearCompare(t: Harness) {
+    const [current, previous, previousMonths] = expectPending(t, [
+      '/api/summaries/periods?from=2026-01-01&to=2026-11-18',
+      '/api/summaries/periods?from=2025-01-01&to=2025-11-18',
+      '/api/summaries/months?year=2025',
+    ]);
+    current.flush(period('2026-01-01', '2026-11-18', 11.6, 701.6));
+    previous.flush(period('2025-01-01', '2025-11-18', 11.2, 650.4));
+    previousMonths.flush(months('2025', 3));
+    await t.settle();
+  }
+
+  it('Klick (US19-7): aria-pressed, ?vergleich=vorjahr, genau 2 Requests auf /periods, „+0,4 °C wärmer als 01.01.–18.11.2025“, Linie', async () => {
+    const t = await year2026();
+    t.http.verify();
+    expect(t.chip().getAttribute('aria-pressed')).toBe('false');
+    t.chip().click();
+    await t.settle();
+    expect(t.router.url).toBe('/jahr/2026?vergleich=vorjahr');
+    expect(t.chip().getAttribute('aria-pressed')).toBe('true');
+    await flushYearCompare(t);
+    t.http.verify();
+    expect(t.metas()[0]).toBe('+0,4 °C wärmer als 01.01.–18.11.2025');
+    // Jahresniederschlag ohne Nachkommastelle: 702 − 650 = 52 (gerundet − gerundet)
+    expect(t.metas()[3]).toBe('+52 mm nasser als 01.01.–18.11.2025');
+    expect(t.hint()).toBe('Verglichen mit 01.01.–18.11.2025');
+    const chart = t.page().chartData()!;
+    expect(chart.compare?.label).toBe('2025');
+    expect(chart.compare?.temperatures).toEqual([3, 4, ...Array(10).fill(null)]);
+    const legend = Array.from(t.el.querySelectorAll('.chart-legend li')).map(li => li.textContent?.trim());
+    expect(legend).toContain('Temperatur 2025 (°C), gestrichelte Linie');
+  });
+
+  it('F5 mit ?vergleich=vorjahr: Vergleich weiter aktiv (US19-7)', async () => {
+    const t = await year2026('/jahr/2026?vergleich=vorjahr');
+    expect(t.chip().getAttribute('aria-pressed')).toBe('true');
+    await flushYearCompare(t);
+    t.http.verify();
+    expect(t.page().chartData()!.compare?.label).toBe('2025');
+  });
+
+  it('/jahr/2025 (US19-8): Chip deaktiviert (aria-disabled), „Kein Vorjahr mit Daten“, kein Request, auch mit ?vergleich', async () => {
+    const t = await routedHttp('/jahr/2025?vergleich=vorjahr');
+    t.http.expectOne('/api/summaries/years').flush(YEARS);
+    t.http.expectOne('/api/summaries/years/2025').flush(yearSummary('2025', 10.1));
+    t.http.expectOne('/api/summaries/months?year=2025').flush(months('2025'));
+    await t.settle();
+    expect(t.chip().getAttribute('aria-disabled')).toBe('true');
+    expect(t.chip().getAttribute('aria-pressed')).toBe('false');
+    expect(t.hint()).toBe('Kein Vorjahr mit Daten');
+    expect(t.el.querySelector('app-error')).toBeNull();
+    t.http.verify();
+  });
+
+  it('vollständiges Jahr mit Vorjahr: /summaries/years/2024 und Monate 2024, kein /periods', async () => {
+    const t = await routedHttp('/jahr/2025');
+    t.http.expectOne('/api/summaries/years').flush(YEARS_WITH_2024);
+    t.http.expectOne('/api/summaries/years/2025').flush(yearSummary('2025', 10.1, { precipitationSum: 800.4 }));
+    t.http.expectOne('/api/summaries/months?year=2025').flush(months('2025'));
+    await t.settle();
+    t.chip().click();
+    await t.settle();
+    const [previous, previousMonths] = expectPending(t, ['/api/summaries/years/2024', '/api/summaries/months?year=2024']);
+    previous.flush(yearSummary('2024', 10.6, { precipitationSum: 810.6 }));
+    previousMonths.flush(months('2024'));
+    await t.settle();
+    t.http.verify();
+    expect(t.metas()[0]).toBe('−0,5 °C kälter als 2024');
+    expect(t.metas()[3]).toBe('−11 mm trockener als 2024');
+  });
+
+  it('Vorjahr 404: Chip deaktiviert, kein Fehlerzustand', async () => {
+    const t = await routedHttp('/jahr/2025?vergleich=vorjahr');
+    t.http.expectOne('/api/summaries/years').flush(YEARS_WITH_2024);
+    t.http.expectOne('/api/summaries/years/2025').flush(yearSummary('2025', 10.1));
+    t.http.expectOne('/api/summaries/months?year=2025').flush(months('2025'));
+    await t.settle();
+    t.http.expectOne('/api/summaries/years/2024').flush(
+      { statusCode: 404, error: 'Not Found', code: 'NO_DATA', message: 'Für das Jahr 2024 liegen keine Daten vor.', errors: [], details: null },
+      { status: 404, statusText: 'Not Found' },
+    );
+    t.http.match(() => true).forEach(r => { if (!r.cancelled) r.flush({ items: [] }); });
+    await t.settle();
+    expect(t.chip().getAttribute('aria-disabled')).toBe('true');
+    expect(t.hint()).toBe('Kein Vorjahr mit Daten');
+    expect(t.page().state()).toBe('success');
+    expect(t.el.querySelector('app-error')).toBeNull();
     t.http.verify();
   });
 });

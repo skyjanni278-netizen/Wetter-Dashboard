@@ -3,7 +3,7 @@ import {
   untracked, viewChild,
 } from '@angular/core';
 import {
-  BarController, BarElement, CategoryScale, Chart, ChartConfiguration, LineController, LineElement,
+  BarController, BarElement, CategoryScale, Chart, ChartConfiguration, ChartDataset, LineController, LineElement,
   LinearScale, Plugin, PointElement, ScriptableContext, ScriptableLineSegmentContext, Tooltip,
 } from 'chart.js';
 import { DataTableColumn, DataTableComponent, DataTableRow } from '../data-table/data-table';
@@ -22,6 +22,17 @@ export interface ClimateChartDataset {
    * „Werte als Tabelle“ die Spalte „Korrektur“ mit dem Chip „KORRIGIERT“.
    */
   corrected?: boolean[];
+  /**
+   * Optional (Monat, Jahr; N06): Vorjahreslinie auf derselben Achse, gestrichelt in `--chart-compare`.
+   * `label` benennt das Vorjahr („November 2025“, „2025“) in Legende, Tabelle und Kernaussage.
+   */
+  compare?: ClimateChartCompare;
+}
+
+/** Vorjahreswerte der Temperatur (`null` = Lücke), gleiche Länge wie `labels`. */
+export interface ClimateChartCompare {
+  label: string;
+  temperatures: (number | null)[];
 }
 
 type ChartKind = 'bar' | 'line';
@@ -55,6 +66,8 @@ const NARROW_WIDTH = 560;
  * - `null`-Werte erzeugen Lücken (V21). Einzelne Werte zwischen Lücken erhalten einen Punkt.
  * - Ab `predictionFromIndex` gilt Vorhersage: Linie gestrichelt, Balken schraffiert, Band
  *   „Vorhersage“ und Linie „Jetzt“. Vorhersagewerte zählen nicht in die Kernaussage.
+ * - Mit `data.compare` (N06) eine zweite, gestrichelte Temperaturlinie in `--chart-compare` (Vorjahr), dazu
+ *   ein Eintrag in Legende, Kernaussage, `aria-label` und eine Spalte in „Werte als Tabelle“.
  */
 @Component({
   selector: 'app-climate-chart',
@@ -117,7 +130,21 @@ export class ClimateChartComponent {
       : 'keine Niederschlagswerte');
     let text = parts.join(', ') + '.';
     if (p !== null) text += ` Ab ${d.labels[p]} Vorhersage.`;
+    const compare = this.compare();
+    if (compare) {
+      const values = compare.temperatures.filter(isNumber);
+      text += values.length
+        ? ` ${compare.label}: Temperatur von ${formatTemp(Math.min(...values))} bis ${formatTemp(Math.max(...values))}.`
+        : ` ${compare.label}: keine Temperaturwerte.`;
+    }
     return text;
+  });
+
+  /** Vorjahreslinie (N06), nur mit Werten in der Länge der Achse. */
+  readonly compare = computed<ClimateChartCompare | null>(() => {
+    const d = this.data();
+    const compare = d?.compare;
+    return compare && compare.temperatures.length === d.labels.length ? compare : null;
   });
 
   readonly ariaLabel = computed(() => {
@@ -127,7 +154,9 @@ export class ClimateChartComponent {
     const range = `${d.labels[0]} bis ${d.labels[d.labels.length - 1]}`;
     const p = this.predictionFrom();
     const forecast = p !== null ? `, ab ${d.labels[p]} Vorhersage` : '';
-    return `Diagramm ${name}, ${range}: Temperatur als Linie, Niederschlag als Balken${forecast}. `
+    const compare = this.compare();
+    const compareLine = compare ? `, Temperatur ${compare.label} als gestrichelte Linie` : '';
+    return `Diagramm ${name}, ${range}: Temperatur als Linie${compareLine}, Niederschlag als Balken${forecast}. `
       + `${this.captionText()} Alle Werte in der Tabelle „Werte als Tabelle“.`;
   });
 
@@ -135,8 +164,10 @@ export class ClimateChartComponent {
     const columns: DataTableColumn[] = [
       { key: 'label', label: this.labelHeading(), rowHeader: true },
       { key: 'temperature', label: 'Temperatur', align: 'end' },
-      { key: 'precipitation', label: 'Niederschlag', align: 'end' },
     ];
+    const compare = this.compare();
+    if (compare) columns.push({ key: 'compare', label: `Temperatur ${compare.label}`, align: 'end' });
+    columns.push({ key: 'precipitation', label: 'Niederschlag', align: 'end' });
     if (this.hasPrediction()) columns.push({ key: 'kind', label: 'Art' });
     if (this.hasCorrections()) columns.push({ key: 'corrected', label: 'Korrektur' });
     return columns;
@@ -150,9 +181,11 @@ export class ClimateChartComponent {
     if (!d) return [];
     const p = this.predictionFrom();
     const corrections = this.hasCorrections();
+    const compare = this.compare();
     return d.labels.map((label, i) => ({
       label,
       temperature: formatTemp(d.temperatures[i]),
+      ...(compare ? { compare: formatTemp(compare.temperatures[i]) } : {}),
       precipitation: formatPrecip(d.precipitations[i]),
       ...(p !== null ? { kind: i >= p ? { chip: 'Vorhersage', variant: 'forecast' as const } : 'Rückblick' } : {}),
       ...(corrections ? { corrected: d.corrected?.[i] ? { chip: 'Korrigiert' } : null } : {}),
@@ -166,7 +199,8 @@ export class ClimateChartComponent {
       write: () => {
         const data = this.data();
         const prediction = this.predictionFrom();
-        untracked(() => this.render(data, prediction));
+        const compare = this.compare();
+        untracked(() => this.render(data, prediction, compare));
       },
     });
     inject(DestroyRef).onDestroy(() => {
@@ -175,20 +209,32 @@ export class ClimateChartComponent {
     });
   }
 
-  private render(data: ClimateChartDataset | null, prediction: number | null): void {
+  private render(data: ClimateChartDataset | null, prediction: number | null, compare: ClimateChartCompare | null): void {
     if (!data) {
       this.chart?.destroy();
       this.chart = null;
       return;
     }
     if (!this.chart) {
-      this.build(data);
+      this.build(data, compare);
       return;
     }
     // Daten an Ort und Stelle tauschen (V02, V23). Die Callbacks lesen predictionFrom() neu.
     this.chart.data.labels = [...data.labels];
     this.chart.data.datasets[0].data = [...data.precipitations];
     this.chart.data.datasets[1].data = [...data.temperatures];
+    // Vorjahreslinie (N06) als dritter Datensatz: hinzufügen, tauschen oder entfernen
+    const datasets = this.chart.data.datasets;
+    if (compare && this.colors) {
+      if (datasets.length > 2) {
+        datasets[2].data = [...compare.temperatures];
+        datasets[2].label = compare.label;
+      } else {
+        datasets.push(this.compareDataset(this.colors, compare));
+      }
+    } else if (datasets.length > 2) {
+      datasets.splice(2);
+    }
     this.applyLayout(this.chart, prediction);
     this.chart.update();
   }
@@ -204,6 +250,7 @@ export class ClimateChartComponent {
     return {
       temp: token('--chart-temp'),
       precip: token('--chart-precip'),
+      compare: token('--chart-compare'),
       band: token('--chart-forecast-band'),
       dash: token('--chart-forecast-dash').split(/\s+/).map(Number).filter(n => Number.isFinite(n) && n > 0),
       grid: token('--chart-grid'),
@@ -264,7 +311,30 @@ export class ClimateChartComponent {
     if (x?.ticks) x.ticks.maxTicksLimit = width < NARROW_WIDTH ? 6 : 31;
   }
 
-  private build(data: ClimateChartDataset): void {
+  /**
+   * Vorjahreslinie (N06, E3.8 Nr. 39): `--chart-compare`, 2 px, durchgehend gestrichelt, rechte Achse wie die
+   * Temperatur. Gezeichnet zwischen Balken und Temperaturlinie (`order`).
+   */
+  private compareDataset(c: ReturnType<ClimateChartComponent['readTokens']>, compare: ClimateChartCompare): ChartDataset<ChartKind, Values> {
+    return {
+      type: 'line',
+      label: compare.label,
+      data: [...compare.temperatures],
+      borderColor: c.compare,
+      backgroundColor: c.compare,
+      borderWidth: 2,
+      borderDash: c.dash.length ? c.dash : [6, 4],
+      pointRadius: (ctx: ScriptableContext<'line'>) => this.isIsolated(ctx.dataset.data as Values, ctx.dataIndex) ? 3 : 0,
+      pointHoverRadius: 4,
+      tension: 0.3,
+      fill: false,
+      spanGaps: false,
+      yAxisID: 'y2',
+      order: 1.5,
+    } as ChartDataset<ChartKind, Values>;
+  }
+
+  private build(data: ClimateChartDataset, compare: ClimateChartCompare | null): void {
     const canvas = this.canvasRef().nativeElement;
     if (!canvas.getContext('2d')) return;
 
@@ -312,6 +382,7 @@ export class ClimateChartComponent {
             yAxisID: 'y2',
             order: 1,
           },
+          ...(compare ? [this.compareDataset(c, compare)] : []),
         ],
       },
       options: {
@@ -336,7 +407,9 @@ export class ClimateChartComponent {
               },
               label: item => item.datasetIndex === 0
                 ? `Niederschlag: ${formatPrecip(item.parsed.y)}`
-                : `Temperatur: ${formatTemp(item.parsed.y)}`,
+                : item.datasetIndex === 2
+                  ? `Temperatur ${item.dataset.label ?? ''}: ${formatTemp(item.parsed.y)}`
+                  : `Temperatur: ${formatTemp(item.parsed.y)}`,
             },
           },
         },

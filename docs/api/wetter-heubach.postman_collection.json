@@ -2,7 +2,7 @@
   "info": {
     "name": "Wetter-Dashboard Heubach",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "API-Tests je Akzeptanzkriterium (03-zielbild.md B3.7), Stand Schritt 12a. Voraussetzung: ein eigener Nest auf einer eigenen Temp-DB (nicht auf der Sammel-DB), Konfiguration nur über Umgebungsvariablen (api/.env nicht nötig): NODE_ENV=development, DB_PATH=<Temp-DB, voller Pfad>, JWT_SECRET=<mindestens 32 Zeichen>, PORT (z. B. 3002), FAKE_NOW=2026-11-19T13:30:00Z und SCHEDULER_ENABLED=false (FAKE_NOW geht nur ohne Scheduler). Daten: in api/ npm run migration:run (legt auch die Migration CorrectionUser an, den Fremdschlüssel correction.corrected_by → user; ohne sie scheitern PATCH und Rücknahme), dann npm run cli -- import:legacy --dir <Kopie des Altbestands bis 19.11.2026 mit erhaltenen Zeitstempeln>, dann den Admin mit ADMIN_INITIAL_PASSWORD=<mindestens 12 Zeichen> npm run cli -- admin:create --username admin anlegen. Die Umgebung local nutzt http://localhost:3000/api; ein anderer Port wird mit --env-var baseUrl=... gesetzt. Passwort per --env-var adminPassword=... (kein Passwort im Repo). Für SEC-4/SEC-5 (Token ohne Rolle, 403) zusätzlich --env-var jwtSecret=<dasselbe JWT_SECRET wie Nest>; das Pre-request-Script signiert damit ein HS256-Token per CryptoJS. Ohne jwtSecret schlagen nur diese zwei Requests fehl (401 statt 403). Die Reihenfolge der Ordner ist wichtig (US07-2 vor US10, US11 nach US10). Frisch starten: Das Login-Limit (5 Versuche je 60 s und IP) zählt jede Anfrage an /auth/tokens, und das globale Limit (120 Anfragen je 60 s und IP) zählt alle Anfragen; ein Lauf bleibt mit rund 100 Requests darunter, ein zweiter Lauf direkt danach nicht. Den Test des globalen Limits (121. Anfrage → 429 mit Retry-After) deckt der e2e-Test ab, nicht Postman. Die Collection hat Bearer-Auth mit {{token}}; der Ordner US09 Anmelden speichert das Token, die Gast-Ordner US01-US07 und SEC haben noauth. Der Ordner US13 Korrektur ändert eine Stunde (10.11., 07:00 Uhr) und nimmt die Korrektur wieder zurück; der Wert ist danach wieder der alte, nur version und die Historie bleiben. Der range-Import über eine korrigierte Stunde (skippedCorrected = 1, R20) steht nicht in Postman, weil jeder Import den echten Open-Meteo-Dienst abruft; den deckt der e2e-Test ab. US13-1b setzt Cache-Control: max-age=0, weil Postman sonst no-cache sendet und Express dann kein 304 liefert. Der Ordner US09-7 mit den Fehlversuchen läuft zuletzt."
+    "description": "API-Tests je Akzeptanzkriterium (03-zielbild.md B3.7), Stand Schritt 12b. Voraussetzung: ein eigener Nest auf einer eigenen Temp-DB (nicht auf der Sammel-DB), Konfiguration nur über Umgebungsvariablen (api/.env nicht nötig): NODE_ENV=development, DB_PATH=<Temp-DB, voller Pfad>, JWT_SECRET=<mindestens 32 Zeichen>, PORT (z. B. 3002), FAKE_NOW=2026-11-19T13:30:00Z und SCHEDULER_ENABLED=false (FAKE_NOW geht nur ohne Scheduler). Daten: in api/ npm run migration:run (legt auch die Migration CorrectionUser an, den Fremdschlüssel correction.corrected_by → user; ohne sie scheitern PATCH und Rücknahme), dann npm run cli -- import:legacy --dir <Kopie des Altbestands bis 19.11.2026 mit erhaltenen Zeitstempeln>, dann den Admin mit ADMIN_INITIAL_PASSWORD=<mindestens 12 Zeichen> npm run cli -- admin:create --username admin anlegen. Die Umgebung local (mit -e, enthält adminUser) nutzt http://localhost:3000/api; ein anderer Port wird mit --env-var baseUrl=... gesetzt. Passwort per --env-var adminPassword=... (kein Passwort im Repo). Für SEC-4/SEC-5 (Token ohne Rolle, 403) zusätzlich --env-var jwtSecret=<dasselbe JWT_SECRET wie Nest>; das Pre-request-Script signiert damit ein HS256-Token per CryptoJS. Ohne jwtSecret schlagen nur diese zwei Requests fehl (401 statt 403). Die Reihenfolge der Ordner ist wichtig (US07-2 vor US10, US11 nach US10). Frisch starten: Das Login-Limit (5 Versuche je 60 s und IP) zählt jede Anfrage an /auth/tokens, und das globale Limit (120 Anfragen je 60 s und IP) zählt alle Anfragen; ein Lauf bleibt mit 106 Requests darunter, ein zweiter Lauf direkt danach nicht. Den Test des globalen Limits (121. Anfrage → 429 mit Retry-After) deckt der e2e-Test ab, nicht Postman. Die Collection hat Bearer-Auth mit {{token}}; der Ordner US09 Anmelden speichert das Token, die Gast-Ordner US01-US07 und SEC haben noauth. Der Ordner US13 Korrektur ändert eine Stunde (10.11., 07:00 Uhr) und nimmt die Korrektur wieder zurück; der Wert ist danach wieder der alte, nur version und die Historie bleiben. Der range-Import über eine korrigierte Stunde (skippedCorrected = 1, R20) steht nicht in Postman, weil jeder Import den echten Open-Meteo-Dienst abruft; den deckt der e2e-Test ab. US13-1b setzt Cache-Control: max-age=0, weil Postman sonst no-cache sendet und Express dann kein 304 liefert. Der Ordner US09-7 mit den Fehlversuchen läuft zuletzt."
   },
   "auth": {
     "type": "bearer",
@@ -1605,6 +1605,400 @@
               ],
               "path": [
                 "status"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "US18 Kenntage (Schritt 12b)",
+      "item": [
+        {
+          "name": "US18-1 Monat 2025-01: indicators vorhanden, Ganzzahlen, Niederschlags- + Trockentage = vollständige Tage",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200',()=>pm.response.to.have.status(200));",
+                  "const b=pm.response.json();",
+                  "pm.test('indicators: fünf Ganzzahlen >= 0',()=>{[\"frostDays\",\"iceDays\",\"summerDays\",\"hotDays\",\"precipitationDays\"].forEach(k=>{pm.expect(Number.isInteger(b.indicators[k]),k).to.eql(true);pm.expect(b.indicators[k],k).to.be.at.least(0);});});",
+                  "pm.test('precipitationDays + dryDays = daysComplete',()=>pm.expect(b.indicators.precipitationDays+b.dryDays).to.eql(b.daysComplete));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/summaries/months/2025-01",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "summaries",
+                "months",
+                "2025-01"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "US18-4 Kenntage Jahr 2025 = Summe der 12 Monate",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200',()=>pm.response.to.have.status(200));",
+                  "const y=pm.response.json();",
+                  "pm.sendRequest(pm.variables.replaceIn('{{baseUrl}}/summaries/months?year=2025'),(err,res)=>{",
+                  "pm.test('Monatsliste 200 mit 12 Einträgen',()=>{pm.expect(err).to.eql(null);pm.expect(res.code).to.eql(200);pm.expect(res.json().items.length).to.eql(12);});",
+                  "const items=res.json().items;",
+                  "pm.test('frostDays Jahr = Summe Monate',()=>pm.expect(y.indicators.frostDays).to.eql(items.reduce((s,m)=>s+m.indicators.frostDays,0)));",
+                  "pm.test('iceDays Jahr = Summe Monate',()=>pm.expect(y.indicators.iceDays).to.eql(items.reduce((s,m)=>s+m.indicators.iceDays,0)));",
+                  "pm.test('summerDays Jahr = Summe Monate',()=>pm.expect(y.indicators.summerDays).to.eql(items.reduce((s,m)=>s+m.indicators.summerDays,0)));",
+                  "pm.test('hotDays Jahr = Summe Monate',()=>pm.expect(y.indicators.hotDays).to.eql(items.reduce((s,m)=>s+m.indicators.hotDays,0)));",
+                  "pm.test('precipitationDays Jahr = Summe Monate',()=>pm.expect(y.indicators.precipitationDays).to.eql(items.reduce((s,m)=>s+m.indicators.precipitationDays,0)));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/summaries/years/2025",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "summaries",
+                "years",
+                "2025"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "US19 Zeitraum (Schritt 12b)",
+      "item": [
+        {
+          "name": "US19-1 2025-01-01..2025-11-18 → 200, 322 Tage, id",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200',()=>pm.response.to.have.status(200));",
+                  "const b=pm.response.json();",
+                  "pm.test('id und daysExpected',()=>{pm.expect(b.id).to.eql('2025-01-01..2025-11-18');pm.expect(b.daysExpected).to.eql(322);});",
+                  "pm.test('Form wie Jahreszusammenfassung',()=>{pm.expect(b).to.have.property('temperature');pm.expect(b).to.have.property('indicators');pm.expect(b).to.have.property('precipitationSum');});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/summaries/periods?from=2025-01-01&to=2025-11-18",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "summaries",
+                "periods"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "2025-01-01"
+                },
+                {
+                  "key": "to",
+                  "value": "2025-11-18"
+                }
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "US19-2 from = to → 200, daysExpected 1",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200',()=>pm.response.to.have.status(200));",
+                  "const b=pm.response.json();",
+                  "pm.test('daysExpected = 1',()=>pm.expect(b.daysExpected).to.eql(1));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/summaries/periods?from=2025-06-01&to=2025-06-01",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "summaries",
+                "periods"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "2025-06-01"
+                },
+                {
+                  "key": "to",
+                  "value": "2025-06-01"
+                }
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "US19-3 mehr als 366 Tage → 400 range_too_long an to",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400',()=>pm.response.to.have.status(400));",
+                  "const b=pm.response.json();",
+                  "pm.test('errors[0] = to / range_too_long',()=>{pm.expect(b.errors[0].field).to.eql('to');pm.expect(b.errors[0].code).to.eql('range_too_long');});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/summaries/periods?from=2025-01-01&to=2026-01-02",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "summaries",
+                "periods"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "2025-01-01"
+                },
+                {
+                  "key": "to",
+                  "value": "2026-01-02"
+                }
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "US19-4 from nach to → 400 to_before_from",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400',()=>pm.response.to.have.status(400));",
+                  "const b=pm.response.json();",
+                  "pm.test('errors[0] = to / to_before_from',()=>{pm.expect(b.errors[0].field).to.eql('to');pm.expect(b.errors[0].code).to.eql('to_before_from');});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/summaries/periods?from=2025-03-02&to=2025-03-01",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "summaries",
+                "periods"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "2025-03-02"
+                },
+                {
+                  "key": "to",
+                  "value": "2025-03-01"
+                }
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "US19-6 compare=previous → 400 unrecognized_keys",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400',()=>pm.response.to.have.status(400));",
+                  "const b=pm.response.json();",
+                  "pm.test('errors[0] = compare / unrecognized_keys',()=>{pm.expect(b.errors[0].field).to.eql('compare');pm.expect(b.errors[0].code).to.eql('unrecognized_keys');});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/summaries/periods?from=2025-01-01&to=2025-11-18&compare=previous",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "summaries",
+                "periods"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "2025-01-01"
+                },
+                {
+                  "key": "to",
+                  "value": "2025-11-18"
+                },
+                {
+                  "key": "compare",
+                  "value": "previous"
+                }
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "US19-R02 to in der Zukunft → 400 DATE_IN_FUTURE",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400',()=>pm.response.to.have.status(400));",
+                  "const b=pm.response.json();",
+                  "pm.test('code = DATE_IN_FUTURE',()=>pm.expect(b.code).to.eql('DATE_IN_FUTURE'));",
+                  "pm.test('errors[0].field = to',()=>pm.expect(b.errors[0].field).to.eql('to'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/summaries/periods?from=2026-11-01&to=2026-11-20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "summaries",
+                "periods"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "2026-11-01"
+                },
+                {
+                  "key": "to",
+                  "value": "2026-11-20"
+                }
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "US19-R03 2024-01-01..2024-11-18 ohne Daten → 404 NO_DATA",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404',()=>pm.response.to.have.status(404));",
+                  "const b=pm.response.json();",
+                  "pm.test('code = NO_DATA',()=>pm.expect(b.code).to.eql('NO_DATA'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/summaries/periods?from=2024-01-01&to=2024-11-18",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "summaries",
+                "periods"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "2024-01-01"
+                },
+                {
+                  "key": "to",
+                  "value": "2024-11-18"
+                }
               ]
             },
             "auth": {

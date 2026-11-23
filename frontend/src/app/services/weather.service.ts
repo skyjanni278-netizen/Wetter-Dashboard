@@ -2,7 +2,8 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import {
-  Day, DayList, ForecastList, Location, MonthSummary, MonthSummaryList, Records, Status, YearList, YearSummary,
+  Day, DayList, ForecastList, Location, MonthSummary, MonthSummaryList, PeriodSummary, Records, Status, YearList,
+  YearSummary,
 } from '../models/api';
 
 const API = '/api';
@@ -62,6 +63,14 @@ export class WeatherService {
   /** Neue API (Nest): Zusammenfassung eines Jahres `YYYY` (US05); ohne Daten 404 `NO_DATA`. */
   getYearSummary(year: string): Observable<YearSummary> {
     return this.http.get<YearSummary>(`${API}/summaries/years/${year}`);
+  }
+
+  /**
+   * Neue API (Nest, seit 12b): Zusammenfassung eines freien Zeitraums `from` bis `to` (`YYYY-MM-DD`, ≤ 366 Tage,
+   * R28) für den Vorjahresvergleich (R29); `to` nach heute → 400 `DATE_IN_FUTURE`, ohne Daten 404 `NO_DATA`.
+   */
+  getPeriod(from: string, to: string): Observable<PeriodSummary> {
+    return this.http.get<PeriodSummary>(`${API}/summaries/periods`, { params: { from, to } });
   }
 
   /** Neue API (Nest): Jahre mit Daten für die Jahresauswahl, aufsteigend (US04-8, F20). */

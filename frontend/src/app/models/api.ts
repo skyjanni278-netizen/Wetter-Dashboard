@@ -145,8 +145,20 @@ export interface DayList {
 /** R12: Monats- und Jahresmittel = Mittel der Tagesmittel vollständiger Tage. */
 export type MeanMethod = 'mean_of_daily_means';
 
+/**
+ * R27 (US18, seit Schritt 12b): Kenntage über die vollständigen Tage, Ganzzahlen ≥ 0 (ohne vollständigen Tag 0).
+ * `dryDays` steht oben in der Zusammenfassung; es gilt `precipitationDays + dryDays = daysComplete`.
+ */
+export interface SummaryIndicators {
+  frostDays: number;
+  iceDays: number;
+  summerDays: number;
+  hotDays: number;
+  precipitationDays: number;
+}
+
 /** Gemeinsame Felder der Zusammenfassungen (B2.2), Werte gerundet, nur vollständige Tage. */
-interface SummaryBase {
+export interface SummaryBase {
   locationId: number;
   daysExpected: number;
   daysComplete: number;
@@ -155,6 +167,8 @@ interface SummaryBase {
   temperature: DayTemperature;
   precipitationSum: number | null;
   dryDays: number;
+  /** Seit Schritt 12b (R27, US18). */
+  indicators: SummaryIndicators;
   meanMethod: MeanMethod;
 }
 
@@ -170,6 +184,16 @@ export interface YearSummary extends SummaryBase {
   id: string;
   year: number;
   monthsWithData: number;
+}
+
+/**
+ * `GET /api/summaries/periods?from&to` (R28, US19, seit Schritt 12b): freier Zeitraum (≤ 366 Tage) in der Form
+ * der Jahreszusammenfassung, `id = "{from}..{to}"`, dazu `from` und `to`. Ohne Daten 404 `NO_DATA`.
+ */
+export interface PeriodSummary extends SummaryBase {
+  id: string;
+  from: string;
+  to: string;
 }
 
 /** `GET /api/summaries/months?year=`: Monate des Jahres mit Daten, aufsteigend. */

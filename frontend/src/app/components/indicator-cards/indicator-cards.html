@@ -1,0 +1,12 @@
+<section class="kpi-section" aria-labelledby="indicators-title">
+  <h2 id="indicators-title">Kenntage</h2>
+  @if (hint(); as text) {
+    <p class="kpi-section-hint">{{ text }}</p>
+  }
+  <div class="kpi-grid">
+    @for (card of cards(); track card.kicker; let i = $index) {
+      <app-kpi-card [kicker]="card.kicker" [value]="card.value" [digits]="0" [meta]="card.definition"
+                    [busy]="busy()" [reveal]="true" [revealIndex]="revealIndex() + i" />
+    }
+  </div>
+</section>

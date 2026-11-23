@@ -36,6 +36,8 @@ function stubChart() {
   return { charts, configs, create };
 }
 
+const el = (fixture: { nativeElement: unknown }) => fixture.nativeElement as HTMLElement;
+
 async function create(inputs: Record<string, unknown>) {
   const fixture = TestBed.createComponent(ClimateChartComponent);
   for (const [key, value] of Object.entries(inputs)) fixture.componentRef.setInput(key, value);
@@ -129,6 +131,77 @@ describe('ClimateChartComponent', () => {
     expect(charts[0].destroy).not.toHaveBeenCalled();
     expect(charts[0].data.labels).toEqual(['1.', '2.', '3.']);
     expect(charts[0].data.datasets[1].data).toEqual([1, null, 3]);
+  });
+
+  describe('Vorjahreslinie (N06)', () => {
+    const MONTH: ClimateChartDataset = {
+      labels: ['1.', '2.', '3.'],
+      temperatures: [4, 5, null],
+      precipitations: [0, 1.2, null],
+      compare: { label: 'November 2025', temperatures: [3.5, null, 6] },
+    };
+
+    it('dritter Datensatz: Linie in --chart-compare, gestrichelt, rechte Achse, ohne Lücken zu überbrücken', async () => {
+      const { configs } = stubChart();
+      await create({ data: MONTH });
+      const datasets = configs[0].data.datasets as unknown as Record<string, unknown>[];
+      expect(datasets).toHaveLength(3);
+      const compare = datasets[2];
+      expect(compare['type']).toBe('line');
+      expect(compare['label']).toBe('November 2025');
+      expect(compare['data']).toEqual([3.5, null, 6]);
+      expect(compare['borderDash']).toEqual([6, 4]);
+      expect(compare['yAxisID']).toBe('y2');
+      expect(compare['spanGaps']).toBe(false);
+      // Die Temperaturlinie bleibt durchgehend (ohne Vorhersage)
+      const dash = (datasets[1]['segment'] as { borderDash: (ctx: { p1DataIndex: number }) => number[] | undefined }).borderDash;
+      expect(dash({ p1DataIndex: 2 })).toBeUndefined();
+    });
+
+    it('Legende, Tabelle, Kernaussage und aria-label nennen das Vorjahr (Textalternative)', async () => {
+      stubChart();
+      const { el } = await create({ data: MONTH, labelHeading: 'Tag', title: 'Klimadiagramm November 2026' });
+      const legend = Array.from(el.querySelectorAll('.chart-legend li')).map(li => li.textContent?.trim());
+      expect(legend).toEqual(['Temperatur (°C), Linie', 'Temperatur November 2025 (°C), gestrichelte Linie', 'Niederschlag (mm), Balken']);
+      expect(el.querySelector('.swatch-compare')?.getAttribute('aria-hidden')).toBe('true');
+      const heads = Array.from(el.querySelectorAll('thead th')).map(th => th.textContent?.trim());
+      expect(heads).toEqual(['Tag', 'Temperatur', 'Temperatur November 2025', 'Niederschlag']);
+      const rows = Array.from(el.querySelectorAll('tbody tr'));
+      expect(rows[0].querySelectorAll('td')[1].textContent?.trim()).toBe('3,5 °C');
+      expect(rows[1].querySelectorAll('td')[1].textContent?.trim()).toBe('–');
+      expect(el.querySelector('figcaption')?.textContent?.trim())
+        .toBe('Temperatur von 4,0 °C bis 5,0 °C, Niederschlag zusammen 1,2 mm. November 2025: Temperatur von 3,5 °C bis 6,0 °C.');
+      expect(el.querySelector('canvas')?.getAttribute('aria-label'))
+        .toContain('Temperatur als Linie, Temperatur November 2025 als gestrichelte Linie, Niederschlag als Balken');
+    });
+
+    it('Vergleich an und aus: Datensatz wird ergänzt bzw. entfernt, ohne Neuaufbau (V23)', async () => {
+      const { charts, create: createSpy } = stubChart();
+      const { fixture } = await create({ data: { ...MONTH, compare: undefined } });
+      expect(charts[0].data.datasets).toHaveLength(2);
+      fixture.componentRef.setInput('data', MONTH);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      expect(charts[0].data.datasets).toHaveLength(3);
+      expect(charts[0].data.datasets[2].data).toEqual([3.5, null, 6]);
+      fixture.componentRef.setInput('data', { ...MONTH, compare: { label: 'November 2025', temperatures: [1, 2, 3] } });
+      fixture.detectChanges();
+      await fixture.whenStable();
+      expect(charts[0].data.datasets[2].data).toEqual([1, 2, 3]);
+      fixture.componentRef.setInput('data', { ...MONTH, compare: undefined });
+      fixture.detectChanges();
+      await fixture.whenStable();
+      expect(charts[0].data.datasets).toHaveLength(2);
+      expect(createSpy).toHaveBeenCalledTimes(1);
+      expect(el(fixture).querySelectorAll('.chart-legend li')).toHaveLength(2);
+    });
+
+    it('Vorjahreswerte mit falscher Länge werden ignoriert', async () => {
+      const { configs } = stubChart();
+      const { el: host } = await create({ data: { ...MONTH, compare: { label: '2025', temperatures: [1] } } });
+      expect(configs[0].data.datasets).toHaveLength(2);
+      expect(host.querySelectorAll('thead th')).toHaveLength(3);
+    });
   });
 
   it('Zerstören räumt das Diagramm ab', async () => {

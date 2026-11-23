@@ -173,6 +173,7 @@
   --color-notice-bg: var(--dark-surface-hover);
   --color-skeleton: var(--dark-surface-hover);
   --color-focus: var(--dark-accent);   /* 5,61:1 auf #1B1F24, 4,83:1 auf #262B31 */
+  --chart-compare: var(--dark-text-subtle); /* Vorjahreslinie (N06), falls ein Diagramm im Dunkelbereich steht: 9,45:1 */
   background-color: var(--color-bg);
   color: var(--color-text);
 }

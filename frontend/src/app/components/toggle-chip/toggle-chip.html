@@ -1,0 +1,10 @@
+<button type="button" class="toggle-chip"
+        [attr.aria-pressed]="active() ? 'true' : 'false'"
+        [attr.aria-disabled]="disabled() ? 'true' : null"
+        [attr.aria-describedby]="describedBy()"
+        (click)="toggle()">
+  @if (active()) {
+    <span class="toggle-chip-check" aria-hidden="true">✓</span>
+  }
+  <ng-content />
+</button>

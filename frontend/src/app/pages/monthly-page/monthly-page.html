@@ -66,10 +66,19 @@
 
     @if (summary(); as s) {
       <div class="card-stack">
+        <!-- Vorjahresvergleich (N06, R29): Zustand in der URL (?vergleich=vorjahr), 404 → deaktiviert -->
+        <div class="compare-bar">
+          <app-toggle-chip [pressed]="compareRequested()" [disabled]="compareUnavailable()" describedBy="compare-hint"
+                           (pressedChange)="setCompare($event)">Vorjahr vergleichen</app-toggle-chip>
+          <p id="compare-hint" class="compare-hint" aria-live="polite">{{ compareHint() }}</p>
+        </div>
+
         <div class="kpi-grid">
           <app-kpi-card kicker="Ø Temperatur" [value]="s.temperature.mean" unit="°C"
+                        [meta]="compareTexts()?.temperature ?? null"
                         [busy]="loading()" [reveal]="true" />
           <app-kpi-card kicker="Gesamtniederschlag" [value]="s.precipitationSum" unit="mm"
+                        [meta]="compareTexts()?.precipitation ?? null"
                         [busy]="loading()" [reveal]="true" [revealIndex]="1" />
           <app-kpi-card kicker="Vollständige Tage" [value]="s.daysComplete" [digits]="0"
                         [meta]="'von ' + s.daysExpected + ' Tagen'"
@@ -81,6 +90,9 @@
             <app-climate-chart [title]="'Klimadiagramm ' + headline()" [data]="chart" labelHeading="Tag" />
           </app-card>
         }
+
+        <!-- Kenntage (N05, R27): nur vollständige Tage -->
+        <app-indicator-cards [summary]="s" [busy]="loading()" [revealIndex]="4" />
       </div>
     }
   </div>
