@@ -38,7 +38,7 @@ Stand: 19.11.2026 · Grundlage: `01-analyse.md` (F01–F34, S1–S12, Abschnitt 
 | 11 | Rollen, RolesGuard, `.env`, sichere Grundeinstellungen, Admin-Bereich | L | 10 | ✅ erledigt (`907f868`) |
 | 12a | Must: N01, N03, N04 | M | 11 | ✅ erledigt (`1bf0a42`) |
 | 12b | Should: N05, N06 | M | 12a | ✅ erledigt (`5b90f21`) |
-| 12c | Could: N07 | S | 12b | offen |
+| 12c | Could: N07 | S | 12b | ✅ erledigt (`86efe7a`) |
 | 13 | Optional: WebSockets, Templates, Events (Entscheidung) | S | 12c | offen |
 | 14 | Tests, Barrierefreiheit, Deployment auf den Pi, Dokumentation | L | 13 | offen |
 
@@ -783,6 +783,19 @@ Danach:
 **Aufwand:** M · **Größtes Risiko:** Ein Vergleich unvollständiger mit vollständigen Zeiträumen. R29 vergleicht deshalb immer gleiche Kalendertage bis gestern.
 
 ### 12c – Could: N07
+
+> **Status:** ✅ Erledigt am 23.11.2026. 734 Unit- und 232 e2e-Tests in `api/`, 651 Frontend-Tests, newman 109 Requests / 283 Assertions grün. axe meldet auf `/` und `/tag/…` keine Verstöße. Die Migrationen `NoticeThreshold` (CHECKs, UNIQUE) und `Hinweisschwellen` (Daten, idempotent) sind auf einer DB mit Daten geprüft, `revert` funktioniert. Die Schwellen aus R30 hat der User am 23.11.2026 bestätigt.
+>
+> **Entscheidungen:**
+> - Kein Link zum DWD (in 02/03 nicht vorgesehen).
+> - Der Wortlaut für Hitze und Starkregen folgt dem Muster von Frost.
+> - `value` wird mit `round1` gerundet, der Vergleich läuft ungerundet.
+> - Die Box hat keine `role`.
+> - `/api/notices` sendet `Cache-Control: no-cache` (B4.5 nennt nur `/forecasts` und `/status`).
+>
+> **Offen:**
+> - −0,04 °C ergibt einen Frost-Hinweis mit „0,0 °C“ (R30 ungerundet).
+> - Hinweise und Vorschau werden nur beim Laden der Seite geholt.
 
 **Bezug:** US20-1 bis -6 · R30, R31
 
