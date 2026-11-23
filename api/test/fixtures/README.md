@@ -8,6 +8,8 @@ FAKE_NOW=2026-11-19T13:30:00Z node dist/main.js
 curl -s http://127.0.0.1:3000/api/days/today
 ```
 
+Für Fixtures mit Korrekturen: `DEV_ADMIN_PASSWORD=<mindestens 12 Zeichen> npm run db:seed -- --fixture us06-corrected`.
+
 Abweichung beim Seed: Importe mit `kind` `legacy`/`scheduled` werden als `range` angelegt. Diese Arten kennzeichnen gesammelte Daten, und der nächste `db:seed`/`db:reset` würde sich sonst verweigern; für `updateState` (R25) zählt `range` gleich. Fixtures ohne Import (`us06-records`, `us02-dst`) bekommen einen Import `range` mit `finishedAt` = `fakeNow`, weil jede Stunde einen Import braucht (`observation.import_id`).
 
 Die e2e-Tests laden die Dateien mit `loadFixture(<name>)` und schreiben sie mit `seedApp` (`test/support/seed.ts`, also `applySeed` wie `db:seed`) in ihre `:memory:`-Datenbank (seit Schritt 9b).
@@ -24,6 +26,7 @@ Geprüft beim Start mit `FixtureSchema` (Zod, `.strict()`, `api/src/fixtures/fix
 | `observations[]` | Stunden mit `timeUtc` (volle UTC-Stunde), den sechs Werten (`number` oder `null`) und `source` (`archive`, `forecast_api`, `prediction`). Der Berliner Tag und die Ortszeit ergeben sich über BerlinTime |
 | `imports[]` | abgeschlossene Importe (`kind`, `status`, `from`, `to`, `requestedAt`, `startedAt`, `finishedAt`); IDs ab 1 in dieser Reihenfolge |
 | `forecast` | Tagesvorhersage `{ fetchedAt, days[] }` oder `null` |
+| `corrections[]` | optional (seit Schritt 12a): schon durchgeführte Korrekturen `{ timeUtc, field, oldValue, newValue, reason, correctedAt }`; `field` in API-Schreibweise (`temperature`, `windSpeed` …). Der Wert in `observations[]` ist der korrigierte (`newValue`). Der Seed legt je Eintrag eine Zeile in `correction` an (`corrected_by` = erster Admin der DB) und setzt `corrected_at` der Stunde. Ohne Admin-Konto bricht der Seed ohne Änderung ab; `db:seed` legt den Dev-Admin deshalb **vor** den Daten an (`DEV_ADMIN_PASSWORD`) |
 
 Die Dateien erzeugt ein einmaliges Skript; Änderungen von Hand sind erlaubt, solange das Schema gilt (`npx jest src/fixtures`).
 
@@ -38,3 +41,4 @@ Alle Fixtures sind für `FAKE_NOW=2026-11-19T13:30:00Z` (14:30 MEZ, wie 03 B1.2)
 | `us20-frost` | 240 | Stunden und Import wie `us16-ok`; Vorhersage mit Frost am 21.11. (`minTemp = -2.3`, `maxTemp = 2.4`), sonst keine Schwelle aus R30 erreicht | US20-1/-6 (Hinweise kommen in Schritt 12; hier nur die Daten) |
 | `us06-records` | 288 | 29./30.06.2026 nass; 01.–03.07. trocken; **04.07. fehlt**; 05.–08.07. trocken; 09.07. 12,3 mm; 10.07. 1,5 mm. Stunde A 02.07. 15:00 = 30,04 °C, Stunde B 06.07. 16:00 = 30,03 °C. Heute 19.11.: 00–14 Uhr vergangen (Minimum 3,2 °C um 06:00), ab 15:00 `prediction` mit 35 °C (16:00), 50 mm (17:00) und −5 °C (23:00). Keine Importe, keine Vorhersage | US06-2 (`hottest.value = 30.0`, Datum von A), US06-3 (`longestDryPeriod.days = 4`, 05.–08.07.), US06-4 (Vorhersage ignoriert: `coldest` = 3,2 °C, `wettestDay` = 12,3 mm), `daysCounted = 11` |
 | `us02-dst` | 48 | 29.03.2026 mit 23 Stunden (ohne 02:00) und 25.10.2026 mit 25 Stunden (02:00 doppelt), beide vollständig (`archive`) | US02-6/-7 (`hoursExpected = 23`/`25`) |
+| `us06-corrected` | 240 | wie `us16-ok`, dazu zwei Korrekturen: 19.11. 14:00 MEZ Temperatur 19,6 → 9,6 °C (wie US13-2, `correctedAt` 13:20:00Z) und 18.11. 06:00 MEZ 1,0 → −1,5 °C (13:22:00Z); diese Stunde ist danach die kälteste. **Braucht `DEV_ADMIN_PASSWORD`** (Konto für `corrected_by`) | US06-7 (`coldest.corrected = true`, `hottest.corrected = false`, Chip an der Rekordkarte), US13-12 (`/tag/2026-11-19`, Chip an 14:00; Liste mit `hasCorrections`), US13-14 (`/admin/korrektur`, zwei Einträge am 19.11.), US13-16 (Rücknahme im Browser) |

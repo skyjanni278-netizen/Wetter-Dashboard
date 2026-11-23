@@ -1,5 +1,6 @@
 import { Check, Column, Entity, Index, JoinColumn, ManyToOne, PrimaryGeneratedColumn, Unique } from 'typeorm';
 import { utcTransformer } from '../database/utc.transformer';
+import { User } from '../users/user.entity';
 import { Observation } from './observation.entity';
 
 /** Korrigierbare Felder in der Schreibweise der DB (03 B2.2: die API nutzt camelCase, der Mapper setzt um). */
@@ -14,9 +15,10 @@ export const CORRECTION_FIELDS = [
 export type CorrectionField = (typeof CORRECTION_FIELDS)[number];
 
 /**
- * Tabelle `correction` (03 B2.3, B2.6): Korrekturhistorie einer Stunde. Die Tabelle entsteht in Schritt 9,
- * genutzt wird sie ab Schritt 12a. `corrected_by` bekommt seinen Fremdschlüssel auf `user` mit der
- * Anmeldung (Schritt 10). Eine Korrektur wird höchstens einmal zurückgenommen (`UNIQUE(reverts_correction_id)`, R33).
+ * Tabelle `correction` (03 B2.3, B2.6): Korrekturhistorie einer Stunde (N03, Schritt 12a). Ein Eintrag je
+ * geändertem Feld; eine Rücknahme ist ein eigener Eintrag mit `reverts_correction_id` (R33). Eine Korrektur
+ * wird höchstens einmal zurückgenommen (`UNIQUE(reverts_correction_id)`). `corrected_by` zeigt seit der
+ * Migration `CorrectionUser` (Schritt 12a) per Fremdschlüssel auf `user` (RESTRICT: die Historie bleibt).
  */
 @Entity({ name: 'correction' })
 @Unique('UQ_correction_reverts', ['revertsCorrectionId'])
@@ -48,6 +50,10 @@ export class Correction {
 
   @Column({ name: 'corrected_by', type: 'integer' })
   correctedBy!: number;
+
+  @ManyToOne(() => User, { nullable: false, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'corrected_by', foreignKeyConstraintName: 'FK_correction_user' })
+  user?: User;
 
   @Column({ name: 'corrected_at', type: 'text', transformer: utcTransformer })
   correctedAt!: string;

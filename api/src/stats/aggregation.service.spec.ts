@@ -14,6 +14,7 @@ function utcHours(startUtc: string, count: number, valueOf: (i: number) => Value
   return Array.from({ length: count }, (_, i) => {
     const instant = new Date(start + i * HOUR_MS);
     return {
+      id: i + 1,
       timeLocal: localDateTime(instant),
       timeUtc: instant.toISOString().replace('.000Z', 'Z'),
       temperature: 10,
@@ -23,6 +24,7 @@ function utcHours(startUtc: string, count: number, valueOf: (i: number) => Value
       windSpeed: 12,
       windDirection: 220,
       source: 'archive' as ObservationSource,
+      correctedAt: null,
       ...valueOf(i),
     };
   });
@@ -31,6 +33,7 @@ function utcHours(startUtc: string, count: number, valueOf: (i: number) => Value
 /** 24 Stunden eines Tages im Altbestand (nur Ortszeit, Herkunft unbekannt). */
 function legacyHours(date: string, valueOf: (hour: number) => Values = () => ({})): ObservationHour[] {
   return Array.from({ length: 24 }, (_, hour) => ({
+    id: hour + 1,
     timeLocal: `${date}T${String(hour).padStart(2, '0')}:00`,
     timeUtc: null,
     temperature: 10,
@@ -40,6 +43,7 @@ function legacyHours(date: string, valueOf: (hour: number) => Values = () => ({}
     windSpeed: 12,
     windDirection: 220,
     source: null,
+    correctedAt: null,
     ...valueOf(hour),
   }));
 }

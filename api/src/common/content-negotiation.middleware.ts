@@ -9,10 +9,13 @@ import { ApiException } from './api.exception';
 /** Medientypen, die `Accept` erlauben muss, damit die API antwortet (nur JSON, 03 B3.2). */
 const ACCEPTABLE_RANGES = new Set(['application/json', 'application/*', '*/*']);
 
-/** Erlaubter Body je Methode (B3.2: POST `application/json`, PATCH `application/merge-patch+json`). */
-const BODY_TYPES: Record<string, string> = {
-  POST: 'application/json',
-  PATCH: 'application/merge-patch+json',
+/**
+ * Erlaubte Body-Typen je Methode (B3.2): POST `application/json`; PATCH `application/merge-patch+json`
+ * (RFC 7396) oder `application/json` (Schritt 12a, 04 Roadmap: beide mit derselben Merge-Patch-Bedeutung).
+ */
+const BODY_TYPES: Record<string, readonly string[]> = {
+  POST: ['application/json'],
+  PATCH: ['application/merge-patch+json', 'application/json'],
 };
 
 /** Medientyp ohne Parameter, klein geschrieben (`application/json; charset=utf-8` → `application/json`). */
@@ -51,8 +54,8 @@ export function contentNegotiationError(method: string, headers: IncomingHttpHea
   const expected = BODY_TYPES[method.toUpperCase()];
   if (expected !== undefined && hasBody(headers)) {
     const contentType = headers['content-type'];
-    if (contentType === undefined || mediaTypeOf(contentType) !== expected) {
-      return new ApiException(415, 'UNSUPPORTED_MEDIA_TYPE', `Der Body muss ${expected} sein.`);
+    if (contentType === undefined || !expected.includes(mediaTypeOf(contentType))) {
+      return new ApiException(415, 'UNSUPPORTED_MEDIA_TYPE', `Der Body muss ${expected.join(' oder ')} sein.`);
     }
   }
   return null;

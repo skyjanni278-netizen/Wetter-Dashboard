@@ -1,10 +1,9 @@
 import { z } from 'zod';
+import { PAGE_QUERY_FIELDS } from '../../common/dto/page-query.schema';
 import { IMPORT_KINDS, IMPORT_STATUSES } from '../import';
 
-/** Standard und Grenzen der Pagination (R24). */
-export const DEFAULT_PAGE = 1;
-export const DEFAULT_LIMIT = 20;
-export const MAX_LIMIT = 100;
+/** Standard und Grenzen der Pagination (R24); seit Schritt 12a gemeinsam mit `/corrections`. */
+export { DEFAULT_LIMIT, DEFAULT_PAGE, MAX_LIMIT } from '../../common/dto/page-query.schema';
 
 /**
  * Query von `GET /api/imports?status&kind&page&limit` (US11-2/-4, R24). `.strict()` (R22, auch kein
@@ -21,19 +20,7 @@ export const ImportsQuerySchema = z
       .enum(IMPORT_KINDS, { error: `Erlaubt sind nur die Arten ${IMPORT_KINDS.join(', ')}.` })
       .optional()
       .describe('Nur Importe dieser Art'),
-    page: z.coerce
-      .number({ error: 'Die Seite muss eine ganze Zahl ab 1 sein.' })
-      .int({ error: 'Die Seite muss eine ganze Zahl ab 1 sein.' })
-      .min(1, { error: 'Die Seite muss eine ganze Zahl ab 1 sein.' })
-      .default(DEFAULT_PAGE)
-      .describe(`Seite ab 1 (Standard ${DEFAULT_PAGE})`),
-    limit: z.coerce
-      .number({ error: `Das Limit muss eine ganze Zahl von 1 bis ${MAX_LIMIT} sein.` })
-      .int({ error: `Das Limit muss eine ganze Zahl von 1 bis ${MAX_LIMIT} sein.` })
-      .min(1, { error: `Das Limit muss eine ganze Zahl von 1 bis ${MAX_LIMIT} sein.` })
-      .max(MAX_LIMIT, { error: `Das Limit muss eine ganze Zahl von 1 bis ${MAX_LIMIT} sein.` })
-      .default(DEFAULT_LIMIT)
-      .describe(`Einträge je Seite, 1 bis ${MAX_LIMIT} (Standard ${DEFAULT_LIMIT})`),
+    ...PAGE_QUERY_FIELDS,
   })
   .strict();
 

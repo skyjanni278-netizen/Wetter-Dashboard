@@ -42,13 +42,16 @@ export class ImportsService implements OnApplicationBootstrap {
   /**
    * Legt den Auftrag mit `queued` an und startet ihn danach (`setImmediate`), ohne darauf zu warten.
    * Form, Reihenfolge und Spanne (R18) prüft vorher `ImportCreateSchema`; hier R02: `to` nach dem
-   * Berliner Heute → 400 `DATE_IN_FUTURE` am Feld `to` (US10-5). `overwriteCorrections` wird bis zu
-   * den Korrekturen (Schritt 12a) angenommen, aber als `false` gespeichert.
+   * Berliner Heute → 400 `DATE_IN_FUTURE` am Feld `to` (US10-5). `overwriteCorrections` (R20, fehlt =
+   * `false`) wird gespeichert und gilt im Lauf; `requestedBy` ist das Konto aus dem Token (`sub`).
    */
-  async create(input: ImportCreateDto): Promise<ImportRecord> {
+  async create(input: ImportCreateDto, requestedBy: number): Promise<ImportRecord> {
     assertNotInFuture('to', input.to, localDate(this.clock.now()));
     try {
-      return await this.start(input.kind, input.from, input.to);
+      return await this.start(input.kind, input.from, input.to, {
+        overwriteCorrections: input.overwriteCorrections ?? false,
+        requestedBy,
+      });
     } catch (error) {
       if (error instanceof ImportAlreadyRunningError) {
         throw ApiException.importRunning(error.runningImportId);
@@ -61,20 +64,26 @@ export class ImportsService implements OnApplicationBootstrap {
    * Für den `SchedulerService` (US08): legt einen Import `kind = "scheduled"` an und startet ihn wie
    * `create`. Über HTTP ist `scheduled` nicht erlaubt (`ImportCreateSchema`). Läuft schon ein Import,
    * wirft der Store `ImportAlreadyRunningError` (R19); der Aufrufer entscheidet, was dann geschieht.
+   * `requestedBy = null` (System), korrigierte Stunden bleiben (R20).
    */
   async createScheduled(from: string, to: string): Promise<ImportRecord> {
-    return this.start('scheduled', from, to);
+    return this.start('scheduled', from, to, { overwriteCorrections: false, requestedBy: null });
   }
 
   /** Auftrag `queued` anlegen (R19 prüft der Store beim Anlegen), danach den Lauf anstoßen. */
-  private async start(kind: ImportKind, from: string, to: string): Promise<ImportRecord> {
+  private async start(
+    kind: ImportKind,
+    from: string,
+    to: string,
+    options: { overwriteCorrections: boolean; requestedBy: number | null },
+  ): Promise<ImportRecord> {
     const record = await this.store.create({
       locationId: HEUBACH.id,
       kind,
       from,
       to,
-      overwriteCorrections: false,
-      requestedBy: null,
+      overwriteCorrections: options.overwriteCorrections,
+      requestedBy: options.requestedBy,
       requestedAt: formatUtc(this.clock.now()),
       counts: emptyCounts(),
       warnings: [],

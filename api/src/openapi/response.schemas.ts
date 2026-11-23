@@ -10,6 +10,8 @@ import type { ImportList, ImportResource } from '../imports/import';
 import type { Location } from '../locations/location';
 import { GAP_REASONS } from '../observations/gap';
 import type { GapList } from '../observations/gap';
+import type { CorrectionHistory, CorrectionList } from '../observations/correction';
+import type { ObservationResource } from '../observations/observation-resource';
 import type { Records } from '../records/record';
 import type { Status } from '../status/status';
 import type { MonthSummary, MonthSummaryList, YearList, YearSummary } from '../summaries/summary';
@@ -24,7 +26,7 @@ import type { UserResource } from '../users/user';
 
 const ymd = () => z.string().describe('Berliner Kalendertag YYYY-MM-DD');
 const utc = () => z.string().describe('UTC-Zeitpunkt YYYY-MM-DDTHH:MM:SSZ');
-const localTime = () => z.string().describe('Berliner Ortszeit ohne Offset, z. B. 2026-11-19T14:00 (bis Schritt 9)');
+const localTime = () => z.string().describe('Berliner Ortszeit ohne Offset, z. B. 2026-11-19T14:00 (Altformat, Befund Z1)');
 const num = () => z.number().nullable();
 
 export const ApiFieldErrorSchema = z.object({
@@ -80,7 +82,7 @@ export const DaySchema = z.object({
   hoursObserved: z.number().int(),
   hoursPredicted: z.number().int(),
   complete: z.boolean(),
-  current: z.object({ observationId: z.number().int().nullable(), timeLocal: localTime() }).nullable(),
+  current: z.object({ observationId: z.number().int(), timeLocal: localTime() }).nullable(),
   observed: z.object({
     temperature: DayTemperatureSchema,
     precipitationSum: num(),
@@ -92,6 +94,7 @@ export const DaySchema = z.object({
   }),
   hours: z.array(
     z.object({
+      id: z.number().int().describe('observation.id (GET/PATCH /api/observations/{id})'),
       timeLocal: localTime(),
       temperature: num(),
       apparentTemperature: num(),
@@ -101,7 +104,7 @@ export const DaySchema = z.object({
       windDirection: num(),
       source: SourceSchema,
       isPrediction: z.boolean(),
-      correctedAt: z.string().nullable(),
+      correctedAt: utc().nullable().describe('Zeitpunkt der wirksamen Korrektur oder null'),
     }),
   ),
 });
@@ -118,7 +121,7 @@ export const DayListSchema = z.object({
       temperature: z.object({ mean: num(), min: num(), max: num() }),
       precipitationSum: num(),
       isDryDay: z.boolean().nullable(),
-      hasCorrections: z.boolean(),
+      hasCorrections: z.boolean().describe('mindestens eine Stunde mit wirksamer Korrektur (US13-12)'),
     }),
   ),
   meta: z.object({ from: ymd(), to: ymd(), count: z.number().int() }),
@@ -176,8 +179,8 @@ const HourRecordSchema = z.object({
   value: num(),
   timeLocal: localTime(),
   date: ymd(),
-  observationId: z.number().int().nullable(),
-  corrected: z.boolean(),
+  observationId: z.number().int(),
+  corrected: z.boolean().describe('Rekordstunde hat eine wirksame Korrektur (US06-7)'),
 });
 
 export const RecordsSchema = z.object({
@@ -197,7 +200,62 @@ export const StatusSchema = z.object({
   dataFrom: ymd().nullable(),
   dataTo: ymd().nullable(),
   lastSuccessfulUpdateAt: utc().nullable(),
-  updateState: z.enum(['never', 'ok', 'delayed']),
+  nextScheduledUpdateAt: utc().nullable().describe('nächster stündlicher Abruf; null bei abgeschaltetem Scheduler'),
+  updateState: z.enum(['never', 'ok', 'delayed']).describe('R25: ok bis 2 h nach dem letzten erfolgreichen Import'),
+  daysWithData: z.number().int().describe('Tage mit mindestens einer Stunde von dataFrom bis heute'),
+  daysComplete: z.number().int().describe('vollständige Tage (R13) von dataFrom bis heute'),
+  gapCount: z.number().int().describe('R26: zusammenhängende Lücken von dataFrom bis heute'),
+});
+
+const FieldNameSchema = z.enum(['temperature', 'apparentTemperature', 'precipitation', 'weatherCode', 'windSpeed', 'windDirection']);
+
+/** `GET /api/observations/{id}` (B2.2 „observation“), Antwort auch von PATCH und Rücknahme. */
+export const ObservationResourceSchema = z.object({
+  id: z.number().int(),
+  locationId: z.number().int(),
+  timeUtc: utc(),
+  timeLocal: z.string().describe('Berliner Ortszeit mit Offset, z. B. 2026-11-19T14:00:00+01:00'),
+  localDate: ymd(),
+  temperature: num(),
+  apparentTemperature: num(),
+  precipitation: num(),
+  weatherCode: num(),
+  windSpeed: num(),
+  windDirection: num(),
+  source: z.enum(['archive', 'forecast_api', 'prediction']),
+  isPrediction: z.boolean(),
+  importId: z.number().int(),
+  fetchedAt: utc(),
+  correctedAt: utc().nullable(),
+  version: z.number().int().describe('gleich dem ETag'),
+});
+
+const correctionFields = {
+  field: FieldNameSchema,
+  oldValue: num(),
+  newValue: num(),
+  reason: z.string(),
+  correctedBy: z.number().int().describe('Konto (user.id) aus dem Token'),
+  correctedAt: utc(),
+  revertsCorrectionId: z.number().int().nullable().describe('bei einer Rücknahme die id der zurückgenommenen Korrektur (R33)'),
+};
+
+/** `GET /api/observations/{id}/corrections` (B2.2 „correction“). */
+export const CorrectionHistorySchema = z.object({
+  items: z.array(z.object({ id: z.number().int(), observationId: z.number().int(), ...correctionFields })),
+});
+
+/** `GET /api/corrections` (B2.2 „corrections“). */
+export const CorrectionListSchema = z.object({
+  items: z.array(
+    z.object({
+      id: z.number().int(),
+      observationId: z.number().int(),
+      observationTimeLocal: z.string().describe('Berliner Ortszeit der Stunde mit Offset'),
+      ...correctionFields,
+    }),
+  ),
+  meta: z.object({ page: z.number().int(), limit: z.number().int(), total: z.number().int() }),
 });
 
 export const ImportResourceSchema = z.object({
@@ -281,4 +339,7 @@ export type ResponseSchemaChecks = [
   Assert<Equals<z.infer<typeof HealthSchema>, Health>>,
   Assert<Equals<z.infer<typeof TokenResponseSchema>, TokenResponse>>,
   Assert<Equals<z.infer<typeof UserResourceSchema>, UserResource>>,
+  Assert<Equals<z.infer<typeof ObservationResourceSchema>, ObservationResource>>,
+  Assert<Equals<z.infer<typeof CorrectionHistorySchema>, CorrectionHistory>>,
+  Assert<Equals<z.infer<typeof CorrectionListSchema>, CorrectionList>>,
 ];

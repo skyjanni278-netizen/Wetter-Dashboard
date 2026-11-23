@@ -112,10 +112,12 @@ export class ImportRunner {
       return { status: 'failed', error: toImportError(error) };
     }
 
-    // Upsert in Blöcken zu 500 Zeilen in einer Transaktion (TypeORM-Store); R20: korrigierte Stunden bleiben.
+    // Upsert in Blöcken zu 500 Zeilen in einer Transaktion (TypeORM-Store); R20: korrigierte Stunden bleiben,
+    // außer der Auftrag verlangt `overwriteCorrections`.
     const counts = await this.observations.upsertHours(hours, {
       mode: record.kind === 'gaps' ? 'insertMissing' : 'upsert',
       importId: record.id,
+      overwriteCorrections: record.overwriteCorrections,
     });
 
     // 2. Tagesvorhersage getrennt: ein Fehler macht den Import nur `partial` (US08-2, F01).

@@ -51,10 +51,14 @@ describe('ContentNegotiationMiddleware (B3.2: 406 und 415)', () => {
     expect(contentNegotiationError('GET', { 'content-type': 'text/plain', 'content-length': '3' })).toBeNull();
   });
 
-  it('PATCH verlangt application/merge-patch+json', () => {
+  it('PATCH verlangt application/merge-patch+json oder application/json (Schritt 12a), sonst 415', () => {
     const headers = { 'content-length': '2' };
-    expect(contentNegotiationError('PATCH', { ...headers, 'content-type': 'application/json' })?.payload.statusCode).toBe(415);
     expect(contentNegotiationError('PATCH', { ...headers, 'content-type': 'application/merge-patch+json' })).toBeNull();
+    expect(contentNegotiationError('PATCH', { ...headers, 'content-type': 'application/json; charset=utf-8' })).toBeNull();
+    const plain = contentNegotiationError('PATCH', { ...headers, 'content-type': 'text/plain' });
+    expect(plain?.payload).toMatchObject({ statusCode: 415, code: 'UNSUPPORTED_MEDIA_TYPE' });
+    expect(plain?.payload.message).toBe('Der Body muss application/merge-patch+json oder application/json sein.');
+    expect(contentNegotiationError('PATCH', headers)?.payload.statusCode).toBe(415);
   });
 
   it('use: reicht den Fehler an next weiter, sonst next() ohne Argument', () => {

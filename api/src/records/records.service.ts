@@ -17,8 +17,8 @@ function toHourRecord(record: HourRecord | null): HourRecordResource | null {
     value: round1(record.value),
     timeLocal: record.timeLocal,
     date: record.date,
-    observationId: null,
-    corrected: false,
+    observationId: record.hour.id,
+    corrected: record.hour.correctedAt !== null,
   };
 }
 

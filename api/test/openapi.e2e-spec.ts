@@ -27,10 +27,24 @@ const EXPECTED_PATHS: Record<string, string[]> = {
   '/api/health': ['get'],
   '/api/auth/tokens': ['post'],
   '/api/auth/me': ['get'],
+  '/api/observations/{id}': ['get', 'patch'],
+  '/api/observations/{id}/corrections': ['get'],
+  '/api/observations/{id}/corrections/{correctionId}/reversal': ['post'],
+  '/api/corrections': ['get'],
 };
 
-/** Geschützte Operationen (ohne `@Public()`, Schritt 10): Schloss `bearer` und 401 in der Doku. */
-const PROTECTED = ['get /api/imports', 'post /api/imports', 'get /api/imports/{id}', 'get /api/gaps', 'get /api/auth/me'];
+/** Geschützte Operationen (ohne `@Public()`, Schritt 10, 12a): Schloss `bearer` und 401 in der Doku. */
+const PROTECTED = [
+  'get /api/imports',
+  'post /api/imports',
+  'get /api/imports/{id}',
+  'get /api/gaps',
+  'get /api/auth/me',
+  'patch /api/observations/{id}',
+  'get /api/observations/{id}/corrections',
+  'post /api/observations/{id}/corrections/{correctionId}/reversal',
+  'get /api/corrections',
+];
 
 /** App wie `main.ts` mit leerer Datenbank (`:memory:`, Schema über die Migrationen). */
 async function start(env: Record<string, string | undefined>) {
@@ -125,6 +139,42 @@ describe('OpenAPI (B3.7) mit SWAGGER_ENABLED=true', () => {
     expect(login.properties.username).toMatchObject({ type: 'string', minLength: 3, maxLength: 50 });
     const token = doc.paths['/api/auth/tokens'].post.responses['200'].content['application/json'].schema;
     expect(Object.keys(token.properties)).toEqual(['accessToken', 'tokenType', 'expiresIn', 'user']);
+  });
+
+  it('Schritt 12a: ETag in der Antwort, If-Match als Pflicht-Header, Merge-Patch-Body, 409/412/428 dokumentiert', () => {
+    const get = doc.paths['/api/observations/{id}'].get;
+    expect(get.responses['200'].headers.ETag).toMatchObject({ schema: { type: 'string' } });
+    const patch = doc.paths['/api/observations/{id}'].patch;
+    expect(patch.parameters).toEqual(
+      expect.arrayContaining([expect.objectContaining({ in: 'header', name: 'If-Match', required: true })]),
+    );
+    expect(Object.keys(patch.requestBody.content).sort()).toEqual(['application/json', 'application/merge-patch+json']);
+    const body = patch.requestBody.content['application/merge-patch+json'].schema;
+    expect(body).toMatchObject({ type: 'object', required: ['reason'], additionalProperties: false });
+    expect(body.properties.temperature).toMatchObject({ minimum: -50, maximum: 50, multipleOf: 0.1, nullable: true });
+    expect(Object.keys(patch.responses)).toEqual(expect.arrayContaining(['200', '400', '404', '409', '412', '415', '428']));
+    expect(patch.responses['200'].headers.ETag).toBeDefined();
+    const reversal = doc.paths['/api/observations/{id}/corrections/{correctionId}/reversal'].post;
+    expect(reversal.parameters.map((p: any) => [p.in, p.name, p.required])).toEqual(
+      expect.arrayContaining([
+        ['path', 'id', true],
+        ['path', 'correctionId', true],
+        ['header', 'If-Match', true],
+      ]),
+    );
+    expect(Object.keys(reversal.responses)).toEqual(expect.arrayContaining(['200', '409', '412', '428']));
+    expect(reversal.responses['201']).toBeUndefined();
+    const corrections = doc.paths['/api/corrections'].get.parameters;
+    expect(corrections.map((p: any) => [p.name, p.required])).toEqual([
+      ['from', true],
+      ['to', true],
+      ['page', false],
+      ['limit', false],
+    ]);
+    const status = doc.paths['/api/status'].get.responses['200'].content['application/json'].schema;
+    expect(Object.keys(status.properties)).toEqual(
+      expect.arrayContaining(['nextScheduledUpdateAt', 'daysWithData', 'daysComplete', 'gapCount']),
+    );
   });
 
   it('GET /api/docs/ mit Accept: text/html → 200 HTML, kein 406 (B3.1)', async () => {

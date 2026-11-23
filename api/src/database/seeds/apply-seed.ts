@@ -4,13 +4,30 @@ import { formatUtc } from '../../common/utc';
 import type { Fixture } from '../../fixtures/fixture';
 import type { ImportKind } from '../../imports/import';
 import { HEUBACH } from '../../locations/location';
+import { CORRECTION_COLUMNS } from '../../observations/correction';
 
 export interface SeedSummary {
   name: string;
   observations: number;
   imports: number;
   forecastDays: number;
+  /** Einträge in `correction` (Schritt 12a, Fixtures mit `corrections`). */
+  corrections: number;
   days: string[];
+}
+
+/** Konto für `correction.corrected_by` (FK auf `user`): der erste Admin; ohne Konto gibt es keine Korrekturen. */
+async function correctionAuthor(manager: EntityManager, seed: Fixture): Promise<number> {
+  const [row]: { id: number }[] = await manager.query(
+    `SELECT "u"."id" FROM "user" "u" JOIN "user_role" "ur" ON "ur"."user_id" = "u"."id"
+     JOIN "role" "r" ON "r"."id" = "ur"."role_id" WHERE "r"."name" = 'admin' ORDER BY "u"."id" LIMIT 1`,
+  );
+  if (!row) {
+    throw new Error(
+      `Die Fixture "${seed.name}" enthält Korrekturen; dafür braucht die DB ein Admin-Konto (DEV_ADMIN_PASSWORD setzen oder npm run cli -- admin:create).`,
+    );
+  }
+  return row.id;
 }
 
 /**
@@ -35,7 +52,9 @@ async function clearData(manager: EntityManager): Promise<void> {
  * Schreibt einen Seed (Dev-Seed oder Fixture) in die Datenbank, in **einer** Transaktion: erst alle Daten
  * löschen (der Standort bleibt), dann Importe, Stunden und Vorhersage anlegen. Die Stunden übernehmen `source`
  * aus der Datei (auch `prediction`) und hängen am letzten Import; ohne Import der Datei entsteht ein Import
- * `range`. Den Schutz der gesammelten Daten prüft der Aufrufer vorher (`assertMayDeleteData`).
+ * `range`. Korrekturen der Fixture (Schritt 12a) brauchen ein Admin-Konto in der DB (`corrected_by`, FK auf
+ * `user`); fehlt es, bricht der Seed ohne Änderung ab. Den Schutz der gesammelten Daten prüft der Aufrufer vorher
+ * (`assertMayDeleteData`).
  */
 export async function applySeed(dataSource: DataSource, seed: Fixture, now: Date): Promise<SeedSummary> {
   const nowText = formatUtc(now);
@@ -99,6 +118,32 @@ export async function applySeed(dataSource: DataSource, seed: Fixture, now: Date
       );
     }
 
+    // Schritt 12a: schon durchgeführte Korrekturen (Wert in `observations[]` = `newValue`), in zeitlicher Reihenfolge.
+    const corrections = [...(seed.corrections ?? [])].sort((a, b) => a.correctedAt.localeCompare(b.correctedAt));
+    if (corrections.length > 0) {
+      const author = await correctionAuthor(manager, seed);
+      for (const correction of corrections) {
+        const [observation]: { id: number }[] = await manager.query(
+          `UPDATE "observation" SET "corrected_at" = ?, "version" = "version" + 1 WHERE "location_id" = ? AND "time_utc" = ? RETURNING "id"`,
+          [correction.correctedAt, HEUBACH.id, correction.timeUtc],
+        );
+        if (!observation) throw new Error(`Korrektur der Fixture "${seed.name}": keine Stunde ${correction.timeUtc}.`);
+        await manager.query(
+          `INSERT INTO "correction" ("observation_id", "field", "old_value", "new_value", "reason", "corrected_by", "corrected_at")
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [
+            observation.id,
+            CORRECTION_COLUMNS[correction.field],
+            correction.oldValue,
+            correction.newValue,
+            correction.reason,
+            author,
+            correction.correctedAt,
+          ],
+        );
+      }
+    }
+
     for (const day of seed.forecast?.days ?? []) {
       await manager.query(
         `INSERT INTO "daily_forecast" ("location_id", "date", "max_temp", "min_temp", "precipitation_sum", "weather_code", "fetched_at", "import_id")
@@ -112,6 +157,7 @@ export async function applySeed(dataSource: DataSource, seed: Fixture, now: Date
       observations: seed.observations.length,
       imports: imports.length,
       forecastDays: seed.forecast?.days.length ?? 0,
+      corrections: corrections.length,
       days: [...days].sort(),
     };
   });

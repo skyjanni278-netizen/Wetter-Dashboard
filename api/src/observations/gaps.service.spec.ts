@@ -12,6 +12,7 @@ function day(date: string, startUtc: string, count: number, edit: (i: number, h:
   for (let i = 0; i < count; i++) {
     const timeUtc = new Date(Date.parse(startUtc) + i * HOUR_MS).toISOString().replace('.000Z', 'Z');
     const hour: ObservationHour = {
+      id: i + 1,
       timeLocal: '',
       timeUtc,
       temperature: 5,
@@ -21,6 +22,7 @@ function day(date: string, startUtc: string, count: number, edit: (i: number, h:
       windSpeed: 10,
       windDirection: 200,
       source: 'forecast_api',
+      correctedAt: null,
     };
     const edited = edit(i, hour);
     if (edited) hours.push(edited);

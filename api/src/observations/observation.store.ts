@@ -14,6 +14,11 @@ export interface UpsertOptions {
   mode: UpsertMode;
   /** Import, der die Stunden liefert (in Schritt 9 Spalte `import_id`). */
   importId: number;
+  /**
+   * R20: `true` überschreibt auch korrigierte Stunden und setzt dabei `corrected_at = NULL`; die Einträge in
+   * `correction` bleiben. Fehlt = `false` (korrigierte Stunden zählen als `skippedCorrected`).
+   */
+  overwriteCorrections?: boolean;
 }
 
 /**

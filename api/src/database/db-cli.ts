@@ -61,12 +61,12 @@ async function main(): Promise<number> {
     if (args.command === 'seed') {
       const seed = await runSeed({ dbPath, fixture: args.fixture, force: args.force, env });
       console.log(`db:seed: ${label} in ${dbPath}: ${seed.observations} Stunden, ${seed.imports} Import(e), ` +
-        `${seed.forecastDays} Vorhersagetag(e); Tage ${seed.days[0] ?? '-'} bis ${seed.days[seed.days.length - 1] ?? '-'}`);
+        `${seed.forecastDays} Vorhersagetag(e), ${seed.corrections} Korrektur(en); Tage ${seed.days[0] ?? '-'} bis ${seed.days[seed.days.length - 1] ?? '-'}`);
       console.log(`db:seed: ${describeDevAdmin(seed.devAdmin)}`);
     } else {
       const result = await runReset({ dbPath, fixture: args.fixture, force: args.force, env });
       console.log(`db:reset: Sicherung ${result.backupPath ?? '(keine, Datei gab es nicht)'}`);
-      console.log(`db:reset: ${dbPath} neu angelegt, Migrationen ausgeführt, ${label}: ${result.seed.observations} Stunden, ` +
+      console.log(`db:reset: ${dbPath} neu angelegt, Migrationen ausgeführt, ${label}: ${result.seed.observations} Stunden, ${result.seed.corrections} Korrektur(en), ` +
         `Tage ${result.seed.days[0] ?? '-'} bis ${result.seed.days[result.seed.days.length - 1] ?? '-'}`);
       console.log(`db:reset: ${describeDevAdmin(result.seed.devAdmin)}`);
     }

@@ -1,5 +1,5 @@
 import { applyDecorators } from '@nestjs/common';
-import { ApiBearerAuth, ApiBody, ApiParam, ApiQuery, ApiResponse } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiHeader, ApiParam, ApiQuery, ApiResponse } from '@nestjs/swagger';
 import type { SchemaObject } from '@nestjs/swagger';
 import { z } from 'zod';
 import { statusText } from '../common/api-error';
@@ -65,9 +65,34 @@ export function ApiZodBody(schema: z.ZodType, description?: string): MethodDecor
   return ApiBody({ schema: toOpenApiSchema(schema, 'input'), description });
 }
 
-/** Erfolgsantwort mit dem Schema der Antwort (Zod, `io: "output"`). */
-export function ApiZodResponse(status: number, schema: z.ZodType, description: string): MethodDecorator {
-  return ApiResponse({ status, description, schema: toOpenApiSchema(schema, 'output') });
+/**
+ * Erfolgsantwort mit dem Schema der Antwort (Zod, `io: "output"`); optional mit Antwort-Headern
+ * (Name → Beschreibung, z. B. `ETag`, Schritt 12a).
+ */
+export function ApiZodResponse(
+  status: number,
+  schema: z.ZodType,
+  description: string,
+  headers?: Record<string, string>,
+): MethodDecorator {
+  return ApiResponse({
+    status,
+    description,
+    schema: toOpenApiSchema(schema, 'output'),
+    ...(headers
+      ? { headers: Object.fromEntries(Object.entries(headers).map(([name, text]) => [name, { description: text, schema: { type: 'string' } }])) }
+      : {}),
+  });
+}
+
+/** Pflicht-Header `If-Match` (R17, B3.4): ohne → 428, veraltet → 412. */
+export function ApiIfMatch(): MethodDecorator {
+  return ApiHeader({
+    name: 'If-Match',
+    required: true,
+    description: 'ETag der zuletzt gelesenen Fassung, z. B. "3" (aus GET /api/observations/{id}). Fehlt → 428, veraltet → 412',
+    schema: { type: 'string', example: '"3"' },
+  });
 }
 
 /**

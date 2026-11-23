@@ -114,11 +114,17 @@ describe('Schritt 11: Rollen, RolesGuard, Grundeinstellungen', () => {
       const admins = discovered.filter(r => r.roles.length > 0).map(r => `${r.route} ${r.roles.join(',')}`);
       expect(admins).toEqual([
         'GET /api/auth/me admin',
+        'GET /api/corrections admin',
         'GET /api/gaps admin',
         'GET /api/imports admin',
         'GET /api/imports/:id admin',
+        'GET /api/observations/:id/corrections admin',
+        'PATCH /api/observations/:id admin',
         'POST /api/imports admin',
+        'POST /api/observations/:id/corrections/:correctionId/reversal admin',
       ]);
+      // Schritt 12a: GET /api/observations/:id ist öffentlich (03 B4.7, nötig für das ETag).
+      expect(discovered.find(r => r.route === 'GET /api/observations/:id')).toMatchObject({ isPublic: true, roles: [] });
     });
 
     it('Gegenprobe: ein Controller ohne Dekorator wird gemeldet und liefert 403 (auch mit Admin-Token), einer mit beiden ebenso gemeldet', async () => {

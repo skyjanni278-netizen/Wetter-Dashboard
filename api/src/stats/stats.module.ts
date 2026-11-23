@@ -14,10 +14,13 @@ import { RevisionCache } from './revision-cache';
  * Berechnete Ressourcen (03 B4.1): `days`, `summaries` und `records`. Liest nur über den exportierten
  * `ObservationStore`; alle Fachregeln (R06–R14) liegen im `AggregationService`. Die Dateien der
  * Ressourcen liegen in `src/days/`, `src/summaries/` und `src/records/`, das Modul und die Regeln in `src/stats/`.
+ * Exportiert `AggregationService` und `RevisionCache` für das `StatusModule` (`daysComplete`, US17-1); das
+ * `StatsModule` kennt das `StatusModule` nicht (03 B4.1).
  */
 @Module({
   imports: [CommonModule, ObservationsModule],
   controllers: [DaysController, SummariesController, RecordsController],
   providers: [AggregationService, RevisionCache, DaysService, SummariesService, RecordsService],
+  exports: [AggregationService, RevisionCache],
 })
 export class StatsModule {}

@@ -287,6 +287,9 @@ describe('Schritt 10: Login, JWT, JwtAuthGuard (US09, US10-1, US11-5, US12-4)', 
     '/api/imports/:id': '/api/imports/1',
     '/api/locations': '/api/locations',
     '/api/locations/:id': '/api/locations/1',
+    '/api/observations/:id': '/api/observations/1',
+    '/api/observations/:id/corrections': '/api/observations/1/corrections',
+    '/api/corrections': '/api/corrections?from=2026-11-01&to=2026-11-19',
     '/api/records': '/api/records',
     '/api/status': '/api/status',
     '/api/summaries/months': '/api/summaries/months?year=2026',
@@ -294,7 +297,14 @@ describe('Schritt 10: Login, JWT, JwtAuthGuard (US09, US10-1, US11-5, US12-4)', 
     '/api/summaries/years': '/api/summaries/years',
     '/api/summaries/years/:year': '/api/summaries/years/2026',
   };
-  const PROTECTED_GET = ['/api/auth/me', '/api/gaps', '/api/imports', '/api/imports/:id'];
+  const PROTECTED_GET = [
+    '/api/auth/me',
+    '/api/gaps',
+    '/api/imports',
+    '/api/imports/:id',
+    '/api/observations/:id/corrections',
+    '/api/corrections',
+  ];
 
   it('jede registrierte GET-Route: Gast-Routen ohne Token erreichbar, geschützte nur mit Token; keine Antwort enthält „password“', async () => {
     const token = (await login({ username: 'admin', password: PASSWORD }).expect(200)).body.accessToken as string;

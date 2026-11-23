@@ -50,7 +50,7 @@ describe('Fachregeln und berechnete Felder (Schritt 7, e2e mit Fixtures und Fixe
         hoursObserved: 15,
         hoursPredicted: 9,
         complete: false,
-        current: { observationId: null, timeLocal: '2026-11-19T14:00' },
+        current: { observationId: expect.any(Number), timeLocal: '2026-11-19T14:00' },
         observed: {
           temperature: { mean: 9, min: 8.4, max: 9.8, minAt: '2026-11-19T06:00', maxAt: '2026-11-19T13:00' },
           precipitationSum: 0.4,
@@ -63,6 +63,8 @@ describe('Fachregeln und berechnete Felder (Schritt 7, e2e mit Fixtures und Fixe
         '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00', '23:00',
       ]);
       expect(hours[15]).toMatchObject({ source: 'prediction', isPrediction: true, correctedAt: null });
+      // Schritt 12a: current.observationId ist die id der Stunde 14:00 aus hours[].
+      expect(res.body.current.observationId).toBe((res.body.hours as { id: number }[])[14].id);
     });
 
     it('US01-6: current zeigt auf die Stunde 14:00 mit den Werten aus hours[]', async () => {
@@ -164,13 +166,21 @@ describe('Fachregeln und berechnete Felder (Schritt 7, e2e mit Fixtures und Fixe
       const res = await request(h.app.getHttpServer()).get('/api/records').expect(200);
       expect(res.body).toEqual({
         locationId: 1,
-        hottest: { value: 30, timeLocal: '2026-07-02T15:00', date: '2026-07-02', observationId: null, corrected: false },
-        coldest: { value: 3.2, timeLocal: '2026-11-19T06:00', date: '2026-11-19', observationId: null, corrected: false },
+        hottest: { value: 30, timeLocal: '2026-07-02T15:00', date: '2026-07-02', observationId: expect.any(Number), corrected: false },
+        coldest: { value: 3.2, timeLocal: '2026-11-19T06:00', date: '2026-11-19', observationId: expect.any(Number), corrected: false },
         wettestDay: { value: 12.3, date: '2026-07-09' },
         longestDryPeriod: { days: 4, from: '2026-07-05', to: '2026-07-08' },
         daysCounted: 11,
         excludesPredictions: true,
       });
+    });
+
+    it('Schritt 12a: observationId der Rekorde zeigt auf die Rekordstunde (GET /api/observations/:id)', async () => {
+      const records = (await request(h.app.getHttpServer()).get('/api/records').expect(200)).body;
+      const hottest = await request(h.app.getHttpServer()).get(`/api/observations/${records.hottest.observationId}`).expect(200);
+      expect(hottest.body).toMatchObject({ timeLocal: '2026-07-02T15:00:00+02:00', temperature: 30.04, correctedAt: null });
+      const coldest = await request(h.app.getHttpServer()).get(`/api/observations/${records.coldest.observationId}`).expect(200);
+      expect(coldest.body).toMatchObject({ timeLocal: '2026-11-19T06:00:00+01:00', temperature: 3.2 });
     });
 
     it('US06-6: GET /api/records?year=2025 → 400 unrecognized_keys an year', async () => {

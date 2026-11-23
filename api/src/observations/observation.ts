@@ -29,6 +29,8 @@ export type ObservationSource = 'archive' | 'forecast_api' | 'prediction';
 
 /** Gespeicherte Stunde eines Berliner Kalendertags. */
 export interface ObservationHour extends ObservationValues {
+  /** `observation.id` (Schritt 12a: `hours[].id`, `current.observationId`, `hottest/coldest.observationId`). */
+  id: number;
   /** Berliner Ortszeit ohne Offset, z. B. `2026-11-10T14:00` (Form des Altbestands, Befund Z1). */
   timeLocal: string;
   /** UTC-Zeitpunkt `YYYY-MM-DDTHH:MM:SSZ`; `null` bei Stunden aus dem Altbestand (nur Ortszeit bekannt). */
@@ -39,6 +41,11 @@ export interface ObservationHour extends ObservationValues {
    * Änderungszeit der Datei.
    */
   source: ObservationSource | null;
+  /**
+   * Zeitpunkt der wirksamen Korrektur (UTC) oder `null` (nie korrigiert, zurückgenommen oder durch einen Import
+   * mit `overwriteCorrections` ersetzt; R20, R33).
+   */
+  correctedAt: string | null;
 }
 
 /** Eingabe eines Imports: Zeitpunkt immer in UTC (03 B2.6, `timezone=GMT`). */

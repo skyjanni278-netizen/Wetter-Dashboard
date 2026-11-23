@@ -21,7 +21,7 @@ export function toDay(day: DayAggregate): Day {
     hoursObserved: day.hoursObserved,
     hoursPredicted: day.hoursPredicted,
     complete: day.complete,
-    current: day.current ? { observationId: null, timeLocal: day.current.timeLocal } : null,
+    current: day.current ? { observationId: day.current.id, timeLocal: day.current.timeLocal } : null,
     observed: {
       temperature: toDayTemperature(day.observed.temperature),
       precipitationSum: round1(day.observed.precipitationSum),
@@ -32,6 +32,7 @@ export function toDay(day: DayAggregate): Day {
       precipitationSum: round1(day.predicted.precipitationSum),
     },
     hours: day.hours.map(({ hour, isPrediction }) => ({
+      id: hour.id,
       timeLocal: hour.timeLocal,
       temperature: hour.temperature,
       apparentTemperature: hour.apparentTemperature,
@@ -41,7 +42,7 @@ export function toDay(day: DayAggregate): Day {
       windDirection: hour.windDirection,
       source: hour.source,
       isPrediction,
-      correctedAt: null,
+      correctedAt: hour.correctedAt,
     })),
   };
 }
@@ -59,6 +60,6 @@ export function toDayListItem(day: DayAggregate): DayListItem {
     temperature: { mean: round1(t.mean), min: round1(t.min), max: round1(t.max) },
     precipitationSum: round1(day.observed.precipitationSum),
     isDryDay: day.observed.isDryDay,
-    hasCorrections: false,
+    hasCorrections: day.hours.some(({ hour }) => hour.correctedAt !== null),
   };
 }

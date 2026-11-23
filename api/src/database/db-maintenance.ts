@@ -76,8 +76,9 @@ export async function runSeed(options: MaintenanceOptions): Promise<SeedResult> 
       throw new Error('Es gibt offene Migrationen. Zuerst npm run migration:run.');
     }
     await assertMayDeleteData(dataSource, { ...options, action: 'db:seed' });
-    const summary = await applySeed(dataSource, seed, now);
-    return { ...summary, devAdmin: await seedDevAdmin(dataSource, adminPassword, now) };
+    // Der Dev-Admin zuerst: Korrekturen einer Fixture brauchen ein Konto (`correction.corrected_by`, Schritt 12a).
+    const devAdmin = await seedDevAdmin(dataSource, adminPassword, now);
+    return { ...(await applySeed(dataSource, seed, now)), devAdmin };
   } finally {
     await dataSource.destroy();
   }
@@ -115,8 +116,8 @@ export async function runReset(options: MaintenanceOptions): Promise<ResetResult
   const fresh = await open(options.dbPath);
   try {
     await fresh.runMigrations({ transaction: 'each' });
-    const summary = await applySeed(fresh, seed, now);
-    return { backupPath, seed: { ...summary, devAdmin: await seedDevAdmin(fresh, adminPassword, now) } };
+    const devAdmin = await seedDevAdmin(fresh, adminPassword, now);
+    return { backupPath, seed: { ...(await applySeed(fresh, seed, now)), devAdmin } };
   } finally {
     await fresh.destroy();
   }

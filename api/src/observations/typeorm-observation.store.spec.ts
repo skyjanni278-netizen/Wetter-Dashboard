@@ -74,6 +74,51 @@ describe('TypeOrmObservationStore (SQLite :memory:, Migrationen wie im Betrieb)'
       expect(await storedRow(dataSource, '2026-11-10T00:00:00Z')).toMatchObject({ temperature: 9.9, version: 1 });
     });
 
+    it('R20: overwriteCorrections = true überschreibt korrigierte Stunden (auch mit gleichen Werten), corrected_at = NULL', async () => {
+      await store.upsertHours(hours('2026-11-09T23:00:00Z', 3), { mode: 'upsert', importId });
+      await dataSource.query(
+        `UPDATE "observation" SET "corrected_at" = '2026-11-20T11:00:00Z', "temperature" = 9.9 WHERE "time_utc" IN ('2026-11-09T23:00:00Z', '2026-11-10T00:00:00Z')`,
+      );
+      clock.set('2026-11-20T13:00:00Z');
+      // Stunde 0 kommt mit dem korrigierten Wert, Stunde 1 mit einem anderen, Stunde 2 ist nicht korrigiert und gleich.
+      const counts = await store.upsertHours(hours('2026-11-09T23:00:00Z', 3, i => (i === 0 ? { temperature: 9.9 } : {})), {
+        mode: 'upsert',
+        importId,
+        overwriteCorrections: true,
+      });
+      expect(counts).toEqual({ inserted: 0, updated: 2, unchanged: 1, skippedCorrected: 0 });
+      expect(await storedRow(dataSource, '2026-11-09T23:00:00Z')).toMatchObject({ temperature: 9.9, corrected_at: null, version: 2 });
+      expect(await storedRow(dataSource, '2026-11-10T00:00:00Z')).toMatchObject({
+        corrected_at: null,
+        version: 2,
+        updated_at: '2026-11-20T13:00:00Z',
+      });
+      expect((await storedRow(dataSource, '2026-11-10T00:00:00Z'))?.temperature).not.toBe(9.9);
+      expect(await storedRow(dataSource, '2026-11-10T01:00:00Z')).toMatchObject({ corrected_at: null, version: 1 });
+    });
+
+    it('R20: gaps-Import mit overwriteCorrections ersetzt eine korrigierte Lücke (null), ohne den Schalter nicht', async () => {
+      await store.upsertHours(hours('2026-11-09T23:00:00Z', 2), { mode: 'upsert', importId });
+      await dataSource.query(`UPDATE "observation" SET "corrected_at" = '2026-11-20T11:00:00Z', "temperature" = NULL WHERE "time_utc" = '2026-11-09T23:00:00Z'`);
+      const input = hours('2026-11-09T23:00:00Z', 2);
+      expect(await store.upsertHours(input, { mode: 'insertMissing', importId })).toMatchObject({ updated: 0, skippedCorrected: 1 });
+      expect(await store.upsertHours(input, { mode: 'insertMissing', importId, overwriteCorrections: true })).toMatchObject({
+        updated: 1,
+        unchanged: 1,
+        skippedCorrected: 0,
+      });
+      expect(await storedRow(dataSource, '2026-11-09T23:00:00Z')).toMatchObject({ corrected_at: null, version: 2 });
+      expect((await storedRow(dataSource, '2026-11-09T23:00:00Z'))?.temperature).not.toBeNull();
+    });
+
+    it('getDay liefert id und correctedAt je Stunde (Schritt 12a)', async () => {
+      await store.upsertHours(hours('2026-11-09T23:00:00Z', 2), { mode: 'upsert', importId });
+      await dataSource.query(`UPDATE "observation" SET "corrected_at" = '2026-11-20T11:00:00Z' WHERE "time_utc" = '2026-11-10T00:00:00Z'`);
+      const [first, second] = (await store.getDay('2026-11-10'))!;
+      expect(first).toMatchObject({ id: expect.any(Number), correctedAt: null });
+      expect(second).toMatchObject({ id: first.id + 1, correctedAt: '2026-11-20T11:00:00Z' });
+    });
+
     it('R08: Stunde nach dem Schreibzeitpunkt → prediction; später als Messwert → updated, auch mit gleichen Werten', async () => {
       const today = hours('2026-11-20T11:00:00Z', 3); // 11:00Z vergangen, 12:00Z = jetzt (vergangen), 13:00Z Zukunft
       await store.upsertHours(today, { mode: 'upsert', importId });

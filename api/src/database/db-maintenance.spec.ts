@@ -150,6 +150,22 @@ describe('db:seed und db:reset (03 B4.4, Schutz der gesammelten Daten)', () => {
       expect(await count(dbPath, 'user')).toBe(1);
     });
 
+    it('Schritt 12a: Fixture us06-corrected mit Admin → 2 Einträge in correction, corrected_at gesetzt; ohne Konto Abbruch ohne Änderung', async () => {
+      await runReset({ dbPath, force: false, env: {}, now: NOW });
+      const before = await count(dbPath, 'observation');
+      await expect(runSeed({ dbPath, fixture: 'us06-corrected', force: false, env: {}, now: NOW })).rejects.toThrow(/Admin-Konto/);
+      expect(await count(dbPath, 'observation')).toBe(before);
+      expect(await count(dbPath, 'correction')).toBe(0);
+
+      const seed = await runSeed({ dbPath, fixture: 'us06-corrected', force: false, env, now: NOW });
+      expect(seed).toMatchObject({ name: 'us06-corrected', observations: 240, corrections: 2, devAdmin: { status: 'created' } });
+      expect(await count(dbPath, 'correction', `"corrected_by" = 1 AND "field" = 'temperature'`)).toBe(2);
+      expect(await count(dbPath, 'observation', `"corrected_at" IS NOT NULL AND "version" = 2`)).toBe(2);
+      // Ein neuer Seed löscht die Korrekturen mit (Tabelle correction zuerst, Fremdschlüssel).
+      await runSeed({ dbPath, fixture: 'us16-ok', force: false, env, now: NOW });
+      expect(await count(dbPath, 'correction')).toBe(0);
+    });
+
     it('DEV_ADMIN_PASSWORD kürzer als 12 Zeichen → Abbruch vor jeder Änderung', async () => {
       await createDb(dbPath, 'range');
       await expect(runSeed({ dbPath, force: false, env: { DEV_ADMIN_PASSWORD: 'kurz' }, now: NOW })).rejects.toThrow(/DEV_ADMIN_PASSWORD.*12 Zeichen/);

@@ -48,6 +48,7 @@ const INSERT_COLUMNS = [
 
 /** Rohe Zeile aus SQL (snake_case wie die Tabelle). */
 interface HourRow {
+  id: number;
   local_date: string;
   time_utc: string;
   temperature: number | null;
@@ -57,9 +58,6 @@ interface HourRow {
   wind_speed: number | null;
   wind_direction: number | null;
   source: ObservationSource;
-}
-
-interface ExistingRow extends HourRow {
   corrected_at: string | null;
 }
 
@@ -74,7 +72,7 @@ interface WriteRow {
   fetchedAt: string;
 }
 
-const SELECT_HOUR = `"local_date", "time_utc", ${VALUE_COLUMNS.map(c => `"${c}"`).join(', ')}, "source"`;
+const SELECT_HOUR = `"id", "local_date", "time_utc", ${VALUE_COLUMNS.map(c => `"${c}"`).join(', ')}, "source", "corrected_at"`;
 
 /** „Werte unterscheiden sich“ (R20): null-sicherer Vergleich mit `IS NOT`. */
 const VALUES_DIFFER = VALUE_COLUMNS.map(c => `"observation"."${c}" IS NOT excluded."${c}"`).join(' OR ');
@@ -85,32 +83,43 @@ const PREDICTION_CHANGES = `("observation"."source" = 'prediction') <> (excluded
 /** Eine vorhandene Stunde, die selbst eine Lücke ist (wie `GapsService`: `null` bei Temperatur oder Niederschlag). */
 const HAS_NULL_VALUES = `("observation"."temperature" IS NULL OR "observation"."precipitation" IS NULL)`;
 
+/** Eine korrigierte Stunde (R20). */
+const IS_CORRECTED = `"observation"."corrected_at" IS NOT NULL`;
+
 /**
- * Bedingung für `DO UPDATE … WHERE` je Art (R20: korrigierte Stunden nie):
+ * Bedingung für `DO UPDATE … WHERE` je Art:
  * - `upsert` (`range`, `scheduled`): Werte oder Vorhersage-Eigenschaft unterscheiden sich,
  * - `insertMissing` (`gaps`): nur Stunden, die selbst eine Lücke sind: veraltete Vorhersage, die jetzt als
  *   Messwert kommt (R08), oder `null` bei Temperatur/Niederschlag mit neuen Werten.
+ *
+ * R20: Ohne `overwriteCorrections` nie eine korrigierte Stunde. Mit `overwriteCorrections` gilt die Bedingung
+ * der Art auch für korrigierte Stunden; bei `upsert` wird zusätzlich jede korrigierte Stunde des Zeitraums
+ * überschrieben (auch mit gleichen Werten), damit `corrected_at` danach `NULL` ist.
  */
-const UPDATE_CONDITION: Record<UpsertMode, string> = {
-  upsert: `"observation"."corrected_at" IS NULL AND (${VALUES_DIFFER} OR ${PREDICTION_CHANGES})`,
-  insertMissing:
-    `"observation"."corrected_at" IS NULL AND ((("observation"."source" = 'prediction') AND excluded."source" <> 'prediction')` +
-    ` OR (${HAS_NULL_VALUES} AND (${VALUES_DIFFER})))`,
-};
+function updateCondition(mode: UpsertMode, overwriteCorrections: boolean): string {
+  const changed =
+    mode === 'upsert'
+      ? `(${VALUES_DIFFER} OR ${PREDICTION_CHANGES})`
+      : `((("observation"."source" = 'prediction') AND excluded."source" <> 'prediction') OR (${HAS_NULL_VALUES} AND (${VALUES_DIFFER})))`;
+  if (!overwriteCorrections) return `NOT ${IS_CORRECTED} AND ${changed}`;
+  return mode === 'upsert' ? `(${IS_CORRECTED} OR ${changed})` : changed;
+}
 
-function upsertSql(rowCount: number, mode: UpsertMode): string {
+function upsertSql(rowCount: number, mode: UpsertMode, overwriteCorrections: boolean): string {
   const row = `(${INSERT_COLUMNS.map(() => '?').join(', ')})`;
   const set = [
     ...VALUE_COLUMNS.map(c => `"${c}" = excluded."${c}"`),
     `"source" = excluded."source"`,
     `"import_id" = excluded."import_id"`,
     `"fetched_at" = excluded."fetched_at"`,
+    // R20: Die Korrektur ist durch den Import ersetzt; die Historie in `correction` bleibt.
+    ...(overwriteCorrections ? [`"corrected_at" = NULL`] : []),
     `"updated_at" = excluded."updated_at"`,
     `"version" = "observation"."version" + 1`,
   ].join(', ');
   return (
     `INSERT INTO "observation" (${INSERT_COLUMNS.map(c => `"${c}"`).join(', ')}) VALUES ${Array(rowCount).fill(row).join(', ')}` +
-    ` ON CONFLICT ("location_id", "time_utc") DO UPDATE SET ${set} WHERE ${UPDATE_CONDITION[mode]}` +
+    ` ON CONFLICT ("location_id", "time_utc") DO UPDATE SET ${set} WHERE ${updateCondition(mode, overwriteCorrections)}` +
     ` RETURNING "time_utc"`
   );
 }
@@ -128,7 +137,14 @@ function valuesOf(row: HourRow): ObservationValues {
 
 /** Zeile → Stunde; `timeLocal` bleibt bis zur Umstellung der Antworten Ortszeit ohne Offset (3a.9). */
 function toHour(row: HourRow): ObservationHour {
-  return { timeLocal: localDateTime(new Date(row.time_utc)), timeUtc: row.time_utc, ...valuesOf(row), source: row.source };
+  return {
+    id: row.id,
+    timeLocal: localDateTime(new Date(row.time_utc)),
+    timeUtc: row.time_utc,
+    ...valuesOf(row),
+    source: row.source,
+    correctedAt: row.corrected_at,
+  };
 }
 
 function chunk<T>(items: readonly T[], size: number): T[][] {
@@ -144,7 +160,8 @@ function chunk<T>(items: readonly T[], size: number): T[][] {
  *   die Fachregeln (R06–R14, abhängig von „jetzt“) bleiben im `AggregationService`.
  * - Schreiben: Upsert in Blöcken zu 500 Zeilen in **einer** Transaktion (alles oder nichts),
  *   `ON CONFLICT (location_id, time_utc) DO UPDATE … WHERE (Werte unterscheiden sich) AND corrected_at IS NULL`
- *   (R20). Jede geänderte Zeile bekommt `updated_at = :now` und `version + 1`, neue `version = 1` (B2.4).
+ *   (R20; mit `overwriteCorrections` auch korrigierte Stunden, dann `corrected_at = NULL`). Jede geänderte
+ *   Zeile bekommt `updated_at = :now` und `version + 1`, neue `version = 1` (B2.4).
  * - R08: Eine Stunde, die nach ihrem Abrufzeitpunkt beginnt (`ObservationInput.fetchedAt`, sonst der
  *   Schreibzeitpunkt), wird als `source = "prediction"` gespeichert; `fetched_at` = dieser Abrufzeitpunkt.
  */
@@ -225,7 +242,10 @@ export class TypeOrmObservationStore implements ObservationStore {
           1,
           nowText,
         ]);
-        const written: { time_utc: string }[] = await manager.query(upsertSql(block.length, options.mode), params);
+        const written: { time_utc: string }[] = await manager.query(
+          upsertSql(block.length, options.mode, options.overwriteCorrections === true),
+          params,
+        );
         const writtenTimes = new Set(written.map(w => w.time_utc));
 
         for (const row of block) {
@@ -280,9 +300,9 @@ export class TypeOrmObservationStore implements ObservationStore {
     return rows;
   }
 
-  private async findExisting(manager: EntityManager, block: readonly WriteRow[]): Promise<Map<string, ExistingRow>> {
-    const rows: ExistingRow[] = await manager.query(
-      `SELECT ${SELECT_HOUR}, "corrected_at" FROM "observation" WHERE "location_id" = ? AND "time_utc" IN (${block.map(() => '?').join(', ')})`,
+  private async findExisting(manager: EntityManager, block: readonly WriteRow[]): Promise<Map<string, HourRow>> {
+    const rows: HourRow[] = await manager.query(
+      `SELECT ${SELECT_HOUR} FROM "observation" WHERE "location_id" = ? AND "time_utc" IN (${block.map(() => '?').join(', ')})`,
       [HEUBACH.id, ...block.map(row => row.timeUtc)],
     );
     return new Map(rows.map(row => [row.time_utc, row]));

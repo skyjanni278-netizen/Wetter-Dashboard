@@ -53,6 +53,33 @@ export class ApiException extends HttpException {
     return new ApiException(404, 'NO_DATA', message, { details: { dataFrom } });
   }
 
+  /** R17 (US13-4, US13-18): `If-Match` passt nicht zur aktuellen Version → 412 `PRECONDITION_FAILED`. */
+  static preconditionFailed(version: number): ApiException {
+    return new ApiException(
+      412,
+      'PRECONDITION_FAILED',
+      `Der Wert wurde inzwischen geändert (aktuelle Version ${version}). Bitte neu laden.`,
+    );
+  }
+
+  /** R08 (US13-8): Korrektur einer Vorhersagestunde → 409 `OBSERVATION_IS_PREDICTION`. */
+  static observationIsPrediction(id: number): ApiException {
+    return new ApiException(
+      409,
+      'OBSERVATION_IS_PREDICTION',
+      `Die Stunde ${id} ist eine Vorhersage und kann nicht korrigiert werden.`,
+    );
+  }
+
+  /** R33 (US13-17): Rücknahme nicht möglich → 409 `CORRECTION_NOT_REVERSIBLE`; `reason` nennt den Grund. */
+  static correctionNotReversible(correctionId: number, reason: string): ApiException {
+    return new ApiException(
+      409,
+      'CORRECTION_NOT_REVERSIBLE',
+      `Die Korrektur ${correctionId} kann nicht zurückgenommen werden: ${reason}`,
+    );
+  }
+
   /** R19 (US10-7): zweiter Import, während einer `queued`/`running` ist → 409 `IMPORT_RUNNING`. */
   static importRunning(runningImportId: number): ApiException {
     return new ApiException(409, 'IMPORT_RUNNING', `Es läuft bereits ein Import (Nr. ${runningImportId}).`, {

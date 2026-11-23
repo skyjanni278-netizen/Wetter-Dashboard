@@ -3,9 +3,11 @@ import type { ObservationSource } from '../observations/observation';
 /**
  * Tag nach 03 B2.2 (Schritt 7: berechnete Felder). Stundenwerte sind ungerundet wie gespeichert,
  * berechnete Werte (`observed`, `predicted`) auf eine Nachkommastelle gerundet (R11, `round1`).
- * Noch nicht enthalten (Schritt 9, Datenbank): `hours[].id` und `current.observationId` (bis dahin `null`).
+ * Seit Schritt 12a mit `hours[].id`, `current.observationId` und echtem `correctedAt` (N03).
  */
 export interface DayHour {
+  /** `observation.id` (für `GET/PATCH /api/observations/:id`). */
+  id: number;
   /** Berliner Ortszeit; im Altbestand ohne Offset, z. B. `2026-11-10T14:00` (Befund Z1). */
   timeLocal: string;
   temperature: number | null;
@@ -18,7 +20,7 @@ export interface DayHour {
   source: ObservationSource | null;
   /** R08: Vorhersage (gespeichert als solche oder Stunde nach „jetzt“). */
   isPrediction: boolean;
-  /** Korrekturen gibt es ab Schritt 12a; bis dahin immer `null`. */
+  /** Zeitpunkt der wirksamen Korrektur (UTC) oder `null` (US13-12: Chip „KORRIGIERT“). */
   correctedAt: string | null;
 }
 
@@ -31,8 +33,8 @@ export interface DayTemperature {
 }
 
 export interface DayCurrent {
-  /** Bis Schritt 9 `null` (keine IDs im Arbeitsspeicher); die Stunde findet man über `timeLocal`. */
-  observationId: number | null;
+  /** `id` der jüngsten vergangenen Stunde (gleich `hours[].id`). */
+  observationId: number;
   timeLocal: string;
 }
 
@@ -73,7 +75,7 @@ export interface DayListItem {
   temperature: { mean: number | null; min: number | null; max: number | null };
   precipitationSum: number | null;
   isDryDay: boolean | null;
-  /** Korrekturen gibt es ab Schritt 12a; bis dahin immer `false`. */
+  /** US13-12: mindestens eine Stunde des Tages hat eine wirksame Korrektur (`correctedAt` gesetzt). */
   hasCorrections: boolean;
 }
 

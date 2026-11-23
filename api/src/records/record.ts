@@ -1,9 +1,9 @@
-/** Stundenrekord (03 B2.2); `observationId` bis Schritt 9 `null`, `corrected` bis Schritt 12a `false`. */
+/** Stundenrekord (03 B2.2). `corrected` = die Rekordstunde hat eine wirksame Korrektur (US06-7). */
 export interface HourRecordResource {
   value: number | null;
   timeLocal: string;
   date: string;
-  observationId: number | null;
+  observationId: number;
   corrected: boolean;
 }
 

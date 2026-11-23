@@ -1,6 +1,7 @@
 /**
- * Import nach 03 B2.2 (Ressource `import`). `requestedBy` bleibt bis zur Anmeldung (Schritt 10) `null`,
- * `overwriteCorrections` bis zu den Korrekturen (Schritt 12a) `false`.
+ * Import nach 03 B2.2 (Ressource `import`). `requestedBy` ist das Konto, das den Import über HTTP angelegt hat
+ * (`sub` aus dem Token), beim Scheduler und beim Altdatenimport `null` (System). `overwriteCorrections` (R20):
+ * `true` überschreibt korrigierte Stunden und setzt `corrected_at = NULL`.
  */
 export const IMPORT_KINDS = ['legacy', 'range', 'gaps', 'scheduled'] as const;
 export const IMPORT_STATUSES = ['queued', 'running', 'succeeded', 'partial', 'failed'] as const;
@@ -14,7 +15,7 @@ export interface ImportCounts {
   inserted: number;
   updated: number;
   unchanged: number;
-  /** R20: korrigierte Stunden werden nicht überschrieben. Korrekturen gibt es erst ab Schritt 12a. */
+  /** R20: korrigierte Stunden, die ohne `overwriteCorrections` nicht überschrieben wurden. */
   skippedCorrected: number;
 }
 

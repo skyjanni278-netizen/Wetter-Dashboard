@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
 import { IsoDateSchema } from '../common/dto/iso-date.schema';
+import { MEASUREMENT_FIELDS, REASON_MAX_LENGTH, REASON_MIN_LENGTH } from '../observations/dto/observation-patch.schema';
 
 /**
  * Feste Testdaten für Prüfungen mit fester Uhr (03 B4.8, US01-6, US16-4/-5, US20-6, US06-2…-4).
@@ -62,6 +63,22 @@ const FixtureForecastSchema = z
   })
   .strict();
 
+/**
+ * Schritt 12a: eine schon durchgeführte Korrektur (N03, US06-7, US13-12). Der Wert in `observations[]` ist der
+ * korrigierte (`newValue`); `applySeed` legt den Eintrag in `correction` an (Konto = erster Admin der DB) und
+ * setzt `corrected_at` der Stunde.
+ */
+const FixtureCorrectionSchema = z
+  .object({
+    timeUtc: UtcHourSchema,
+    field: z.enum(MEASUREMENT_FIELDS),
+    oldValue: value,
+    newValue: value,
+    reason: z.string().min(REASON_MIN_LENGTH).max(REASON_MAX_LENGTH),
+    correctedAt: UtcInstantSchema,
+  })
+  .strict();
+
 export const FixtureSchema = z
   .object({
     name: z.string().regex(FIXTURE_NAME),
@@ -71,11 +88,14 @@ export const FixtureSchema = z
     observations: z.array(FixtureObservationSchema),
     imports: z.array(FixtureImportSchema),
     forecast: FixtureForecastSchema.nullable(),
+    /** Optional (seit Schritt 12a); fehlt = keine Korrekturen. */
+    corrections: z.array(FixtureCorrectionSchema).optional(),
   })
   .strict();
 
 export type Fixture = z.infer<typeof FixtureSchema>;
 export type FixtureObservation = Fixture['observations'][number];
+export type FixtureCorrection = NonNullable<Fixture['corrections']>[number];
 
 /** Unbekannte oder ungültige Fixture; der Prozess startet dann nicht. */
 export class FixtureConfigError extends Error {

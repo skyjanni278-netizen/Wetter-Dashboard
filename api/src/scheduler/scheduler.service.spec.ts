@@ -48,7 +48,7 @@ describe('SchedulerService (US08, R19)', () => {
     'US08-4: tick(), während ein Import %s ist → kein zweiter Import, Warnung „übersprungen“',
     async status => {
       const { scheduler, imports, store, runner } = setup();
-      await imports.create({ kind: 'range', from: '2026-10-01', to: '2026-10-03' });
+      await imports.create({ kind: 'range', from: '2026-10-01', to: '2026-10-03' }, 1);
       await store.update(1, { status });
       const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
 
@@ -66,7 +66,7 @@ describe('SchedulerService (US08, R19)', () => {
     const { scheduler, imports, store } = setup();
     jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
     jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
-    await imports.create({ kind: 'range', from: '2026-10-01', to: '2026-10-03' });
+    await imports.create({ kind: 'range', from: '2026-10-01', to: '2026-10-03' }, 1);
 
     await expect(scheduler.tick()).resolves.toBeNull();
     await store.update(1, { status: 'succeeded', finishedAt: '2026-11-20T09:06:00Z' });

@@ -1,6 +1,7 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Query, Res } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
+import { CurrentUser } from '../auth/current-user.decorator';
 import { IdParamSchema } from '../common/dto/id-param.schema';
 import type { IdParam } from '../common/dto/id-param.schema';
 import { Roles } from '../common/roles.decorator';
@@ -8,6 +9,7 @@ import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { ImportListSchema, ImportResourceSchema } from '../openapi/response.schemas';
 import { ApiBearer, ApiErrors, ApiZodBody, ApiZodParams, ApiZodQuery, ApiZodResponse } from '../openapi/zod-openapi';
 import { ADMIN_ROLE } from '../users/role.entity';
+import type { AuthUser } from '../users/user';
 import { ImportCreateSchema } from './dto/import-create.schema';
 import type { ImportCreateDto } from './dto/import-create.schema';
 import { ImportsQuerySchema } from './dto/imports-query.schema';
@@ -27,7 +29,10 @@ import { ImportsService } from './imports.service';
 export class ImportsController {
   constructor(private readonly service: ImportsService) {}
 
-  /** R18 (Form, Reihenfolge, Spanne) prüft die Pipe, R02 (`to` nicht in der Zukunft) der Service. */
+  /**
+   * R18 (Form, Reihenfolge, Spanne) prüft die Pipe, R02 (`to` nicht in der Zukunft) der Service.
+   * `requestedBy` = `sub` aus dem Token; `overwriteCorrections` wirkt nach R20.
+   */
   @Post()
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({ summary: 'Import anlegen (asynchron, 202 mit Location; B3.5)' })
@@ -41,9 +46,10 @@ export class ImportsController {
   })
   async create(
     @Body(new ZodValidationPipe(ImportCreateSchema)) dto: ImportCreateDto,
+    @CurrentUser() user: AuthUser,
     @Res({ passthrough: true }) res: Response,
   ): Promise<ImportResource> {
-    const record = await this.service.create(dto);
+    const record = await this.service.create(dto, user.sub);
     res.setHeader('Location', importPath(record.id));
     return toImportResource(record);
   }

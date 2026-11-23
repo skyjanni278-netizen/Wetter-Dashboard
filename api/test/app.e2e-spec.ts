@@ -92,6 +92,7 @@ describe('Erste GET-Endpunkte (Schritt 2, e2e mit importierten Altdateien)', () 
     });
     expect(res.body.hours).toHaveLength(24);
     expect(res.body.hours[0]).toEqual({
+      id: expect.any(Number),
       timeLocal: '2026-11-10T00:00',
       temperature: 5,
       apparentTemperature: 2.25,
@@ -167,7 +168,13 @@ describe('Erste GET-Endpunkte (Schritt 2, e2e mit importierten Altdateien)', () 
       dataFrom: '2025-01-01',
       dataTo: expect.stringMatching(/^2026-11-(19|20)$/),
       lastSuccessfulUpdateAt: null,
+      nextScheduledUpdateAt: null,
       updateState: 'never',
+      // Schritt 12a (N04, R26): 3 Tage mit Daten, keiner vollständig (Stunde 5 ohne Temperatur, R13/R14). Lücken:
+      // 01.01.2025 05:00 (null), 02.01.2025–09.11.2026 (fehlt), 10.11. 05:00 (null), 11.–18.11. (fehlt), 19.11. 05:00 (null).
+      daysWithData: 3,
+      daysComplete: 0,
+      gapCount: 5,
     });
   });
 

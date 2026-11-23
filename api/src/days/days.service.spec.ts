@@ -10,8 +10,11 @@ import type { ObservationStore } from '../observations/observation.store';
 import { DaysController } from './days.controller';
 import { DaysService } from './days.service';
 
+let nextId = 1;
+
 function hour(timeLocal: string, temperature: number | null): ObservationHour {
   return {
+    id: nextId++,
     timeLocal,
     timeUtc: null,
     temperature,
@@ -21,6 +24,7 @@ function hour(timeLocal: string, temperature: number | null): ObservationHour {
     windSpeed: 12.34,
     windDirection: 220,
     source: null,
+    correctedAt: null,
   };
 }
 
@@ -95,6 +99,7 @@ describe('DaysService und DaysController mit Fake-Store (DI, ohne Dateien)', () 
     });
     expect(day.hours).toHaveLength(24);
     expect(day.hours[0]).toEqual({
+      id: day.hours[0].id,
       timeLocal: '2026-11-10T00:00',
       temperature: 5,
       apparentTemperature: 1.25,
