@@ -28,7 +28,7 @@ export interface NoticeThresholdValues {
 }
 
 /**
- * R30 (03, N07; **A:** noch zu bestätigen): Frost `minTemp < 0`, Hitze `maxTemp ≥ 30`, Starkregen
+ * R30 (03, N07; vom User am 23.11.2026 bestätigt): Frost `minTemp < 0`, Hitze `maxTemp ≥ 30`, Starkregen
  * `precipitationSum ≥ 20`. Quelle der Daten-Migration `Hinweisschwellen`; zur Laufzeit gelten die Zeilen der
  * Tabelle.
  */
