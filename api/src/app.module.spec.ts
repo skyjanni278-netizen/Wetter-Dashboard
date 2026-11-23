@@ -12,6 +12,7 @@ import { HealthService } from './health/health.service';
 import { IMPORT_STORE } from './imports/import.store';
 import { ImportsService } from './imports/imports.service';
 import { LocationsService } from './locations/locations.service';
+import { NoticesService } from './notices/notices.service';
 import { GapsService } from './observations/gaps.service';
 import { OBSERVATION_STORE } from './observations/observation.store';
 import { RecordsService } from './records/records.service';
@@ -44,6 +45,7 @@ describe('AppModule (Boot, Module nach B4.1)', () => {
       ForecastsService,
       ImportsService,
       StatusService,
+      NoticesService,
       GapsService,
       HealthService,
       AuthService,

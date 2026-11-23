@@ -106,7 +106,7 @@ describe('StatsPageComponent Rekorde aus /api/records (US06)', () => {
   it('Link „Tag ansehen →“ öffnet die Tagesansicht', async () => {
     TestBed.configureTestingModule({
       providers: [
-        { provide: WeatherService, useValue: { getRecords: () => of(RECORDS), getDay: () => new Subject(), getForecasts: () => new Subject() } },
+        { provide: WeatherService, useValue: { getRecords: () => of(RECORDS), getDay: () => new Subject(), getForecasts: () => new Subject(), getNotices: () => new Subject() } },
         provideRouter(routes, withComponentInputBinding()),
       ],
     });

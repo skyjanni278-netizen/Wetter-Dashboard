@@ -9,6 +9,9 @@ import { MIGRATIONS } from './index';
  * Migration `CorrectionUser` (Schritt 12a) auf einer Datei im Stand von Schritt 11 **mit Daten**: Die Tabelle
  * `correction` wird neu aufgebaut, alle Daten bleiben, danach gilt der Fremdschlüssel `corrected_by → user`.
  */
+/** Migrationen bis einschließlich `CorrectionUser` (Stand 12a); spätere Migrationen prüfen eigene Specs. */
+const STEP_12A = MIGRATIONS.slice(0, 5);
+
 describe('Migration CorrectionUser1795443600000 (FK correction.corrected_by → user)', () => {
   let dir: string;
   let dbPath: string;
@@ -47,7 +50,7 @@ describe('Migration CorrectionUser1795443600000 (FK correction.corrected_by → 
     const before = await step11.query(`SELECT * FROM "correction" ORDER BY "id"`);
     await step11.destroy();
 
-    const current = await open(MIGRATIONS);
+    const current = await open(STEP_12A);
     try {
       expect((await current.runMigrations({ transaction: 'each' })).map(m => m.name)).toEqual(['CorrectionUser1795443600000']);
       expect(await current.query(`SELECT * FROM "correction" ORDER BY "id"`)).toEqual(before);
@@ -91,7 +94,7 @@ describe('Migration CorrectionUser1795443600000 (FK correction.corrected_by → 
     );
     await step11.destroy();
 
-    const current = await open(MIGRATIONS);
+    const current = await open(STEP_12A);
     try {
       await expect(current.runMigrations({ transaction: 'each' })).rejects.toThrow(/unbekanntes Konto/);
       expect(await current.showMigrations()).toBe(true);

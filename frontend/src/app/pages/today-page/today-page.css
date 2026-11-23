@@ -64,4 +64,7 @@
   .split-forecast .kpi-precip { grid-column: 1 / -1; }
 }
 
+/* Hinweise aus der Vorhersage (N07) direkt über der Vorschau, in derselben Rasterspalte */
+.forecast-column { display: grid; gap: var(--space-3); min-width: 0; }
+
 .forecast-link { margin: 0; }

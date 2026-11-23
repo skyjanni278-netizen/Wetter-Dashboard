@@ -4,7 +4,7 @@ import { Title } from '@angular/platform-browser';
 import { Router, RouterLink } from '@angular/router';
 import { Observable, of, catchError, distinctUntilChanged, map, startWith, switchMap } from 'rxjs';
 import { WeatherService } from '../../services/weather.service';
-import { ApiError, Day, DayHour, Forecast } from '../../models/api';
+import { ApiError, Day, DayHour, Forecast, Notice } from '../../models/api';
 import { LoadResult, LoadState } from '../../models/load-state';
 import { UNREACHABLE_MESSAGE, apiErrorOf } from '../../interceptors/api-error.interceptor';
 import { ClimateChartComponent, ClimateChartDataset } from '../../components/climate-chart/climate-chart';
@@ -28,6 +28,7 @@ import { standText } from '../../utils/data-status';
 import { DataStatusService } from '../../services/data-status.service';
 import { AuthService } from '../../services/auth.service';
 import { UpdateNoticeComponent } from '../../components/update-notice/update-notice';
+import { ForecastNoticesComponent } from '../../components/forecast-notices/forecast-notices';
 
 const DAY_NAMES = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
 
@@ -61,7 +62,7 @@ function hourOf(timeLocal: string): string {
   imports: [
     UnitPipe, ClimateChartComponent, RouterLink, CardComponent, KpiCardComponent, ChipComponent, NoticeComponent,
     FormFieldComponent, DataTableComponent, SkeletonComponent, LoadingComponent, EmptyComponent, ErrorComponent,
-    UpdateNoticeComponent,
+    UpdateNoticeComponent, ForecastNoticesComponent,
   ],
   templateUrl: './today-page.html',
   styleUrl: './today-page.css'
@@ -153,6 +154,11 @@ export class TodayPageComponent implements OnInit {
 
   dayData = signal<Day | null>(null);
   forecast = signal<Forecast[]>([]);
+  /**
+   * Hinweise aus der Vorhersage (N07, US20) für die Box über der Vorschau. Ein Fehler beim Laden ergibt
+   * keine Box und keinen Fehlerzustand der Seite; die Vorschau bleibt nutzbar.
+   */
+  notices = signal<Notice[]>([]);
   state = signal<LoadState>('idle');
   loading = computed(() => this.state() === 'loading');
   error = signal<string | null>(null);
@@ -316,6 +322,7 @@ export class TodayPageComponent implements OnInit {
 
   ngOnInit(): void {
     this.weather.getForecasts().subscribe({ next: f => this.forecast.set(f.items ?? []), error: () => {} });
+    this.weather.getNotices().subscribe({ next: n => this.notices.set(n.items ?? []), error: () => this.notices.set([]) });
   }
 
   /** Wind der Stunde: „21 km/h aus SW“; ohne Richtung nur die Geschwindigkeit. */

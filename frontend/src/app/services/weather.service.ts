@@ -2,8 +2,8 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import {
-  Day, DayList, ForecastList, Location, MonthSummary, MonthSummaryList, PeriodSummary, Records, Status, YearList,
-  YearSummary,
+  Day, DayList, ForecastList, Location, MonthSummary, MonthSummaryList, NoticeList, PeriodSummary, Records, Status,
+  YearList, YearSummary,
 } from '../models/api';
 
 const API = '/api';
@@ -43,6 +43,11 @@ export class WeatherService {
   /** Neue API (Nest): 7-Tage-Vorschau (US03); ohne Vorhersage `items = []`. */
   getForecasts(): Observable<ForecastList> {
     return this.http.get<ForecastList>(`${API}/forecasts`);
+  }
+
+  /** Neue API (Nest, seit 12c): Hinweise auf Frost, Hitze und Starkregen aus der Vorhersage (US20). */
+  getNotices(): Observable<NoticeList> {
+    return this.http.get<NoticeList>(`${API}/notices`);
   }
 
   /** Neue API (Nest): Rekorde ohne Vorhersagestunden (US06). */

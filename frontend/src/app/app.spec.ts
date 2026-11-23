@@ -56,6 +56,7 @@ describe('App Navigation (V08)', () => {
           getToday: () => of(emptyDay('2026-11-19')),
           getDay: (date: string) => of(emptyDay(date)),
           getForecasts: () => of({ items: [], fetchedAt: null }),
+          getNotices: () => of({ items: [], basedOnFetchedAt: null }),
           getRecords: () => of(NO_RECORDS),
         } },
       ],
@@ -163,6 +164,7 @@ describe('App Navigation (V08)', () => {
           ...footerApi,
           getToday: () => of(emptyDay('2026-11-19')),
           getForecasts: () => of({ items: [], fetchedAt: null }),
+          getNotices: () => of({ items: [], basedOnFetchedAt: null }),
         } },
       ],
     });
@@ -269,6 +271,7 @@ describe('Header: „Admin“ und „Abmelden“ nur nach der Anmeldung (US09, E
     ...footerApi,
     getToday: () => of(emptyDay('2026-11-19')),
     getForecasts: () => of({ items: [], fetchedAt: null }),
+    getNotices: () => of({ items: [], basedOnFetchedAt: null }),
     getRecords: () => of(NO_RECORDS),
   };
 

@@ -133,16 +133,21 @@
                 </app-kpi-card>
               </div>
 
-              <!-- 7-Tage-Vorschau als Tabelle mit Wettertext (E3.7.5, F17) -->
+              <!-- 7-Tage-Vorschau als Tabelle mit Wettertext (E3.7.5, F17); darüber die Hinweise (N07, US20-6) -->
               @if (forecastRows().length > 0) {
-                <app-card class="forecast-card" [busy]="loading()" [reveal]="true" [revealIndex]="4">
-                  <div class="card-head">
-                    <h2>7-Tage-Vorschau</h2>
-                    <app-chip variant="forecast" />
-                  </div>
-                  <app-data-table caption="7-Tage-Vorschau" [captionHidden]="true"
-                                  [columns]="forecastColumns" [columnsNarrow]="forecastColumnsNarrow" [rows]="forecastRows()" />
-                </app-card>
+                <div class="forecast-column">
+                  @if (notices().length > 0) {
+                    <app-forecast-notices [notices]="notices()" />
+                  }
+                  <app-card class="forecast-card" [busy]="loading()" [reveal]="true" [revealIndex]="4">
+                    <div class="card-head">
+                      <h2>7-Tage-Vorschau</h2>
+                      <app-chip variant="forecast" />
+                    </div>
+                    <app-data-table caption="7-Tage-Vorschau" [captionHidden]="true"
+                                    [columns]="forecastColumns" [columnsNarrow]="forecastColumnsNarrow" [rows]="forecastRows()" />
+                  </app-card>
+                </div>
               }
             </div>
           }

@@ -12,7 +12,7 @@ import { RouterTestingHarness } from '@angular/router/testing';
 import { Observable, Subject, of, throwError } from 'rxjs';
 import { KEYBOARD_COMMIT_DELAY_MS, TodayPageComponent } from './today-page';
 import { WeatherService } from '../../services/weather.service';
-import { ApiError, Day, DayHour, Forecast, ForecastList, Status } from '../../models/api';
+import { ApiError, Day, DayHour, Forecast, ForecastList, Notice, NoticeList, Status } from '../../models/api';
 import { DataStatusService } from '../../services/data-status.service';
 import { AUTH_STORAGE_KEY } from '../../services/auth.service';
 import { statusOf } from '../../testing/admin-fixtures';
@@ -121,12 +121,21 @@ interface Mock {
   getToday: () => Observable<Day>;
   getDay: (date: string) => Observable<Day>;
   getForecasts: () => Observable<ForecastList>;
+  /** Hinweise (N07, seit 12c); ohne Angabe eine leere Liste. */
+  getNotices?: () => Observable<NoticeList>;
+}
+
+const NO_NOTICES: NoticeList = { items: [], basedOnFetchedAt: null };
+
+/** Mock mit leerer Hinweisliste, falls der Test keine eigenen Hinweise vorgibt. */
+function withNotices(mock: Mock): Required<Mock> {
+  return { getNotices: () => of(NO_NOTICES), ...mock } as Required<Mock>;
 }
 
 /** Komponente ohne Router-Navigation; der Route-Parameter wird als Input gesetzt. */
 function create(mock: Mock, date?: string) {
   TestBed.configureTestingModule({
-    providers: [{ provide: WeatherService, useValue: mock }, provideRouter([]), GERMAN],
+    providers: [{ provide: WeatherService, useValue: withNotices(mock) }, provideRouter([]), GERMAN],
   });
   const fixture = TestBed.createComponent(TodayPageComponent);
   if (date !== undefined) fixture.componentRef.setInput('date', date);
@@ -182,7 +191,7 @@ function harnessHelpers(harness: RouterTestingHarness) {
 async function routed(mock: Mock, url: string) {
   TestBed.configureTestingModule({
     providers: [
-      { provide: WeatherService, useValue: mock },
+      { provide: WeatherService, useValue: withNotices(mock) },
       provideRouter(routes, withComponentInputBinding()),
       provideLocationMocks(),
       { provide: TitleStrategy, useClass: AppTitleStrategy },
@@ -529,6 +538,7 @@ describe('TodayPageComponent gegen die neue API (HttpTestingController)', () => 
     await navigation;
     harness.detectChanges();
     http.expectOne('/api/forecasts').flush(list());
+    http.expectOne('/api/notices').flush(NO_NOTICES);
     http.expectOne('/api/days/2026-11-10').flush(day('2026-11-10', 7));
     harness.detectChanges();
     const t = harnessHelpers(harness);
@@ -550,6 +560,7 @@ describe('TodayPageComponent gegen die neue API (HttpTestingController)', () => 
     await navigation;
     harness.detectChanges();
     http.expectOne('/api/forecasts').flush(list());
+    http.expectOne('/api/notices').flush(NO_NOTICES);
     http.expectOne('/api/days/today').flush(liveToday());
     harness.detectChanges();
     const t = harnessHelpers(harness);
@@ -561,6 +572,7 @@ describe('TodayPageComponent gegen die neue API (HttpTestingController)', () => 
     http.expectOne(`/api/days/${yesterday}`).flush(day(yesterday, 3));
     // Wechsel / → /tag/… baut die Seite neu auf und lädt die Vorschau erneut (offen seit Schritt 0.4)
     http.match('/api/forecasts').forEach(req => req.flush(list()));
+    http.match('/api/notices').forEach(req => req.flush(NO_NOTICES));
     await t.settle();
     expect(t.router.url).toBe(`/tag/${yesterday}`);
     http.verify();
@@ -995,7 +1007,7 @@ describe('TodayPageComponent: Heute und Datenstand laut Server (N01, 03 B4.8, Sc
     const status = new Subject<Status>();
     TestBed.configureTestingModule({
       providers: [
-        { provide: WeatherService, useValue: { ...base, getStatus: () => status.asObservable() } },
+        { provide: WeatherService, useValue: { ...withNotices(base), getStatus: () => status.asObservable() } },
         provideRouter(routes, withComponentInputBinding()),
         provideLocationMocks(),
         { provide: TitleStrategy, useClass: AppTitleStrategy },
@@ -1113,5 +1125,53 @@ describe('TodayPageComponent: Chip „KORRIGIERT“ (US13-12)', () => {
     const el = setup(day('2026-11-10', 5)).nativeElement as HTMLElement;
     const heads = Array.from(el.querySelectorAll('.chart-details thead th')).map(th => th.textContent?.trim());
     expect(heads).not.toContain('Korrektur');
+  });
+});
+
+describe('TodayPageComponent: Hinweise aus der Vorhersage (N07, US20-6, Schritt 12c)', () => {
+  const FROST: Notice = {
+    id: '2026-11-21-frost', type: 'frost', date: '2026-11-21', value: -2.3, threshold: 0, comparator: 'lt', unit: '°C',
+  };
+  const forecast = [forecastDay(berlinToday(), 8, 2, 0, 3)];
+  const mockWith = (getNotices: () => Observable<NoticeList>): Mock => ({
+    getToday: () => of(liveToday()),
+    getDay: (date: string) => of(day(date, 7)),
+    getForecasts: () => of(list(forecast)),
+    getNotices,
+  });
+  const text = (el: Element | null | undefined) => (el?.textContent ?? '').replace(/ /g, ' ').replace(/\s+/g, ' ').trim();
+
+  it('mit Hinweis: Box im Hinweisstil (nicht Fehlerrot) direkt über der 7-Tage-Vorschau, mit festem Text', async () => {
+    const t = await routed(mockWith(() => of({ items: [FROST], basedOnFetchedAt: '2026-11-19T13:05:12Z' })), '/');
+    const column = t.el.querySelector('.forecast-column')!;
+    expect(Array.from(column.children).map(c => c.tagName.toLowerCase())).toEqual(['app-forecast-notices', 'app-card']);
+    expect(column.children[1].classList).toContain('forecast-card');
+    const notice = column.querySelector('app-forecast-notices app-notice')!;
+    expect(notice.classList).toContain('notice-info');
+    expect(notice.classList).not.toContain('notice-error');
+    expect(text(notice.querySelector('.notice-kicker'))).toBe('Hinweis');
+    expect(text(notice)).toContain('Frost möglich am Samstag, 21.11.: Tiefstwert −2,3 °C');
+    expect(text(notice)).toContain('Kein amtlicher Warnhinweis – siehe Deutscher Wetterdienst');
+  });
+
+  it('ohne Hinweise: keine Box, die Vorschau steht wie bisher', async () => {
+    const t = await routed(mockWith(() => of({ items: [], basedOnFetchedAt: '2026-11-19T13:05:12Z' })), '/');
+    expect(t.el.querySelector('app-forecast-notices')).toBeNull();
+    expect(t.el.querySelector('.forecast-card')).not.toBeNull();
+    expect(t.el.textContent).not.toContain('Kein amtlicher Warnhinweis');
+  });
+
+  it('Fehler beim Laden der Hinweise: keine Box, kein Fehlerzustand, Vorschau nutzbar', async () => {
+    const t = await routed(mockWith(() => throwError(() => apiFailure(500, { code: 'INTERNAL_ERROR' }))), '/');
+    expect(t.el.querySelector('app-forecast-notices')).toBeNull();
+    expect(t.el.querySelector('app-error')).toBeNull();
+    expect(t.page().state()).toBe('success');
+    expect(t.el.querySelectorAll('.forecast-card tbody tr')).toHaveLength(1);
+  });
+
+  it('vergangener Tag (/tag/2026-11-10): keine Box, auch wenn es Hinweise gibt', async () => {
+    const t = await routed(mockWith(() => of({ items: [FROST], basedOnFetchedAt: '2026-11-19T13:05:12Z' })), '/tag/2026-11-10');
+    expect(t.el.querySelector('app-forecast-notices')).toBeNull();
+    expect(t.el.textContent).not.toContain('Frost möglich');
   });
 });

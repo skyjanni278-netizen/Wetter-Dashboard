@@ -231,6 +231,26 @@ export interface ForecastList {
   fetchedAt: string | null;
 }
 
+/** Art eines Hinweises aus der Vorhersage (US20, R30). */
+export type NoticeType = 'frost' | 'heat' | 'heavy_rain';
+
+/** Eintrag aus `GET /api/notices` (US20-1): `value` gerundet, `threshold` und `comparator` aus `notice_threshold`. */
+export interface Notice {
+  id: string;
+  type: NoticeType;
+  date: string;
+  value: number;
+  threshold: number;
+  comparator: 'lt' | 'gte';
+  unit: string;
+}
+
+/** `GET /api/notices`: Hinweise ab heute; ohne Vorhersage `items = []`, `basedOnFetchedAt = null`. */
+export interface NoticeList {
+  items: Notice[];
+  basedOnFetchedAt: string | null;
+}
+
 /** Stundenrekord (US06): höchster bzw. niedrigster vergangener Stundenwert. */
 export interface HourRecord {
   value: number | null;

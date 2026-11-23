@@ -3,6 +3,8 @@ import { Stammdaten1795259300000 } from './1795259300000-Stammdaten';
 import { Users1795356900000 } from './1795356900000-Users';
 import { RolleAdmin1795356960000 } from './1795356960000-RolleAdmin';
 import { CorrectionUser1795443600000 } from './1795443600000-CorrectionUser';
+import { NoticeThreshold1795530000000 } from './1795530000000-NoticeThreshold';
+import { Hinweisschwellen1795530060000 } from './1795530060000-Hinweisschwellen';
 
 /**
  * Alle Migrationen in Ausführungsreihenfolge, als Klassen statt Glob (gleich für `src/`, `dist/` und Jest).
@@ -14,4 +16,6 @@ export const MIGRATIONS = [
   Users1795356900000,
   RolleAdmin1795356960000,
   CorrectionUser1795443600000,
+  NoticeThreshold1795530000000,
+  Hinweisschwellen1795530060000,
 ];

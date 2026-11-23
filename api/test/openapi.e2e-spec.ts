@@ -13,6 +13,7 @@ const EXPECTED_PATHS: Record<string, string[]> = {
   '/api/days/today': ['get'],
   '/api/days/{date}': ['get'],
   '/api/forecasts': ['get'],
+  '/api/notices': ['get'],
   '/api/summaries/months': ['get'],
   '/api/summaries/months/{yearMonth}': ['get'],
   '/api/summaries/years': ['get'],
@@ -195,6 +196,19 @@ describe('OpenAPI (B3.7) mit SWAGGER_ENABLED=true', () => {
         ['frostDays', 'iceDays', 'summerDays', 'hotDays', 'precipitationDays'],
       ]);
     }
+  });
+
+  it('Schritt 12c: /api/notices öffentlich, ohne Query-Parameter, 200 { items, basedOnFetchedAt }, 400', () => {
+    const notices = doc.paths['/api/notices'].get;
+    expect(notices.parameters ?? []).toEqual([]);
+    expect(Object.keys(notices.responses)).toEqual(expect.arrayContaining(['200', '400', '406', '500']));
+    expect(notices.responses['401']).toBeUndefined();
+    const schema = notices.responses['200'].content['application/json'].schema;
+    expect(Object.keys(schema.properties)).toEqual(['items', 'basedOnFetchedAt']);
+    const item = schema.properties.items.items;
+    expect(Object.keys(item.properties)).toEqual(['id', 'type', 'date', 'value', 'threshold', 'comparator', 'unit']);
+    expect(item.properties.type.enum).toEqual(['frost', 'heat', 'heavy_rain']);
+    expect(item.properties.comparator.enum).toEqual(['lt', 'gte']);
   });
 
   it('GET /api/docs/ mit Accept: text/html → 200 HTML, kein 406 (B3.1)', async () => {

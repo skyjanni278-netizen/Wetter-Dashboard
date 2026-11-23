@@ -9,6 +9,7 @@ import { ForecastsModule } from './forecasts/forecasts.module';
 import { HealthModule } from './health/health.module';
 import { ImportsModule } from './imports/imports.module';
 import { LocationsModule } from './locations/locations.module';
+import { NoticesModule } from './notices/notices.module';
 import { ObservationsModule } from './observations/observations.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
 import { StatsModule } from './stats/stats.module';
@@ -25,6 +26,7 @@ import { WeatherProviderModule } from './weather-provider/weather-provider.modul
  * Schritt 11: `AppConfigModule` (`ConfigModule.forRoot`, global, `EnvSchema`) steht zuerst; alle Module lesen
  * ihre Werte über den `ConfigService`. `SCHEDULER_ENABLED` wertet `SchedulerModule.forRoot()` nach dem Laden der
  * Konfiguration aus. Guards: Throttler → JWT → Rollen (ohne `@Public()`/`@Roles()` → 403).
+ * Schritt 12c: `NoticesModule` (`GET /api/notices`, importiert `ForecastsModule`).
  */
 @Module({
   imports: [
@@ -40,6 +42,7 @@ import { WeatherProviderModule } from './weather-provider/weather-provider.modul
     SchedulerModule.forRoot(),
     StatsModule,
     StatusModule,
+    NoticesModule,
     HealthModule,
   ],
   providers: [{ provide: APP_FILTER, useClass: ApiExceptionFilter }],

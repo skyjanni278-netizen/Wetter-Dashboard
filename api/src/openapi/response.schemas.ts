@@ -8,6 +8,8 @@ import type { Health } from '../health/health';
 import { IMPORT_KINDS, IMPORT_STATUSES } from '../imports/import';
 import type { ImportList, ImportResource } from '../imports/import';
 import type { Location } from '../locations/location';
+import type { NoticeList } from '../notices/notice';
+import { NOTICE_COMPARATORS, NOTICE_TYPES } from '../notices/notice-threshold.entity';
 import { GAP_REASONS } from '../observations/gap';
 import type { GapList } from '../observations/gap';
 import type { CorrectionHistory, CorrectionList } from '../observations/correction';
@@ -140,6 +142,22 @@ export const ForecastListSchema = z.object({
     }),
   ),
   fetchedAt: utc().nullable(),
+});
+
+/** US20 (seit Schritt 12c): Hinweise aus der Vorhersage (R30, R31). */
+export const NoticeListSchema = z.object({
+  items: z.array(
+    z.object({
+      id: z.string().describe('`{date}-{type}`, z. B. 2026-11-21-frost'),
+      type: z.enum(NOTICE_TYPES),
+      date: ymd(),
+      value: z.number().describe('Vorhersagewert, auf eine Nachkommastelle gerundet (R11); verglichen wird ungerundet (R30)'),
+      threshold: z.number(),
+      comparator: z.enum(NOTICE_COMPARATORS).describe('`lt` = Wert < Schwelle, `gte` = Wert ≥ Schwelle'),
+      unit: z.string(),
+    }),
+  ),
+  basedOnFetchedAt: utc().nullable().describe('Abrufzeitpunkt der Vorhersage; `null` ohne Vorhersage (US20-3)'),
 });
 
 /** R27 (US18, seit Schritt 12b): Kenntage über die vollständigen Tage; `dryDays` steht oben (B2.2). */
@@ -347,6 +365,7 @@ export type ResponseSchemaChecks = [
   Assert<Equals<z.infer<typeof DaySchema>, Day>>,
   Assert<Equals<z.infer<typeof DayListSchema>, DayList>>,
   Assert<Equals<z.infer<typeof ForecastListSchema>, ForecastList>>,
+  Assert<Equals<z.infer<typeof NoticeListSchema>, NoticeList>>,
   Assert<Equals<z.infer<typeof MonthSummarySchema>, MonthSummary>>,
   Assert<Equals<z.infer<typeof MonthSummaryListSchema>, MonthSummaryList>>,
   Assert<Equals<z.infer<typeof YearSummarySchema>, YearSummary>>,

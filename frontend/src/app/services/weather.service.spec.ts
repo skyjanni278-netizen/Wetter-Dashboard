@@ -23,6 +23,7 @@ describe('WeatherService', () => {
     ['getToday', () => service.getToday(), '/api/days/today'],
     ['getDay', () => service.getDay('2026-11-10'), '/api/days/2026-11-10'],
     ['getForecasts', () => service.getForecasts(), '/api/forecasts'],
+    ['getNotices', () => service.getNotices(), '/api/notices'],
     ['getRecords', () => service.getRecords(), '/api/records'],
     ['getDays', () => service.getDays('2026-11-01', '2026-11-19'), '/api/days?from=2026-11-01&to=2026-11-19'],
     ['getMonthSummary', () => service.getMonthSummary('2026-11'), '/api/summaries/months/2026-11'],

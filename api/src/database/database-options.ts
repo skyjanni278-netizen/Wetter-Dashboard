@@ -2,6 +2,7 @@ import type { DataSourceOptions } from 'typeorm';
 import { DailyForecast } from '../forecasts/daily-forecast.entity';
 import { Import } from '../imports/import.entity';
 import { Location } from '../locations/location.entity';
+import { NoticeThreshold } from '../notices/notice-threshold.entity';
 import { Correction } from '../observations/correction.entity';
 import { Observation } from '../observations/observation.entity';
 import { Role } from '../users/role.entity';
@@ -12,7 +13,7 @@ import { MIGRATIONS } from './migrations';
 import { prepareDatabase } from './prepare-database';
 
 /** Alle Entities; als Klassen statt Glob, damit `src/` (Jest) und `dist/` (Build, CLI) gleich laden. */
-export const ENTITIES = [Location, Import, Observation, DailyForecast, Correction, User, Role, UserRole];
+export const ENTITIES = [Location, Import, Observation, DailyForecast, Correction, User, Role, UserRole, NoticeThreshold];
 
 /**
  * Optionen der **einen** DataSource für App (`DatabaseModule`) und TypeORM-CLI (`data-source.ts`), 03 B4.4:
