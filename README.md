@@ -33,6 +33,16 @@ Wetter-Dashboard/
 
 ---
 
+## Architektur: bewusst nicht eingesetzt
+
+| Thema | Entscheidung | Begründung |
+|---|---|---|
+| WebSockets / SSE | entfällt | Live-Aktualisierung (N09) ist abgelehnt. Bei unter 0,05 Anfragen pro Sekunde reichen das Polling des Import-Status (alle 2 s) und die Anzeige „Stand: …“ |
+| Templates (Handlebars) | entfällt | Die API liefert nur JSON (andere `Accept`-Header → 406). Die Oberfläche ist allein die Angular-App |
+| Events (`@nestjs/event-emitter`) | entfällt | Kein fachlicher Bedarf. Nach einem Import wird der Cache über die Datenrevision ungültig; Status, Lücken und Hinweise werden beim Lesen berechnet. Ein Event-Bus würde den Ablauf nur schwerer nachvollziehbar machen (Entscheidung vom 23.11.2026, Roadmap-Schritt 13) |
+
+---
+
 ## Voraussetzungen
 
 - Node.js 20+ (getestet mit Node 24)

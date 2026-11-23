@@ -39,7 +39,7 @@ Stand: 19.11.2026 · Grundlage: `01-analyse.md` (F01–F34, S1–S12, Abschnitt 
 | 12a | Must: N01, N03, N04 | M | 11 | ✅ erledigt (`1bf0a42`) |
 | 12b | Should: N05, N06 | M | 12a | ✅ erledigt (`5b90f21`) |
 | 12c | Could: N07 | S | 12b | ✅ erledigt (`86efe7a`) |
-| 13 | Optional: WebSockets, Templates, Events (Entscheidung) | S | 12c | offen |
+| 13 | Optional: WebSockets, Templates, Events (Entscheidung) | S | 12c | ✅ erledigt (alle entfallen) |
 | 14 | Tests, Barrierefreiheit, Deployment auf den Pi, Dokumentation | L | 13 | offen |
 
 ```mermaid
@@ -755,7 +755,7 @@ Danach:
 > **Offen:**
 > - Ein abgelaufener Zeitraum mit Datenlücken wird ohne Hinweis gegen das volle Vorjahr verglichen.
 > - Ein vollständiger Tag mit allen Niederschlagswerten `null` zählt weder als Niederschlags- noch als Trockentag. Das kommt im Bestand nicht vor.
-> - Mobil stehen die 6 Kenntag-Karten untereinander (Designfrage an den User).
+> - Mobil stehen die 6 Kenntag-Karten untereinander (vom User am 23.11.2026 so bestätigt).
 > - Negative Werte zeigen teils „-“ statt „−“.
 
 **Bezug:** US18-1 bis -5, US19-1 bis -9 · R27, R28, R29
@@ -820,6 +820,8 @@ Danach:
 ---
 
 ## Schritt 13 – Optional: WebSockets, Templates, Events
+
+> **Status:** ✅ Erledigt am 23.11.2026. Der User hat die Empfehlung übernommen: Alle drei Themen entfallen, auch die Events-Übung. Die Begründung steht in der README im Abschnitt „Architektur: bewusst nicht eingesetzt“. Es gibt keine Code-Änderung. Ebenfalls entschieden: Die Kenntag-Karten bleiben mobil untereinander (Frage aus 12b).
 
 **Ziel:** Die optionalen Kursthemen sind begründet entschieden.
 

@@ -1,6 +1,6 @@
 # Projektdokumentation – Wetter-Dashboard Heubach
 
-> Stand: 23.11.2026 · Roadmap-Schritt 12c · Pflege: siehe Abschnitt „11. Pflege dieser Datei“
+> Stand: 23.11.2026 · Roadmap-Schritt 13 · Pflege: siehe Abschnitt „11. Pflege dieser Datei“
 
 Diese Datei ist eine Landkarte des **aktuellen** Systems: was es gibt, wo es liegt, wie es zusammenhängt. Sie enthält keinen Code und keine Planung (die steht in `docs/umbau/`).
 
@@ -970,6 +970,7 @@ Neueste oben.
 
 | Datum | Schritt | Commit | Änderung |
 |---|---|---|---|
+| 2026-11-23 | 13 | siehe `git log` (Schritt 13) | Entscheidung: WebSockets/SSE, Templates und Events entfallen (README, Abschnitt „Architektur: bewusst nicht eingesetzt“); keine Code-Änderung |
 | 2026-11-23 | 12c | `86efe7a` | N07: `NoticesModule`, Tabelle `notice_threshold` (CHECKs, UNIQUE) mit Daten-Migration der 3 Schwellen (R30, vom User bestätigt), `GET /api/notices` (R31, nur ab heute); Frontend: `app-forecast-notices` im Hinweisstil über der 7-Tage-Vorschau mit festem Text „Kein amtlicher Warnhinweis – siehe Deutscher Wetterdienst“; Postman US20 |
 | 2026-11-23 | 12b | `5b90f21` | N05: `indicators` (Frost-, Eis-, Sommer-, heiße, Niederschlagstage; R27, nur vollständige Tage) in Monat, Monatsliste, Jahr und Zeitraum; Fixture `us18-indicators`. N06: `GET /api/summaries/periods?from&to` (R28, ≤ 366 Tage). Frontend: Kenntag-Karten (`app-indicator-cards`), Schalter-Chip „Vorjahr vergleichen“ (`app-toggle-chip`, `?vergleich=vorjahr`), `utils/compare-period.ts` (R29), gestrichelte Vorjahreslinie `--chart-compare` mit Differenztext; Postman US18/US19 |
 | 2026-11-23 | 12a | `1bf0a42` | N03: `GET/PATCH /api/observations/:id` (ETag, `If-Match`, merge-patch, Transaktion mit `correction` je Feld), Historie, Rücknahme (R33), `GET /api/corrections`; Migration `CorrectionUser` (FK auf `user`); R20 mit `overwriteCorrections`; `requestedBy` aus dem Token; `records.corrected`, `hours[].id`/`correctedAt`. N01/N04: `/api/status` mit `updateState`, `nextScheduledUpdateAt`, `daysWithData`, `daysComplete`, `gapCount`. Frontend: `/admin/korrektur` und `/admin/korrektur/:date`, Chip „KORRIGIERT“, „Stand: …“ mit Hinweisbox, Footer-Datenstand, öffentliche Seite `/status`, „heute“ aus `status.today`; Postman US13/US16/US17 |
