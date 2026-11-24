@@ -323,7 +323,7 @@ describe('YearlyPageComponent gegen die neue API (HttpTestingController)', () =>
     return { http, ...harnessHelpers(harness) };
   }
 
-  it('/jahr/2025: Jahresliste und genau 2 Requests (Jahr, Monate); Diagramm mit 12 Monaten (US05-7)', async () => {
+  it('/jahr/2025: Jahresliste und genau 2 Requests (Jahr, Monate); Diagramm mit 12 Monaten und Tabelle mit 12 Zeilen (US05-7)', async () => {
     const t = await routedHttp('/jahr/2025');
     t.http.expectOne('/api/summaries/years').flush(YEARS);
     t.http.expectOne('/api/summaries/years/2025').flush(yearSummary('2025', 10.1));
@@ -336,6 +336,12 @@ describe('YearlyPageComponent gegen die neue API (HttpTestingController)', () =>
     const chart = t.page().chartData()!;
     expect(chart.labels).toHaveLength(12);
     expect(chart.temperatures.every(v => v !== null)).toBe(true);
+    // US05-7: die Tabelle „Werte als Tabelle“ hat 12 Zeilen, eine je Monat in der Reihenfolge der x-Achse.
+    const details = t.el.querySelector('app-climate-chart details')!;
+    expect(details.querySelector('summary')?.textContent?.trim()).toBe('Werte als Tabelle');
+    const rows = Array.from(details.querySelectorAll('tbody tr'));
+    expect(rows).toHaveLength(12);
+    expect(rows.map(r => r.firstElementChild?.textContent?.trim())).toEqual(chart.labels);
 
     t.select().value = '2026';
     t.select().dispatchEvent(new Event('change'));

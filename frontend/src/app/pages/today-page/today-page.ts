@@ -1,5 +1,9 @@
-import { Component, DestroyRef, ElementRef, OnInit, signal, computed, effect, inject, input, linkedSignal, viewChild } from '@angular/core';
+import {
+  Component, DOCUMENT, DestroyRef, ElementRef, Injector, OnInit, afterNextRender, signal, computed, effect, inject, input,
+  linkedSignal, viewChild,
+} from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
+import { NgTemplateOutlet } from '@angular/common';
 import { Title } from '@angular/platform-browser';
 import { Router, RouterLink } from '@angular/router';
 import { Observable, of, catchError, distinctUntilChanged, map, startWith, switchMap } from 'rxjs';
@@ -62,7 +66,7 @@ function hourOf(timeLocal: string): string {
   imports: [
     UnitPipe, ClimateChartComponent, RouterLink, CardComponent, KpiCardComponent, ChipComponent, NoticeComponent,
     FormFieldComponent, DataTableComponent, SkeletonComponent, LoadingComponent, EmptyComponent, ErrorComponent,
-    UpdateNoticeComponent, ForecastNoticesComponent,
+    UpdateNoticeComponent, ForecastNoticesComponent, NgTemplateOutlet,
   ],
   templateUrl: './today-page.html',
   styleUrl: './today-page.css'
@@ -73,6 +77,8 @@ export class TodayPageComponent implements OnInit {
   private auth = inject(AuthService);
   private title = inject(Title);
   private router = inject(Router);
+  private document = inject(DOCUMENT);
+  private injector = inject(Injector);
 
   readonly getWeatherIcon = getWeatherIcon;
   readonly describeWeather = describeWeather;
@@ -196,6 +202,14 @@ export class TodayPageComponent implements OnInit {
 
   isToday  = computed(() => this.selectedDate() === this.today());
   isFuture = computed(() => this.dateStatus() === 'future');
+
+  /**
+   * Heute liegen noch keine Messwerte vor (404 `NO_DATA` für heute, z. B. kurz nach Mitternacht, 14b):
+   * ruhiger Leerzustand im Hinweisstil statt der Fehlerbox, die Vorschau bleibt sichtbar. Für vergangene
+   * Tage ohne Daten bleibt die Fehlerbox mit dem Link zum Datenbeginn (US02-5).
+   */
+  todayWithoutData = computed(() =>
+    this.state() === 'error' && this.apiError()?.code === 'NO_DATA' && this.isToday());
 
   /** ‹ ist an DATA_START gesperrt, › an heute (F19); beide bei Feldfehler oder ungültigem Datum. */
   prevDisabled = computed(() => this.fieldError() !== null || this.invalidDate() || this.selectedDate() <= DATA_START);
@@ -433,10 +447,21 @@ export class TodayPageComponent implements OnInit {
     this.navigateToDate(date);
   }
 
-  /** Zustandswechsel nur über den Router, damit History-Einträge entstehen (V08). Heute ist `/`. */
+  /**
+   * Zustandswechsel nur über den Router, damit History-Einträge entstehen (V08). Heute ist `/`.
+   * Die Seite bleibt beim Wechsel erhalten (eine Route, app.routes.ts), der Fokus also auf ‹ ›.
+   * Wird der auslösende Button dabei gesperrt (› erreicht heute, ‹ den Datenbeginn), geht der Fokus
+   * auf das Datumsfeld statt verloren (14b, WCAG 2.4.3).
+   */
   private navigateToDate(date: string): void {
     this.navBase.set(date);
-    this.router.navigate(date === this.today() ? ['/'] : ['/tag', date]);
+    const trigger = this.document.activeElement;
+    void this.router.navigate(date === this.today() ? ['/'] : ['/tag', date]).then(() => {
+      if (!(trigger instanceof HTMLButtonElement)) return;
+      afterNextRender(() => {
+        if (trigger.disabled) this.dateInput()?.nativeElement.focus();
+      }, { injector: this.injector });
+    });
   }
 
   private loadDay({ target, status }: DayRequest): Observable<DayResult> {

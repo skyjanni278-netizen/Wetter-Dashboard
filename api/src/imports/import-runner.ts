@@ -6,6 +6,7 @@ import { FORECAST_STORE } from '../forecasts/forecast.store';
 import type { ForecastStore } from '../forecasts/forecast.store';
 import { HEUBACH } from '../locations/location';
 import type { ObservationInput } from '../observations/observation';
+import { WMO_CODES } from '../observations/observation.entity';
 import { OBSERVATION_STORE } from '../observations/observation.store';
 import type { ObservationStore } from '../observations/observation.store';
 import { OpenMeteoClient, OpenMeteoError } from '../weather-provider/open-meteo.client';
@@ -17,6 +18,22 @@ import type { ImportStore, ImportUpdate } from './import.store';
 
 /** Tage der Tagesvorhersage (US03). */
 export const FORECAST_DAYS = 7;
+
+const WMO = new Set<number>(WMO_CODES);
+
+/**
+ * R15 beim Import: Ein Wettercode außerhalb der 28 gültigen WMO-Codes wird `null` gespeichert, statt am
+ * DB-`CHECK` den ganzen Import scheitern zu lassen; dazu eine Warnung `UNKNOWN_WMO_CODE` (03 B2.2).
+ */
+function withKnownWeatherCode(hour: ProviderHour, warnings: ImportWarning[]): ProviderHour {
+  if (hour.weatherCode === null || WMO.has(hour.weatherCode)) return hour;
+  warnings.push({
+    code: 'UNKNOWN_WMO_CODE',
+    message: `Wettercode ${hour.weatherCode} unbekannt, als null gespeichert`,
+    timeUtc: hour.timeUtc,
+  });
+  return { ...hour, weatherCode: null };
+}
 
 function toImportError(error: unknown): ImportError {
   if (error instanceof OpenMeteoError) {
@@ -97,6 +114,8 @@ export class ImportRunner {
 
     // 1. Stundenwerte: erst alle Abfragen, dann schreiben. Ein Fehler → nichts geschrieben (R32).
     const hours: ObservationInput[] = [];
+    // R15: Hinweise zu einzelnen Werten; sie machen den Import nicht `partial` (03 B2.2: `succeeded` mit Warnung).
+    const valueWarnings: ImportWarning[] = [];
     try {
       for (const plan of planHourlyRequests(record.from, record.to, localDate(this.clock.now()))) {
         const fetched: ProviderHour[] = await this.provider.fetchHourly(plan.request, HEUBACH);
@@ -104,7 +123,9 @@ export class ImportRunner {
         const source = plan.request.source === 'archive' ? 'archive' : 'forecast_api';
         for (const hour of fetched) {
           const date = localDate(new Date(hour.timeUtc));
-          if (date >= plan.fromLocal && date <= plan.toLocal) hours.push({ ...hour, source });
+          if (date >= plan.fromLocal && date <= plan.toLocal) {
+            hours.push({ ...withKnownWeatherCode(hour, valueWarnings), source });
+          }
         }
       }
     } catch (error) {
@@ -133,6 +154,11 @@ export class ImportRunner {
       });
     }
 
-    return { status: warnings.length > 0 ? 'partial' : 'succeeded', counts, warnings, error: null };
+    return {
+      status: warnings.length > 0 ? 'partial' : 'succeeded',
+      counts,
+      warnings: [...valueWarnings, ...warnings],
+      error: null,
+    };
   }
 }

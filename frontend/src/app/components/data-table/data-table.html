@@ -1,5 +1,8 @@
-<div class="table-scroll">
-  <table>
+<!-- Läuft die Tabelle seitlich über (schmale Ansicht), ist der Scroll-Bereich per Tab erreichbar und mit
+     den Pfeiltasten scrollbar (14b, axe scrollable-region-focusable); sonst kein zusätzlicher Tabstopp -->
+<div #scroller class="table-scroll" [attr.tabindex]="overflowing() ? 0 : null" [attr.role]="overflowing() ? 'region' : null"
+     [attr.aria-label]="overflowing() ? caption() : null">
+  <table #table>
     <caption [class.visually-hidden]="captionHidden()">{{ caption() }}</caption>
     <thead>
       <tr>

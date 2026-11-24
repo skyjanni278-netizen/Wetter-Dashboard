@@ -59,7 +59,14 @@
         </app-notice>
       }
 
-      @if (state() === 'error') {
+      @if (todayWithoutData()) {
+        <!-- Heute noch ohne Messwerte (404 NO_DATA, z. B. kurz nach Mitternacht, 14b): ruhiger Leerzustand im
+             Hinweisstil statt Fehlerbox; die Vorschau bleibt sichtbar. Vergangene Tage behalten die Fehlerbox (US02-5). -->
+        <app-empty class="today-empty" message="Für heute liegen noch keine Messwerte vor. Die erste Stunde kommt mit dem nächsten Abruf." />
+        @if (forecastRows().length > 0) {
+          <ng-container *ngTemplateOutlet="forecastColumn" />
+        }
+      } @else if (state() === 'error') {
         <!-- Bei NO_DATA setzt app-error den Link zum Datenbeginn aus details.dataFrom selbst (B3.3) -->
         <app-error [message]="error() ?? 'Fehler beim Laden.'" [apiError]="apiError()" [retryable]="retryable()" (retry)="retry()">
           @if (apiError()?.code !== 'NO_DATA') {
@@ -135,19 +142,7 @@
 
               <!-- 7-Tage-Vorschau als Tabelle mit Wettertext (E3.7.5, F17); darüber die Hinweise (N07, US20-6) -->
               @if (forecastRows().length > 0) {
-                <div class="forecast-column">
-                  @if (notices().length > 0) {
-                    <app-forecast-notices [notices]="notices()" />
-                  }
-                  <app-card class="forecast-card" [busy]="loading()" [reveal]="true" [revealIndex]="4">
-                    <div class="card-head">
-                      <h2>7-Tage-Vorschau</h2>
-                      <app-chip variant="forecast" />
-                    </div>
-                    <app-data-table caption="7-Tage-Vorschau" [captionHidden]="true"
-                                    [columns]="forecastColumns" [columnsNarrow]="forecastColumnsNarrow" [rows]="forecastRows()" />
-                  </app-card>
-                </div>
+                <ng-container *ngTemplateOutlet="forecastColumn" />
               }
             </div>
           }
@@ -186,3 +181,21 @@
     }
   </div>
 </div>
+
+<!-- 7-Tage-Vorschau mit den Hinweisen darüber (N07, US20-6): neben den Kennzahlen des laufenden Tags
+     und im Leerzustand „heute ohne Messwerte“ (14b) -->
+<ng-template #forecastColumn>
+  <div class="forecast-column">
+    @if (notices().length > 0) {
+      <app-forecast-notices [notices]="notices()" />
+    }
+    <app-card class="forecast-card" [busy]="loading()" [reveal]="true" [revealIndex]="4">
+      <div class="card-head">
+        <h2>7-Tage-Vorschau</h2>
+        <app-chip variant="forecast" />
+      </div>
+      <app-data-table caption="7-Tage-Vorschau" [captionHidden]="true"
+                      [columns]="forecastColumns" [columnsNarrow]="forecastColumnsNarrow" [rows]="forecastRows()" />
+    </app-card>
+  </div>
+</ng-template>

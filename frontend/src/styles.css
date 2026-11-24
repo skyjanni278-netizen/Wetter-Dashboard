@@ -32,6 +32,10 @@ a:hover { color: var(--color-accent-strong-hover); text-decoration-thickness: 2p
 /* Ziel des Skip-Links: per Programm fokussiert, kein Bedienelement */
 main[tabindex="-1"]:focus { outline: none; }
 
+/* Ziel des Fokusmanagements beim Seitenwechsel (14b, App.focusPageHeading): per Programm fokussiert,
+   kein Bedienelement, deshalb ohne Ring */
+h1[tabindex="-1"]:focus { outline: none; }
+
 button, input, select, textarea { font: inherit; color: inherit; }
 
 /* ---------- Buttons (E3.7.2) ----------

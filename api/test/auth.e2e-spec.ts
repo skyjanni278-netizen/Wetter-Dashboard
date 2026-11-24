@@ -240,7 +240,7 @@ describe('Schritt 10: Login, JWT, JwtAuthGuard (US09, US10-1, US11-5, US12-4)', 
     });
   });
 
-  describe('Admin-Endpunkte ohne @Public() (US10-1, US11-5, US12-4)', () => {
+  describe('Admin-Endpunkte ohne @Public() (US10-1, US11-5, US12-4, US14-2)', () => {
     it.each([
       ['POST', '/api/imports'],
       ['GET', '/api/imports'],

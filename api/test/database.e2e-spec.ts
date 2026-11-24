@@ -10,6 +10,8 @@ import { AppModule } from '../src/app.module';
 import { Clock, FixedClock } from '../src/common/clock';
 import { DB_PATH } from '../src/database/db-path';
 import { ImportRunner } from '../src/imports/import-runner';
+import { SCHEDULER_ENABLED } from '../src/scheduler/scheduler-enabled';
+import { SchedulerService } from '../src/scheduler/scheduler.service';
 import { OpenMeteoClient } from '../src/weather-provider/open-meteo.client';
 import type { HourlyRequest, ProviderHour } from '../src/weather-provider/open-meteo.client';
 import { createTestApp } from './support/app';
@@ -103,6 +105,55 @@ describe('Datenbank: PRAGMA, Fremdschlüssel, CHECK (B2.6), Health (US14-3), Cac
     await expect(insert(1, 999, 7)).rejects.toThrow(/FOREIGN KEY constraint failed/);
     const [row]: { n: number }[] = await h.dataSource.query('SELECT COUNT(*) AS "n" FROM "observation"');
     expect(row.n).toBe(0);
+  });
+
+  /** Eine gültige Stunde, in der eine Spalte durch `value` ersetzt ist. */
+  const insertWith = (importId: number, column: string, value: number, timeUtc = '2026-11-10T11:00:00Z') => {
+    const values: Record<string, number> = {
+      utc_offset_min: 60,
+      temperature: 7,
+      apparent_temperature: 5,
+      precipitation: 0,
+      weather_code: 3,
+      wind_speed: 12,
+      wind_direction: 220,
+      [column]: value,
+    };
+    const columns = Object.keys(values);
+    return h.dataSource.query(
+      `INSERT INTO "observation" ("location_id", "time_utc", "local_date", "local_hour", ${columns.map(c => `"${c}"`).join(', ')}, "source", "import_id", "fetched_at", "updated_at")
+       VALUES (1, ?, '2026-11-10', 12, ${columns.map(() => '?').join(', ')}, 'archive', ?, '2026-11-10T12:00:00Z', '2026-11-10T12:00:00Z')`,
+      [timeUtc, ...columns.map(c => values[c]), importId],
+    );
+  };
+
+  it.each([
+    ['R15', 'weather_code', 4, 'CHK_observation_weather_code'],
+    ['R16', 'apparent_temperature', 60.1, 'CHK_observation_apparent_temperature'],
+    ['R16', 'precipitation', -0.1, 'CHK_observation_precipitation'],
+    ['R16', 'wind_speed', 300.1, 'CHK_observation_wind_speed'],
+    ['R16', 'wind_direction', 361, 'CHK_observation_wind_direction'],
+    ['R07', 'utc_offset_min', 0, 'CHK_observation_utc_offset'],
+  ])('%s: %s = %d → CHECK-Fehler %s', async (_rule, column, value, constraint) => {
+    const importId = await insertImport(h.dataSource);
+    await expect(insertWith(importId, column, value)).rejects.toThrow(`CHECK constraint failed: ${constraint}`);
+    const [row]: { n: number }[] = await h.dataSource.query('SELECT COUNT(*) AS "n" FROM "observation"');
+    expect(row.n).toBe(0);
+  });
+
+  it('R07: dieselbe UTC-Stunde doppelt (location_id, time_utc) → UNIQUE-Fehler', async () => {
+    const importId = await insertImport(h.dataSource);
+    const timeUtc = '2026-10-25T01:00:00Z';
+    try {
+      await insertWith(importId, 'utc_offset_min', 60, timeUtc);
+      await expect(insertWith(importId, 'utc_offset_min', 120, timeUtc)).rejects.toThrow(
+        /UNIQUE constraint failed: observation\.location_id, observation\.time_utc/,
+      );
+      const rows: unknown[] = await h.dataSource.query('SELECT "id" FROM "observation" WHERE "time_utc" = ?', [timeUtc]);
+      expect(rows).toHaveLength(1);
+    } finally {
+      await h.dataSource.query('DELETE FROM "observation" WHERE "time_utc" = ?', [timeUtc]);
+    }
   });
 
   it('US14-3: GET /api/health → 200 { status: "ok", database: "ok" }', async () => {
@@ -208,6 +259,58 @@ describe('F32, R19: Importe überleben einen Neustart (Datei-DB im Temp-Ordner);
     } finally {
       await second.app.close();
     }
+  });
+});
+
+describe('US08-3 (Z3): Der Mitternachtslauf macht die 23-Uhr-Stunde von gestern zum Messwert', () => {
+  let app: INestApplication<App>;
+  const clock = new FixedClock('2026-11-19T21:05:00Z'); // 19.11. 22:05 MEZ
+  const { provider, setMutator } = fakeProvider();
+
+  beforeAll(async () => {
+    const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+      .overrideProvider(Clock)
+      .useValue(clock)
+      .overrideProvider(OpenMeteoClient)
+      .useValue(provider)
+      .overrideProvider(SCHEDULER_ENABLED)
+      .useValue(true)
+      .compile();
+    app = await createTestApp(moduleRef);
+  });
+  afterAll(() => app.close());
+
+  /** Ein Scheduler-Lauf wie per Cron, bis der Import fertig ist. */
+  async function tick() {
+    const record = await app.get(SchedulerService).tick();
+    await app.get(ImportRunner).whenIdle();
+    return record;
+  }
+
+  it('Lauf 22:05 MEZ: 23:00 ist prediction; Lauf 20.11. 00:05 MEZ: hours[23] source = "forecast_api", isPrediction = false', async () => {
+    expect(await tick()).toMatchObject({ kind: 'scheduled', from: '2026-11-18', to: '2026-11-19' });
+    const before = await request(app.getHttpServer()).get('/api/days/2026-11-19').expect(200);
+    expect(before.body.hours).toHaveLength(24);
+    expect(before.body.hours[22]).toMatchObject({ timeLocal: '2026-11-19T22:00', source: 'forecast_api', isPrediction: false });
+    expect(before.body.hours[23]).toMatchObject({ timeLocal: '2026-11-19T23:00', source: 'prediction', isPrediction: true, temperature: 5 });
+
+    clock.set('2026-11-19T23:05:00Z'); // 20.11. 00:05 MEZ
+    setMutator(hour => (hour.timeUtc === '2026-11-19T22:00:00Z' ? { ...hour, temperature: 3.7 } : hour));
+    const midnight = await tick();
+    expect(midnight).toMatchObject({ kind: 'scheduled', from: '2026-11-19', to: '2026-11-20' });
+
+    const after = await request(app.getHttpServer()).get('/api/days/2026-11-19').expect(200);
+    expect(after.body.hours[23]).toMatchObject({
+      timeLocal: '2026-11-19T23:00',
+      source: 'forecast_api',
+      isPrediction: false,
+      temperature: 3.7,
+    });
+    expect(after.body.hours.filter((hour: { source: string }) => hour.source === 'prediction')).toEqual([]);
+    expect(provider.fetchHourly).toHaveBeenLastCalledWith(
+      { source: 'forecast', startDate: '2026-11-18', endDate: '2026-11-20' },
+      expect.anything(),
+    );
   });
 });
 

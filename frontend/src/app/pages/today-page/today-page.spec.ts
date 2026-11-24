@@ -1175,3 +1175,96 @@ describe('TodayPageComponent: Hinweise aus der Vorhersage (N07, US20-6, Schritt 
     expect(t.el.textContent).not.toContain('Frost möglich');
   });
 });
+
+describe('TodayPageComponent: heute noch ohne Messwerte (14b, US01-1)', () => {
+  const forecast = [forecastDay(berlinToday(), 8, 2, 0, 3), forecastDay(addDays(berlinToday(), 1), 9, 3, 1.2, 61)];
+  const FROST: Notice = {
+    id: '2026-11-21-frost', type: 'frost', date: '2026-11-21', value: -2.3, threshold: 0, comparator: 'lt', unit: '°C',
+  };
+
+  it('/ mit 404 NO_DATA: ruhiger Leerzustand im Hinweisstil statt Fehlerbox, Vorschau und Hinweise bleiben', async () => {
+    const t = await routed({
+      getToday: () => throwError(() => NO_DATA(berlinToday())),
+      getDay: (date: string) => of(day(date, 7)),
+      getForecasts: () => of(list(forecast)),
+      getNotices: () => of({ items: [FROST], basedOnFetchedAt: '2026-11-19T13:05:12Z' }),
+    }, '/');
+    expect(t.page().todayWithoutData()).toBe(true);
+    expect(t.el.querySelector('app-error')).toBeNull();
+    expect(t.el.querySelector('[role="alert"]')).toBeNull();
+    const empty = t.el.querySelector('app-empty') as HTMLElement;
+    expect(empty.querySelector('.notice')?.classList).toContain('notice-info');
+    expect(empty.textContent).toContain('Für heute liegen noch keine Messwerte vor. Die erste Stunde kommt mit dem nächsten Abruf.');
+    // kein Link zum Datenbeginn, kein „Erneut versuchen“
+    expect(empty.querySelector('a, button')).toBeNull();
+    expect(t.el.querySelector('.forecast-card')).not.toBeNull();
+    expect(t.el.querySelectorAll('.forecast-card tbody tr')).toHaveLength(2);
+    expect(t.el.querySelector('app-forecast-notices')).not.toBeNull();
+    // Überschrift und Bedienung bleiben
+    expect(t.el.querySelector('h1')?.textContent).toContain(formatDateLongDe(berlinToday()));
+    expect(t.el.querySelector('.hero')).toBeNull();
+  });
+
+  it('/ mit 404 NO_DATA ohne Vorschau: nur der Leerzustand', async () => {
+    const t = await routed({
+      getToday: () => throwError(() => NO_DATA(berlinToday())),
+      getDay: (date: string) => of(day(date, 7)),
+      getForecasts: () => of(list()),
+    }, '/');
+    expect(t.el.querySelector('app-empty')).not.toBeNull();
+    expect(t.el.querySelector('.forecast-card')).toBeNull();
+  });
+
+  it('vergangener Tag mit 404 NO_DATA: weiter die Fehlerbox mit Link zum Datenbeginn (US02-5)', async () => {
+    const t = await routed({
+      getToday: () => of(day(berlinToday(), 5)),
+      getDay: (date: string) => throwError(() => NO_DATA(date)),
+      getForecasts: () => of(list(forecast)),
+    }, '/tag/2024-12-31');
+    expect(t.page().todayWithoutData()).toBe(false);
+    expect(t.el.querySelector('app-error')?.textContent).toContain('Für den 31.12.2024 liegen keine Daten vor.');
+    expect(t.el.querySelector('app-empty')).toBeNull();
+    expect(t.el.querySelector('.forecast-card')).toBeNull();
+  });
+
+  it('500 für heute bleibt ein Fehler mit „Erneut versuchen“', async () => {
+    const t = await routed({
+      getToday: () => throwError(() => apiFailure(500, { code: 'INTERNAL_ERROR', message: 'Interner Fehler' })),
+      getDay: (date: string) => of(day(date, 7)),
+      getForecasts: () => of(list(forecast)),
+    }, '/');
+    expect(t.page().todayWithoutData()).toBe(false);
+    expect(t.el.querySelector('app-error button')?.textContent).toContain('Erneut versuchen');
+    expect(t.el.querySelector('app-empty')).toBeNull();
+  });
+});
+
+describe('TodayPageComponent: Fokus bei ‹ › (14b, WCAG 2.4.3)', () => {
+  it('‹ behält den Fokus; › bis heute sperrt den Button, der Fokus geht aufs Datumsfeld', async () => {
+    const { mock } = counting();
+    const yesterday = addDays(berlinToday(), -1);
+    const t = await routed(mock, `/tag/${yesterday}`);
+    document.body.appendChild(t.el);
+    try {
+      const page = t.page();
+      t.prev().focus();
+      t.prev().click();
+      await t.settle();
+      await t.settle();
+      expect(t.page()).toBe(page);
+      expect(document.activeElement).toBe(t.prev());
+
+      t.next().click();
+      await t.settle();
+      t.next().focus();
+      t.next().click();
+      await t.settle();
+      await t.settle();
+      expect(t.router.url).toBe('/');
+      expect(t.next().disabled).toBe(true);
+      expect(document.activeElement).toBe(t.input());
+    } finally {
+      t.el.remove();
+    }
+  });
+});

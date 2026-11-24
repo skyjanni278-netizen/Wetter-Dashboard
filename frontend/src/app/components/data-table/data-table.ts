@@ -1,4 +1,6 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, input, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy, Component, DestroyRef, ElementRef, afterNextRender, computed, inject, input, signal, viewChild,
+} from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { ChipComponent, ChipVariant } from '../chip/chip';
 
@@ -43,6 +45,8 @@ export type DataTableRow = Readonly<Record<string, DataTableValue>>;
  * Formatierung erscheinen deutsch, fehlende Werte als „–“.
  * Mit `columnsNarrow` gilt unter 48em (768 px) dieser Spaltensatz statt `columns`; es wird immer
  * nur ein Satz gerendert. Die Zeilen müssen die Schlüssel beider Sätze enthalten.
+ * Läuft die Tabelle seitlich über (`overflowing`), wird der Scroll-Bereich fokussierbar
+ * (`tabindex="0"`, `role="region"`, Name = `caption`), damit er per Tastatur scrollbar ist (14b).
  */
 @Component({
   selector: 'app-data-table',
@@ -65,13 +69,36 @@ export class DataTableComponent {
   private readonly narrow = signal(false);
   readonly activeColumns = computed(() => (this.narrow() && this.columnsNarrow()) || this.columns());
 
+  private readonly scroller = viewChild.required<ElementRef<HTMLElement>>('scroller');
+  private readonly table = viewChild.required<ElementRef<HTMLElement>>('table');
+  /** Tabelle breiter als ihr Container (z. B. „Werte als Tabelle“ bei 375 px): Scroll-Bereich fokussierbar. */
+  readonly overflowing = signal(false);
+
   constructor() {
+    const destroyRef = inject(DestroyRef);
+    // Überlauf neu prüfen, wenn sich Container oder Tabelle ändern (Breite, Spaltensatz, Zeilen,
+    // Öffnen von <details>: vorher ist die Größe 0).
+    afterNextRender(() => {
+      this.checkOverflow();
+      if (typeof ResizeObserver !== 'function') return;
+      const observer = new ResizeObserver(() => this.checkOverflow());
+      observer.observe(this.scroller().nativeElement);
+      observer.observe(this.table().nativeElement);
+      destroyRef.onDestroy(() => observer.disconnect());
+    });
+
     if (typeof matchMedia !== 'function') return;
     const query = matchMedia('(max-width: 47.99em)');
     this.narrow.set(query.matches);
     const onChange = (e: MediaQueryListEvent) => this.narrow.set(e.matches);
     query.addEventListener('change', onChange);
-    inject(DestroyRef).onDestroy(() => query.removeEventListener('change', onChange));
+    destroyRef.onDestroy(() => query.removeEventListener('change', onChange));
+  }
+
+  /** Gleiche Bedingung wie axe `scrollable-region-focusable`: `scrollWidth > clientWidth`. */
+  checkOverflow(): void {
+    const el = this.scroller().nativeElement;
+    this.overflowing.set(el.scrollWidth > el.clientWidth);
   }
 
   isIcon(value: DataTableValue): value is DataTableIcon {

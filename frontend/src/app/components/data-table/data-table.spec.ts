@@ -110,4 +110,34 @@ describe('DataTableComponent', () => {
     expect(cell.getAttribute('href')).toBe('/admin/luecken');
     expect(cell.getAttribute('aria-label')).toBeNull();
   });
+
+  describe('Scroll-Bereich bei seitlichem Überlauf (14b, axe scrollable-region-focusable)', () => {
+    function fixtureWithWidths(scrollWidth: number, clientWidth: number) {
+      const fixture = TestBed.createComponent(DataTableComponent);
+      fixture.componentRef.setInput('caption', 'Werte am 19.11.2026');
+      fixture.componentRef.setInput('columns', COLUMNS);
+      fixture.componentRef.setInput('rows', rows);
+      fixture.detectChanges();
+      const scroller = (fixture.nativeElement as HTMLElement).querySelector('.table-scroll') as HTMLElement;
+      Object.defineProperty(scroller, 'scrollWidth', { configurable: true, value: scrollWidth });
+      Object.defineProperty(scroller, 'clientWidth', { configurable: true, value: clientWidth });
+      fixture.componentInstance.checkOverflow();
+      fixture.detectChanges();
+      return scroller;
+    }
+
+    it('ohne Überlauf: kein Tabstopp, keine Rolle, kein Name', () => {
+      const scroller = fixtureWithWidths(310, 310);
+      expect(scroller.hasAttribute('tabindex')).toBe(false);
+      expect(scroller.hasAttribute('role')).toBe(false);
+      expect(scroller.hasAttribute('aria-label')).toBe(false);
+    });
+
+    it('mit Überlauf: tabindex="0", role="region" und Name aus der Tabellenbeschriftung', () => {
+      const scroller = fixtureWithWidths(528, 310);
+      expect(scroller.getAttribute('tabindex')).toBe('0');
+      expect(scroller.getAttribute('role')).toBe('region');
+      expect(scroller.getAttribute('aria-label')).toBe('Werte am 19.11.2026');
+    });
+  });
 });

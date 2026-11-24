@@ -273,7 +273,7 @@ describe('Schritt 11: Rollen, RolesGuard, Grundeinstellungen', () => {
       expect(res.headers['x-frame-options']).toBe('SAMEORIGIN');
     });
 
-    it('auch Fehlerantworten (404, 406) tragen die Header', async () => {
+    it('auch Fehlerantworten (404, US17-3: GET /api/status mit Accept: text/html → 406) tragen die Header', async () => {
       for (const res of [
         await request(server()).get('/api/gibtsnicht').expect(404),
         await request(server()).get('/api/status').set('Accept', 'text/html').expect(406),

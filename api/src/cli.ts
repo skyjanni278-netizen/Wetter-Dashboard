@@ -213,10 +213,14 @@ async function adminCommand(args: AdminArgs): Promise<number> {
   }
 }
 
-async function main(): Promise<number> {
+/**
+ * Führt einen Befehl aus und liefert den Exit-Code (0 Erfolg, 1 Fehler, 2 falscher Aufruf); exportiert für
+ * `cli.spec.ts`. Gibt nur über `console` aus und setzt `process.exitCode` nicht selbst.
+ */
+export async function main(argv: readonly string[] = process.argv.slice(2)): Promise<number> {
   let args: CliArgs;
   try {
-    args = parseArgs(process.argv.slice(2));
+    args = parseArgs(argv);
   } catch (error) {
     console.error((error as Error).message);
     return 2;
@@ -236,6 +240,9 @@ async function main(): Promise<number> {
   }
 }
 
-void main().then(code => {
-  process.exitCode = code;
-});
+// Nur beim Aufruf als Programm (`node dist/cli.js`), nicht beim Import im Test.
+if (require.main === module) {
+  void main().then(code => {
+    process.exitCode = code;
+  });
+}

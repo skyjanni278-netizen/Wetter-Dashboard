@@ -59,7 +59,10 @@
 
 .form-field-error-symbol { font-weight: var(--fw-bold); }
 
-.form-field input[type="date"]::-webkit-calendar-picker-indicator:focus-visible {
+/* Kalendersymbol des Datumsfelds (14b, B3): `::-webkit-calendar-picker-indicator:focus-visible` greift in
+   Chromium nicht, es bleibt der schwarze Ring des Browsers. Ist das Symbol fokussiert, passt das Feld auf
+   :focus-within, aber nicht auf :focus; daran hängt der Token-Ring (ersetzt den Ring des Browsers). */
+.form-field input[type="date"]:focus-within:not(:focus)::-webkit-calendar-picker-indicator {
   outline: var(--focus-width) solid var(--color-focus);
   outline-offset: var(--focus-offset);
 }

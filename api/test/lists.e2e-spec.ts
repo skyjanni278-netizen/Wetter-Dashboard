@@ -94,6 +94,11 @@ runWithData('Schritt 8: Listen und Zusammenfassungen mit backend/data (Fertig-Kr
     });
   });
 
+  it('US05-3: GET /api/summaries/years/2026 → 200, complete = false, daysComplete = 322, daysExpected = 365', async () => {
+    const res = await get('/api/summaries/years/2026').expect(200);
+    expect(res.body).toMatchObject({ id: '2026', complete: false, daysComplete: 322, daysExpected: 365 });
+  });
+
   it('US04-6: GET /api/summaries/months/2026-12 → 400 DATE_IN_FUTURE', async () => {
     const res = await get('/api/summaries/months/2026-12').expect(400);
     expect(res.body.code).toBe('DATE_IN_FUTURE');

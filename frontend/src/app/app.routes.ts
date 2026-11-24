@@ -1,4 +1,4 @@
-import { Routes } from '@angular/router';
+import { Routes, UrlMatchResult, UrlMatcher, UrlSegment } from '@angular/router';
 import { adminGuard } from './guards/admin.guard';
 import { berlinToday } from './utils/berlin-date';
 import {
@@ -9,39 +9,50 @@ const todayPage = () => import('./pages/today-page/today-page').then(m => m.Toda
 const monthlyPage = () => import('./pages/monthly-page/monthly-page').then(m => m.MonthlyPageComponent);
 const yearlyPage = () => import('./pages/yearly-page/yearly-page').then(m => m.YearlyPageComponent);
 
+/**
+ * Ein Routeneintrag für `prefix` ohne Parameter **und** `prefix/:a/:b…` (14b, WCAG 2.4.3): Weil beide
+ * Formen dieselbe Route sind, verwendet der Router die Seite beim Wechsel `/` ↔ `/tag/:date`,
+ * `/monat` → `/monat/2026/10` usw. weiter (Standard-RouteReuseStrategy vergleicht `routeConfig`).
+ * Die Seite wird nicht neu erzeugt, der Fokus bleibt auf dem Bedienelement (‹ ›, „Heute“, Selects).
+ * `base` = Segmente der Form ohne Parameter (`[]` = Startseite), `prefix` = erstes Segment der Form
+ * mit Parametern. Fehlende Parameter setzt die Input-Bindung auf `undefined`.
+ */
+export function optionalParamsMatcher(base: readonly string[], prefix: string, params: readonly string[]): UrlMatcher {
+  return (segments: UrlSegment[]): UrlMatchResult | null => {
+    const paths = segments.map(s => s.path);
+    if (paths.length === base.length && paths.every((p, i) => p === base[i])) return { consumed: segments };
+    if (paths[0] !== prefix || paths.length !== params.length + 1) return null;
+    const posParams = Object.fromEntries(params.map((name, i) => [name, segments[i + 1]]));
+    return { consumed: segments, posParams };
+  };
+}
+
 // Die Auswahl steht in der URL (V08, F11); die Parameter gehen per withComponentInputBinding()
 // als input() in die Seiten. Ohne Parameter zeigen die Seiten heute bzw. den aktuellen Berliner
 // Monat und das aktuelle Jahr (keine Umleitung). Der Titel kommt aus denselben Funktionen wie in
 // den Seiten, damit TitleStrategy und Seite nie unterschiedliche Titel setzen.
+// Je Seite genau ein Eintrag (optionalParamsMatcher), damit ein Parameterwechsel die Seite behält.
 export const routes: Routes = [
   {
-    path: '',
-    title: () => dayViewTitle(berlinToday()),
+    // `` (heute) und `tag/:date`
+    matcher: optionalParamsMatcher([], 'tag', ['date']),
+    title: route => dayViewTitle(route.paramMap.get('date') ?? berlinToday()),
     loadComponent: todayPage,
   },
   {
-    path: 'tag/:date',
-    title: route => dayViewTitle(route.paramMap.get('date')),
-    loadComponent: todayPage,
-  },
-  {
-    path: 'monat',
-    title: () => { const t = berlinToday(); return monthViewTitle(t.slice(0, 4), t.slice(5, 7)); },
+    // `monat` und `monat/:year/:month`
+    matcher: optionalParamsMatcher(['monat'], 'monat', ['year', 'month']),
+    title: route => {
+      if (route.paramMap.has('year')) return monthViewTitle(route.paramMap.get('year'), route.paramMap.get('month'));
+      const t = berlinToday();
+      return monthViewTitle(t.slice(0, 4), t.slice(5, 7));
+    },
     loadComponent: monthlyPage,
   },
   {
-    path: 'monat/:year/:month',
-    title: route => monthViewTitle(route.paramMap.get('year'), route.paramMap.get('month')),
-    loadComponent: monthlyPage,
-  },
-  {
-    path: 'jahr',
-    title: () => yearViewTitle(berlinToday().slice(0, 4)),
-    loadComponent: yearlyPage,
-  },
-  {
-    path: 'jahr/:year',
-    title: route => yearViewTitle(route.paramMap.get('year')),
+    // `jahr` und `jahr/:year`
+    matcher: optionalParamsMatcher(['jahr'], 'jahr', ['year']),
+    title: route => yearViewTitle(route.paramMap.get('year') ?? berlinToday().slice(0, 4)),
     loadComponent: yearlyPage,
   },
   {
@@ -49,7 +60,7 @@ export const routes: Routes = [
     title: 'Rekorde',
     loadComponent: () => import('./pages/stats-page/stats-page').then(m => m.StatsPageComponent),
   },
-  // Datenstand für Gäste (N04, US17-4): erreichbar über den Footer-Link „Status“.
+  // Datenstand für Gäste (N04, US17-4): erreichbar über den Footer-Link „Datenstand“ (bis 14b „Status“).
   {
     path: 'status',
     title: 'Datenstand',

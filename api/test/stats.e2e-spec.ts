@@ -205,7 +205,8 @@ describe('Fachregeln und berechnete Felder (Schritt 7, e2e mit Fixtures und Fixe
       });
     });
 
-    it('US05: GET /api/summaries/years/2026 → laufendes Jahr gültig, unvollständig, Monate mit Daten', async () => {
+    // US05-3 mit dem Altbestand (daysComplete = 322) prüft lists.e2e-spec.ts; hier dieselbe Form mit 11 Tagen der Fixture.
+    it('US05-3 (Fixture): GET /api/summaries/years/2026 → 200, complete = false, daysComplete 11 von 365, Monate mit Daten', async () => {
       const res = await request(h.app.getHttpServer()).get('/api/summaries/years/2026').expect(200);
       expect(res.body).toMatchObject({
         id: '2026',
@@ -220,21 +221,21 @@ describe('Fachregeln und berechnete Felder (Schritt 7, e2e mit Fixtures und Fixe
     });
 
     it.each([
-      ['/api/summaries/months/2025-13', 'VALIDATION_FAILED', 'yearMonth'],
-      ['/api/summaries/months/2026-12', 'DATE_IN_FUTURE', 'yearMonth'],
-      ['/api/summaries/years/1939', 'VALIDATION_FAILED', 'year'],
-      ['/api/summaries/years/26', 'VALIDATION_FAILED', 'year'],
-      ['/api/summaries/years/2027', 'DATE_IN_FUTURE', 'year'],
-    ])('%s → 400 %s an %s', async (url, code, field) => {
+      ['Format', '/api/summaries/months/2025-13', 'VALIDATION_FAILED', 'yearMonth'],
+      ['US04-6', '/api/summaries/months/2026-12', 'DATE_IN_FUTURE', 'yearMonth'],
+      ['US05-4', '/api/summaries/years/1939', 'VALIDATION_FAILED', 'year'],
+      ['Format', '/api/summaries/years/26', 'VALIDATION_FAILED', 'year'],
+      ['R02', '/api/summaries/years/2027', 'DATE_IN_FUTURE', 'year'],
+    ])('%s: %s → 400 %s an %s', async (_id, url, code, field) => {
       const res = await request(h.app.getHttpServer()).get(url).expect(400);
       expect(res.body).toMatchObject({ statusCode: 400, code, errors: [{ field }], path: url });
     });
 
     it.each([
-      ['/api/summaries/months/2024-12', 'Für Dezember 2024 liegen keine Daten vor. Daten gibt es ab 29.06.2026.'],
-      ['/api/summaries/months/2026-08', 'Für August 2026 liegen keine Daten vor. Daten gibt es ab 29.06.2026.'],
-      ['/api/summaries/years/2024', 'Für das Jahr 2024 liegen keine Daten vor. Daten gibt es ab 29.06.2026.'],
-    ])('R03: %s → 404 NO_DATA mit details.dataFrom', async (url, message) => {
+      ['US04-5', '/api/summaries/months/2024-12', 'Für Dezember 2024 liegen keine Daten vor. Daten gibt es ab 29.06.2026.'],
+      ['Monat ohne Daten', '/api/summaries/months/2026-08', 'Für August 2026 liegen keine Daten vor. Daten gibt es ab 29.06.2026.'],
+      ['US05-5', '/api/summaries/years/2024', 'Für das Jahr 2024 liegen keine Daten vor. Daten gibt es ab 29.06.2026.'],
+    ])('%s (R03): %s → 404 NO_DATA mit details.dataFrom', async (_id, url, message) => {
       const res = await request(h.app.getHttpServer()).get(url).expect(404);
       expect(res.body).toMatchObject({ code: 'NO_DATA', message, details: { dataFrom: '2026-06-29' } });
     });
@@ -244,6 +245,22 @@ describe('Fachregeln und berechnete Felder (Schritt 7, e2e mit Fixtures und Fixe
       expect(res.body).toMatchObject({ daysExpected: 30, daysComplete: 0, complete: false, precipitationSum: null });
       expect(res.body.temperature.mean).toBeNull();
     });
+  });
+
+  it('US01-5 / F15: Tag mit einer Stunde temperature = null → min der vorhandenen Werte, nie 0, complete = false', async () => {
+    // 18.11.2026: Temperatur 10,0 + h/10 °C, um 00:00 null; ohne F15-Fehler ist das Minimum 10,1 °C um 01:00.
+    const h = await startWith(fixtureOf(dayObservations('2026-11-18', hour => (hour === 0 ? { temperature: null } : {}))));
+    try {
+      const res = await request(h.app.getHttpServer()).get('/api/days/2026-11-18').expect(200);
+      expect(res.body.hours[0]).toMatchObject({ timeLocal: '2026-11-18T00:00', temperature: null });
+      expect(res.body).toMatchObject({
+        complete: false,
+        observed: { temperature: { min: 10.1, minAt: '2026-11-18T01:00', max: 12.3, maxAt: '2026-11-18T23:00' } },
+      });
+      expect(res.body.observed.temperature.min).not.toBe(0);
+    } finally {
+      await h.close();
+    }
   });
 
   it('US06-5: leere Daten → alle Rekorde null, daysCounted 0', async () => {

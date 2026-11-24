@@ -164,6 +164,59 @@ describe('ImportRunner (US08-2, R32, F01)', () => {
     });
   });
 
+  describe('R15 beim Import: unbekannter WMO-Code → null plus Warnung UNKNOWN_WMO_CODE', () => {
+    // Index 0 = 30.09. 00:00 UTC (Berliner 30.09., nicht übernommen), 50 = 02.10. 02:00 UTC, 77–79 = 03.10. 05:00–07:00 UTC.
+    const unknownCodes: Record<number, number> = { 0: 4, 50: 100, 77: 4, 78: -1, 79: 2.5 };
+    const hoursWithUnknownCodes = providerHours('2026-09-30T00:00:00Z', 96, i =>
+      i in unknownCodes ? { weatherCode: unknownCodes[i] } : {},
+    );
+
+    async function runWith(daily: () => Response) {
+      const fetch = fakeFetch({ hourly: () => jsonResponse(openMeteoHourlyBody(hoursWithUnknownCodes)), daily });
+      const context = await setup(new OpenMeteoClient(fetch, []));
+      const record = await queue(context.imports);
+      await context.runner.run(record.id);
+      return { ...context, done: await context.imports.findById(record.id) };
+    }
+
+    it('Import bricht nicht ab: succeeded, Werte null, je übernommene Stunde eine Warnung mit timeUtc', async () => {
+      const { done, observations } = await runWith(() => jsonResponse(openMeteoDailyBody(forecastDays('2026-11-20'))));
+
+      expect(done).toMatchObject({
+        status: 'succeeded',
+        error: null,
+        counts: { inserted: 24, updated: 24, unchanged: 24, skippedCorrected: 0 },
+      });
+      expect(done?.warnings).toEqual([
+        { code: 'UNKNOWN_WMO_CODE', message: 'Wettercode 100 unbekannt, als null gespeichert', timeUtc: '2026-10-02T02:00:00Z' },
+        { code: 'UNKNOWN_WMO_CODE', message: 'Wettercode 4 unbekannt, als null gespeichert', timeUtc: '2026-10-03T05:00:00Z' },
+        { code: 'UNKNOWN_WMO_CODE', message: 'Wettercode -1 unbekannt, als null gespeichert', timeUtc: '2026-10-03T06:00:00Z' },
+        { code: 'UNKNOWN_WMO_CODE', message: 'Wettercode 2.5 unbekannt, als null gespeichert', timeUtc: '2026-10-03T07:00:00Z' },
+      ]);
+      const stored = [...((await observations.getDay('2026-10-02')) ?? []), ...((await observations.getDay('2026-10-03')) ?? [])];
+      const codeAt = (timeUtc: string) => stored.find(h => h.timeUtc === timeUtc)?.weatherCode;
+      expect(codeAt('2026-10-02T02:00:00Z')).toBeNull();
+      expect(codeAt('2026-10-03T05:00:00Z')).toBeNull();
+      expect(codeAt('2026-10-03T06:00:00Z')).toBeNull();
+      expect(codeAt('2026-10-03T07:00:00Z')).toBeNull();
+      expect(codeAt('2026-10-03T08:00:00Z')).toBe(3);
+      expect(stored).toHaveLength(48);
+    });
+
+    it('mit Fehler der Tagesvorhersage: partial, Warnung UNKNOWN_WMO_CODE vor FORECAST_FAILED', async () => {
+      const { done } = await runWith(() => jsonResponse({}));
+
+      expect(done?.status).toBe('partial');
+      expect(done?.warnings.map(w => w.code)).toEqual([
+        'UNKNOWN_WMO_CODE',
+        'UNKNOWN_WMO_CODE',
+        'UNKNOWN_WMO_CODE',
+        'UNKNOWN_WMO_CODE',
+        'FORECAST_FAILED',
+      ]);
+    });
+  });
+
   describe('Tagesvorhersage mit echtem Client (timezone=Europe/Berlin)', () => {
     async function withDailyOffset(offset: number) {
       const fetch = fakeFetch({
