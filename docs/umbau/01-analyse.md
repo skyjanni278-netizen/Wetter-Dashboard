@@ -1,5 +1,11 @@
 # 01 – Ist-Analyse Wetter-Dashboard Heubach
 
+> **Umsetzungsstand (24.11.2026):** Dieses Dokument bleibt die Analyse des **Altsystems** (Express, JSON-Dateien, Stand 19.11.2026) und ist nicht umgeschrieben. Die Roadmap-Schritte 0.1 bis 13 sind umgesetzt, Schritt 14 läuft ohne Raspberry Pi (Teile 14a bis 14d, siehe `04-roadmap.md`).
+> - **Fehler F01–F34:** Die Frontend-Fehler sind in den Schritten 0.2 bis 0.4 und 1 behoben, die Backend-Befunde (Zeit, Daten, Validierung, Fehlerformat, Sicherheit S1–S12) mit den Schritten 2 bis 11 (Nest, Datenbank, Login, Rollen). F33 (Tests) ist mit Schritt 14a abgeschlossen. Welcher Schritt welchen Befund schließt, steht je Schritt unter „Bezug“ in `04-roadmap.md`.
+> - **Entscheidungen aus Abschnitt 7** gelten unverändert: Rollen Gast und Admin ohne Besucherkonten (Schritte 10 und 11, PROJEKTDOKU 3a.15 und 3a.16), Standort nur Heubach als Stammdatum in der DB (PROJEKTDOKU 3a.12).
+> - **Das Altsystem gibt es nicht mehr:** Der Express-Server ist seit Schritt 9c entfernt, `backend/data/` ist nur noch Altbestand und Quelle für `import:legacy` (PROJEKTDOKU 3a.13 und 3a.14). Die Zählung „688 Dateien“ ist durch den Import auf 690 Dateien / 16 560 Stunden gewachsen (siehe Abschnitt „Abweichungen in der Umsetzung“ in `03-zielbild.md`).
+> - **Aktueller Stand des Systems:** `docs/PROJEKTDOKU.md`. Offene Restpunkte: dort Abschnitt 9a („Offene Punkte“).
+
 Stand: 19.11.2026 · Grundlage: Code im Arbeitsverzeichnis `D:\Projekte\wetter-Dashboard` (Branch `main`, Commit `9e5583a` plus nicht committete Änderungen, siehe 0.3), Browser-Test mit Microsoft Edge 157 headless, API-Tests mit curl.
 
 **Kennzeichnung:** **B** = Befund (steht im Code oder ist getestet) · **A** = Annahme (vermutet) · **E** = Empfehlung

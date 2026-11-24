@@ -16,6 +16,7 @@ Stündlicher Datenabruf von der kostenlosen [Open-Meteo API](https://open-meteo.
 | **Backend** | `api/`: NestJS mit SQLite (TypeORM), Port 3000, nur `127.0.0.1` |
 | **Frontend** | `frontend/`: Angular 21, Port 4200 (Entwicklung), Proxy `/api` → `http://localhost:3000` |
 | **Aktualisierung** | stündlich durch den Scheduler, Standard an (`SCHEDULER_ENABLED=true`), für die Dev-DB aus |
+| **Betrieb** | auf dem eigenen Windows-PC, von Hand gestartet. **Kein Raspberry Pi**, kein Autostart, kein Reverse Proxy (siehe „Betrieb und Backup“) |
 
 ---
 
@@ -23,8 +24,8 @@ Stündlicher Datenabruf von der kostenlosen [Open-Meteo API](https://open-meteo.
 
 ```
 Wetter-Dashboard/
-├── api/                  # NestJS-API + SQLite (src/, test/)
-├── frontend/             # Angular-App (Seiten Heute, Monat, Jahr, Rekorde)
+├── api/                  # NestJS-API + SQLite (src/, test/, scripts/start.ps1)
+├── frontend/             # Angular-App (Heute, Monat, Jahr, Rekorde, Datenstand, Admin)
 ├── backend/data/         # nur Altbestand (JSON), Quelle für den Altdatenimport
 └── docs/                 # PROJEKTDOKU.md, Planung (umbau/), Postman (api/)
 ```
@@ -118,15 +119,17 @@ Das Dashboard ist erreichbar unter `http://localhost:4200`. Nest muss laufen. Di
 |---|---|
 | `npm run migration:run` | Migrationen gegen `DB_PATH` ausführen |
 | `npm run cli -- admin:create --username <name>` | ersten Admin anlegen (Passwort aus `ADMIN_INITIAL_PASSWORD` oder Abfrage) |
+| `npm run cli -- admin:set-password --username <name>` | Passwort eines Admins ändern (verdeckte Abfrage) |
 | `npm run db:seed [-- --fixture <name>]` | Dev-Daten bzw. Fixture einspielen (ersetzt alle Daten der DB) |
 | `npm run db:reset` | DB neu aufbauen; verweigert sich bei `NODE_ENV=production` und bei gesammelten Daten (Importe `legacy`/`scheduled`), außer mit `-- --force-delete-collected-data`; sichert vorher per `VACUUM INTO` |
 | `npm run db:backup` | `DB_PATH` sichern (`VACUUM INTO`, auch bei laufendem Nest) nach `BACKUP_DIR`, prüfen, die neuesten `BACKUP_KEEP` (14) behalten |
 | `npm run db:restore -- --from <datei> --yes` | Sicherung zurückspielen (Nest vorher stoppen); sichert vorher den aktuellen Stand, ohne `--yes` nur Prüfung und Warnung |
 | `npm run cli -- import:legacy --dir <pfad> [--dry-run]` | Altbestand (JSON) in die DB übernehmen; `--dry-run` prüft nur. Kopien des Ordners nur mit erhaltenen Dateizeitstempeln anlegen |
 | `npm run cli -- legacy:dst-check --dir <pfad>` | DST-Stichprobe gegen Open-Meteo (Zeitregel des Altbestands) |
-| `npm test` / `npm run test:e2e` | Unit- bzw. e2e-Tests |
+| `npm test` / `npm run test:e2e` | Unit- bzw. e2e-Tests (siehe „Tests“) |
+| `npm run build` / `npm start` / `npm run start:dev` / `npm run start:prod` | Nest bauen bzw. starten (`start:dev` mit Watch, `start:prod` aus dem Build) |
 
-Im Ordner `frontend/`: `npm test -- --watch=false`, `npm run lint:css`, `npm run build`.
+Im Ordner `frontend/`: `npm start`, `npm test -- --watch=false`, `npm run lint:css`, `npm run build`.
 
 ---
 
@@ -147,6 +150,20 @@ Einzelheiten (Start und Stopp, Backup-Routine, Wiederherstellung Schritt für Sc
 
 ---
 
+## Tests
+
+| Was | Befehl | Stand (Schritt 14) |
+|---|---|---|
+| API, Unit | `cd api && npm test` | 764 Tests in 68 Suites |
+| API, e2e (SQLite `:memory:`, kein Aufruf von Open-Meteo) | `cd api && npm run test:e2e` | 242 Tests in 12 Suites |
+| Frontend (Vitest, jsdom) | `cd frontend && npm test -- --watch=false` | 666 Tests in 48 Dateien |
+| CSS (stylelint) | `cd frontend && npm run lint:css` | – |
+| API-Tests je Akzeptanzkriterium | newman, siehe „Postman“ | 109 Requests, 283 Assertions |
+
+Die Tests lesen keine `api/.env` und brauchen weder Nest noch die Sammel-DB. Der erste Frontend-Lauf kann wegen jsdom länger dauern; bei einem Worker-Timeout den Lauf wiederholen (`maxWorkers: 2` ist Absicht). Barrierefreiheit (axe, Tastatur) wurde je Route im Browser geprüft (Schritt 14b), nicht in den Specs. Einzelheiten: [`docs/PROJEKTDOKU.md`](docs/PROJEKTDOKU.md), Abschnitt 6.
+
+---
+
 ## REST-API
 
 Alle Endpunkte liegen unter `http://localhost:3000/api` (Frontend: über den Proxy unter `/api`). Ressourcen: `locations`, `status`, `health`, `days`, `forecasts`, `summaries`, `records`, `imports`, `gaps`. Fehler haben ein einheitliches JSON-Format.
@@ -154,6 +171,16 @@ Alle Endpunkte liegen unter `http://localhost:3000/api` (Frontend: über den Pro
 Die Endpunkte `/imports*`, `/gaps` und `/auth/me` verlangen ein Token mit der Rolle `admin` (Anmeldung: `POST /auth/tokens`).
 
 Die vollständige, maschinenlesbare Beschreibung (OpenAPI, Swagger UI) steht bei `SWAGGER_ENABLED=true` unter `http://localhost:3000/api/docs`. Die Tabelle aller Endpunkte, Antwortformate und Regeln steht in [`docs/PROJEKTDOKU.md`](docs/PROJEKTDOKU.md). Eine Postman-Collection liegt unter `docs/api/`.
+
+### Postman und newman
+
+Die Collection `docs/api/wetter-heubach.postman_collection.json` mit der Umgebung `docs/api/local.postman_environment.json` testet jedes Akzeptanzkriterium. Sie braucht einen **eigenen** Nest auf einer eigenen Temp-DB (nicht auf der Sammel-DB) mit `FAKE_NOW`, `SCHEDULER_ENABLED=false` und importiertem Altbestand; die genaue Vorbereitung steht in der Beschreibung der Collection (in Postman unter „Collection → Beschreibung“, in der Datei unter `info.description`). Lauf (frisch gestarteter Nest, wegen der Limits nur einmal hintereinander):
+
+```bash
+npx newman run docs/api/wetter-heubach.postman_collection.json -e docs/api/local.postman_environment.json   --env-var baseUrl=http://localhost:3002/api --env-var adminPassword=<Passwort> --env-var jwtSecret=<JWT_SECRET des Nest>
+```
+
+`newman` ist keine Abhängigkeit des Projekts; `npx` lädt es bei Bedarf.
 
 ---
 

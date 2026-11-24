@@ -1,5 +1,7 @@
 # 04 – Roadmap
 
+> **Umsetzungsstand (24.11.2026):** Dieses Dokument bleibt der Umsetzungsplan; der Status je Schritt steht in der Übersicht und in den Blöcken „Status“. Die Schritte 0.1 bis 13 sind erledigt. Schritt 14 läuft **ohne Raspberry Pi** (siehe Kasten bei Schritt 14); die Teile 14a bis 14d sind dort beschrieben. Abweichungen vom Zielbild: `03-zielbild.md`, Abschnitt „Abweichungen in der Umsetzung“. Offene Restpunkte: `docs/PROJEKTDOKU.md`, Abschnitt 9a.
+
 Stand: 19.11.2026 · Grundlage: `01-analyse.md` (F01–F34, S1–S12, Abschnitt 7), `02-verbesserungen-und-design.md` (V01–V35, N01–N10, E2.2, E3.10), `03-zielbild.md` (US01–US20, R01–R33, B2–B7, C). Korrigiert nach der Prüfung `05-pruefung.md` (P01–P37). Arbeitsstand: Branch `umbau/analyse`, Commit `226e214` („Backfill, Fix Vorhersage-Abruf, Ist-Analyse“). `02-…md` und `03-…md` sind noch nicht committet.
 
 **Kennzeichnung:** **B** = Befund · **A** = Annahme · **E** = Empfehlung
@@ -451,6 +453,16 @@ Der Strang über 0.2 bis 1 (Frontend) und der Strang über 2 bis 6 (Backend) kö
 
 ## Schritt 8 – Filter, Sortierung, OpenAPI; Monat und Jahr umstellen
 
+> **Status:** ✅ Erledigt am 21.11.2026, Commit `2099d52`; der Block wurde am 24.11.2026 aus den Notizen nachgetragen. Gebaut wurden die Teile 8a Backend (entwickler), 8b Frontend (entwickler) und parallel die Postman-Collection (umsetzer, eigener Nest auf `PORT=3002`). 415 Unit- und 108 e2e-Tests, 303 Frontend-Tests, newman 44 Requests / 141 Assertions. Die Screenshots für den Vergleich in Schritt 9 liegen unter `docs/umbau/screenshots/nachher/schritt-8/`.
+>
+> **Offen** (Stand damals):
+> - „Heute“ kam aus der Browser-Uhr. Erledigt in 12a (`status.today`).
+> - `status.dataTo` lag mit `FAKE_NOW` nach „heute“.
+> - Ø 2026 war 11,7 statt 11,6, weil der Datenstand größer war.
+> - `/api/docs*` war immer von der 406-Prüfung ausgenommen. Erledigt in 11a.
+> - `z.coerce` akzeptierte `0x10`.
+> - Die Postman-Collection braucht einen frischen Nest-Start.
+
 **Ziel:** Listen mit Zeitraum, Jahr, Status und Pagination. Die Doku ist erzeugt. Das Frontend nutzt keinen Express-Endpunkt mehr.
 **Bezug:** US04-1 bis -10 (US04-6 hierher verschoben, siehe Schritt 5), US05-2 bis -7, US11-2/-4 (ohne Auth) · F20, F28 · V32, V35 · R22, R23, R24
 
@@ -838,6 +850,11 @@ Danach:
 **Aufwand:** S · **Risiko:** Ein Event-Bus ohne fachlichen Bedarf macht den Ablauf schwerer nachvollziehbar.
 
 ## Schritt 14 – Tests, Barrierefreiheit, Deployment, Dokumentation
+
+> **Hinweis (24.11.2026): Schritt 14 läuft ohne Raspberry Pi.** Es gibt keinen Pi (Entscheidung des Users vom 23.11.2026); der Pi-Teil entfällt. Der Plan darunter bleibt als Vorlage stehen, gilt aber so:
+> - **Entfällt (kein Pi):** der Block „Deployment (C5)“ (Node 24 auf dem Pi, `/opt/wetter-heubach`, systemd-Unit, Caddy `tls internal` für `wetter.home.arpa`, Backup-Timer), die „Übergabe des Schedulers vom Entwicklungsrechner auf den Pi“, `autocannon` auf dem Pi (p95 US06-1) und `newman` mit `pi.postman_environment.json`; aus der Tabelle „Fertig, wenn …“ alle Zeilen mit `https://wetter.home.arpa`, `<pi-ip>`, `systemctl`, `autocannon` auf dem Pi und „24 h nach dem Umzug“. US08-1 ist im Betrieb nicht geprüft. Das Risiko `better-sqlite3` auf linux-arm64 entfällt.
+> - **Bleibt, auf den PC übertragen:** das Backup-Konzept aus C5 (`VACUUM INTO`, 14 Kopien, Wiederherstellungstest) als `db:backup`/`db:restore` und der Betrieb mit `scripts\start.ps1`.
+> - **Teile:** **14a** Abdeckungsmatrix und Testlücken, **14b** Barrierefreiheit über alle Routen, **14c** Betrieb auf dem PC und Backup (PROJEKTDOKU Abschnitt 7a), **14d** Dokumentation auf den Endstand (01–05, README, PROJEKTDOKU mit „Offene Punkte“ 9a und Screenshot-Übersicht 9b). Die Status-Blöcke dazu stehen in der Übersicht und unten bei den Teilen, sobald der Architekt sie einträgt.
 
 **Ziel:** Abnahme aller AK, Betrieb auf dem Raspberry Pi, Dokumentation auf dem Stand des Codes.
 **Bezug:** alle US (Abnahme), US06-1 (p95 auf dem Pi) · F33 (abgeschlossen) · C4, C5, C6

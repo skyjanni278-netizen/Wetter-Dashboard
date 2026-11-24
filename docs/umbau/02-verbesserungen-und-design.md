@@ -1,5 +1,11 @@
 # 02 – Verbesserungen, neue Funktionen und Design
 
+> **Umsetzungsstand (24.11.2026):** Dieses Dokument bleibt das Planungsdokument für Verbesserungen und Design und ist nicht umgeschrieben. Umgesetzt ist es mit den Roadmap-Schritten 0.2 bis 1 (Quick Wins, Design) und 7 bis 12c (Anzeige und Funktionen).
+> - **Design (Schritt 1):** Die Tokens liegen in `frontend/src/styles/tokens.css` (PROJEKTDOKU Abschnitt 5), Schriften lokal, Komponenten ohne feste Farbwerte (stylelint). Nachher-Screenshots: `docs/umbau/screenshots/nachher/` (Übersicht in PROJEKTDOKU Abschnitt 9b).
+> - **Neue Funktionen:** N01, N03, N04 in Schritt 12a, N05 und N06 in 12b, N07 in 12c, N02 (Anmeldung, Import, Lücken nachladen) in den Schritten 10 und 11. **N09 (Live-Aktualisierung) ist abgelehnt**, auch WebSockets und Events entfallen (Schritt 13).
+> - **Bewusste Abweichungen:** Der Footer-Link heißt „Datenstand“ statt „Status“ (14b, siehe unten). Die Hinweisbox (N07) hat keinen Link zum DWD. Die 6 Kenntag-Karten (N05) stehen mobil untereinander (vom User bestätigt). Der Chip „11 von 12 Monaten“ (Jahr) und die Pfeile für Vor- und Folgemonat sind nicht umgesetzt (offen, PROJEKTDOKU Abschnitt 9a). V26 (Wortwahl „Messdaten“) ist nicht entschieden, die Kicker bleiben.
+> - Die Liste aller Abweichungen steht in `03-zielbild.md` im Abschnitt „Abweichungen in der Umsetzung“; Betrieb ohne Pi: `04-roadmap.md`, Schritt 14.
+
 Stand: 19.11.2026 · Grundlage: `docs/umbau/01-analyse.md` (Befunde, Fehlerliste F01–F34, Anhang A, Abschnitt 7 „Entscheidungen“), Code unter `frontend/src`, Screenshots unter `docs/umbau/screenshots/`.
 
 **Kennzeichnung:** **B** = Befund (steht im Code oder in 01-analyse.md) · **A** = Annahme · **E** = Empfehlung

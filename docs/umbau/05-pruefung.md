@@ -1,5 +1,7 @@
 # 05 – Prüfung der Pläne
 
+> **Umsetzungsstand (24.11.2026):** Dieses Dokument bleibt die Prüfung der Pläne 01–04 vom 19.11.2026 und ist nicht umgeschrieben. Alle 37 Befunde (P01–P37) sind in 01–04 eingearbeitet (Zählung am Ende des Dokuments); die Umsetzung der geprüften Pläne steht im Status von `04-roadmap.md` (Schritte 0.1 bis 13 erledigt, Schritt 14 ohne Pi). Spätere, nach der Umsetzung gefundene Abweichungen stehen nicht hier, sondern in `03-zielbild.md` („Abweichungen in der Umsetzung“) und in den Befunden der Prüfer je Schritt (Status-Blöcke in `04-roadmap.md`).
+
 Stand: 19.11.2026 · Geprüft: `01-analyse.md`, `02-verbesserungen-und-design.md`, `03-zielbild.md`, `04-roadmap.md` (alle vollständig gelesen). Kontraste selbst gerechnet nach WCAG 2.2 (relative Luminanz, `node -e`). Die Kontrollwerte stimmen: `#C2571A` auf `#F4F2EE` = 4,02 und `#E8772E` auf `#1B1F24` = 5,61. Code wurde nur gelesen (`frontend/src/styles.css`, `app.css`, `today-page.html`), um Aussagen der Pläne nachzuprüfen.
 
 **Schwere:**

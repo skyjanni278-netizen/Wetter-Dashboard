@@ -1,5 +1,11 @@
 # 03 – Zielbild: Architektur, Sicherheit und Betrieb
 
+> **Umsetzungsstand (24.11.2026):** Dieses Dokument bleibt das Planungsdokument (Zielbild) und ist nicht umgeschrieben. Das Zielbild ist mit den Roadmap-Schritten 2 bis 13 umgesetzt, Schritt 14 (Abnahme) läuft ohne Raspberry Pi.
+> - **Umgesetzt:** Nest-Backend mit Modulen je Ressource (B4.1, Schritt 6; PROJEKTDOKU 3a.0), SQLite mit TypeORM und Migrationen (B2, B4.4, Schritt 9; 3a.12), Altdatenimport (B2.7, Schritt 9b; 3a.13), Zod-Validierung und einheitliches Fehlerformat (B3.3, Schritte 4 und 5; 3a.7, 3a.8), Filter und OpenAPI (B3.1, B3.7, Schritt 8; 3a.11), Login, JWT und Rollen (B4.6, B4.7, Schritte 10 und 11; 3a.15, 3a.16), Konfiguration (B4.8, Schritt 11; 3a.5), Korrekturen mit ETag (B3.4, Schritt 12a; 3a.17), Kenntage und Vorjahresvergleich (Schritt 12b; 3a.18), Hinweise (Schritt 12c; 3a.19), Frontend-Umbau (B5, Schritte 7, 8, 10 bis 12; Abschnitt 4). Tests, Abdeckungsmatrix und Barrierefreiheit: Schritt 14a und 14b (Abschnitt 6).
+> - **Bewusst nicht umgesetzt:** WebSockets, Templates und Events (B6, Schritt 13; README „Architektur: bewusst nicht eingesetzt“).
+> - **Entfällt ohne Raspberry Pi:** C5 (Deployment auf dem Pi) mit systemd, Caddy, `wetter.home.arpa`, Backup-Timer und der Übergabe des Schedulers auf den Pi. Das Dashboard läuft auf dem Windows-PC, das Backup-Konzept ist übernommen (Schritt 14c; PROJEKTDOKU 7a).
+> - **Alle Abweichungen** stehen am Ende dieses Dokuments im Abschnitt „Abweichungen in der Umsetzung“.
+
 Stand: 19.11.2026 · Grundlage: `docs/umbau/01-analyse.md` (verbindlich, Verweise auf F01–F34 und S1–S12), Entscheidungen des Auftraggebers (01-analyse.md Abschnitt 7) und Durchsicht von `backend/src/*.ts`, `frontend/src/app/**` sowie `backend/data/`.
 
 **Kennzeichnung** wie in 01-analyse.md: **B** = Befund (steht im Code oder in den Daten) · **A** = Annahme (vermutet, muss noch geprüft werden) · **E** = Empfehlung (Vorschlag für das Zielbild)
@@ -1756,3 +1762,50 @@ Neu anzulegen (Kern):
 - `api/src/observations/dto/observation-patch.schema.ts`
 - `api/src/imports/imports.service.ts`
 - `api/src/auth/`
+
+---
+
+## Abweichungen in der Umsetzung
+
+Stand 24.11.2026. Der Text oben bleibt Planung; diese Tabelle nennt, wo die Umsetzung davon abweicht oder eine offene Stelle des Plans entschieden hat. Quellen: die Blöcke „Status“ in `04-roadmap.md` und `docs/PROJEKTDOKU.md`. Die Zahlen im Plan (688 Dateien usw.) sind Stand der Planung.
+
+| Stelle in 03 | Umsetzung | Grund | Roadmap-Schritt |
+|---|---|---|---|
+| B2.7, US15-1 bis -3 (688 Dateien, 16 512 Stunden) | 690 Dateien / 16 560 Stunden (`archive` 677 Tage, `forecast_api` 13 Tage, dazu 20 veraltete Vorhersagestunden, die der `gaps`-Import 19.–22.11. ersetzt hat) | Express lief am 20./21.11. noch einmal und schrieb weitere Dateien | 9b/9c |
+| Z1, B2.7 (Zeitregel des Altbestands) | Regel `fixed+01:00`: Die Altdateien haben auch im Sommer den festen Offset +01:00, jede Sommerstunde liegt in der Datei eine Stunde zu früh. Der Import rechnet um (`legacyTimeToUtc`); die DST-Stichprobe ergab 96 von 96 Stunden gleich | Befund der DST-Stichprobe gegen Open-Meteo | 3, 9b |
+| Z1, `timeLocal` (B2.2) | Bis 12a ohne Offset, seit 12a mit Offset. An Umstellungstagen haben die Altdateien 24 Einträge, nach dem Import 23 bzw. 25 Stunden | Altdaten mit 24 naiven Einträgen an Umstellungstagen | 2, 9b, 12a |
+| R13 (Vollständigkeit) für Tage aus dem Altbestand | Übergang Z1: Ein Tag aus dem Altbestand ist mit `min(hoursExpected, 24)` Stunden vollständig; in `aggregation.service.ts` gibt es noch Zweige für `timeUtc = null` | Altdaten an Umstellungstagen (Z1) | 7 |
+| R08 (Vorhersage gegenüber Vergangenheit) im Altbestand | Im Altbestand gilt die Änderungszeit der Datei als Abrufzeit; deshalb ist der 19.11.2026 unvollständig. Kopien des Altbestands nur mit erhaltenen Zeitstempeln | Die Altdateien tragen keinen Abrufzeitpunkt je Stunde | 7, 9b |
+| R06, R32 (Zeitzone; `utc_offset_seconds ≠ 0` → `UPSTREAM_INVALID`) | Die Regel gilt nur für die Stundenwerte (`timezone=GMT`, Offset 0). Die Tagesvorhersage wird mit `timezone=Europe/Berlin` abgerufen; ihr Offset muss 3600 oder 7200 sein, sonst `UPSTREAM_INVALID` für den Vorhersageteil (Import `partial`) | „Tag“ ist der Berliner Kalendertag, Max, Min und Summe müssen dafür gelten | 3 |
+| R06 (Fehlercode `AMBIGUOUS_TIME`) | Es gibt keinen eigenen Code `AMBIGUOUS_TIME`; eine Antwort mit falschem Offset ist `UPSTREAM_INVALID` (R32) | Mit `timezone=GMT` liefert Open-Meteo nur UTC-Zeitstempel, eine mehrdeutige Ortszeit kann bei neuen Importen nicht entstehen. Der Altbestand wird über die Regel `fixed+01:00` umgerechnet | 14a |
+| R15 (WMO-Code beim Import) | Unbekannter Code → `weather_code = null` und Warnung `UNKNOWN_WMO_CODE` je Stunde; der Import bleibt `succeeded` (nicht `partial`) | Sonst wäre der ganze Import am `CHECK` gescheitert; 03 B2.2 zeigt `succeeded` mit dieser Warnung | 14a |
+| B2.6, R15 (CHECK auf Wettercodes) | `daily_forecast.weather_code` (Tagesvorhersage) hat keinen `CHECK`; nur die Stundenwerte sind abgesichert (offener Punkt) | In 14a nicht nachgezogen | 14a |
+| B2.2 (Import, Abrufzeit) | `fetchedAt` gilt je Stunde, weil ein Monat mehrere Abrufzeiten enthalten kann | Entscheidung in Schritt 9 | 9 |
+| B3.3 (Fehlercodes) | Zusätzlich `UPSTREAM_ERROR`, `INTERNAL_ERROR` und die Warnung `FORECAST_FAILED`. Kaputtes JSON → 400 `VALIDATION_FAILED` mit leerem `errors` | Fälle, die der Plan nicht einzeln benannte | 3, 5 |
+| B4.1 (Pfeile zwischen Modulen) | `days` liegt im `StatsModule` (die Dateien bleiben in `src/days/`); kein eigenes `LegacyModule`; Pfeile ohne DI-Bedarf (Locations, Status → Stats) entstehen erst bei Bedarf | Keine Abhängigkeit ohne Nutzen | 6 |
+| US06 (Rekorde) | Hinweisbox „Datenbasis“ statt einer fünften Karte | Entscheidung in Schritt 7 | 7 |
+| B5.1 (401-Logout im `apiErrorInterceptor`) | Den 401-Logout macht der `authInterceptor`. Das Frontend nimmt die Ablaufzeit aus `expiresIn` und der Browser-Uhr | Der Interceptor kennt Token und Ziel-URL | 10 |
+| B4.8 (Konfiguration) | Die CLI nutzt Teilschemas und braucht kein `JWT_SECRET`; der Platzhalter für `JWT_SECRET` in `.env.example` ist bewusst zu kurz; Schalter wie `SCHEDULER_ENABLED` akzeptieren nur `true` oder `false` | Nest soll nicht mit einem bekannten Secret starten | 11 |
+| B3.4 (PATCH, `If-Match`) | `If-Match: *` gibt 428. Ein PATCH ohne echte Änderung gibt 200 ohne neue Version | Entscheidung in 12a | 12a |
+| R33 (Rücknahme) | Eine Korrektur ist „wirksam“, solange das Feld noch ihren neuen Wert hat. Nach einem überschreibenden Import ist sie nicht mehr rücknehmbar | Entscheidung in 12a | 12a |
+| US14, R25 (Statusseite) | Die Beschriftung der Admin-Statusseite ist „Datenstand / letzte Aktualisierung“, weil R25 auch manuelle Importe zählt. Die Lückenprüfung beginnt nicht vor `dataFrom` | R25 und Befund des Prüfers | 12a |
+| B5.1 („heute“ im Frontend) | Das Frontend holt „heute“ aus `status.today` (`DataStatusService`); nur die Routen-Titel bleiben bei der Browser-Uhr. US16-5 („seit 3 Stunden“) rechnet mit der Browser-Uhr; mit `FAKE_NOW` stimmt der Wortlaut nur, wenn die Browser-Uhr ebenfalls auf `FAKE_NOW` steht, sonst steht dort „seitdem keine Aktualisierung“ | `/api/status` liefert keine Serverzeit `now` (offen) | 12a |
+| US17-4, E3.7.9 (Footer: Link „Status“) | Der Link im Footer heißt „Datenstand“ (bis 14b „Status“); dadurch stehen Kicker und Link „Datenstand“ doppelt (offen) | Die Seite heißt „Datenstand“ (h1, US17-4) | 12a, 14b |
+| R27, B2.2 (`dryDays`) | `dryDays` bleibt auf oberster Ebene und steht nicht in `indicators` (B2.5 nennt „oberste Ebene“; im Status als Entscheidung geführt) | Keine doppelte Führung | 12b |
+| B2.2 (Jahresliste `summaries/years`) | Die Jahresliste hat keine `indicators` | Kenntage nur in Monat, Monatsliste, Jahr und Zeitraum | 12b |
+| B2.2 (`summaries/periods`, `monthsWithData`) | `periods` hat die Form des Beispiels in B2.2 **ohne** `monthsWithData` und wird nicht gecacht | Entscheidung in 12b | 12b |
+| R28 (`compare`) | `compare` ist ein unbekannter Parameter (`unrecognized_keys`) | Query-Schemas sind `.strict()`, der Vergleich läuft im Frontend (R29) | 12b |
+| R29, US19 (Vorjahresvergleich) | Die Vorjahreslinie zeigt den ganzen Vorjahreszeitraum, die Differenz nur gleiche Kalendertage; dafür ein zusätzlicher Request (`/days` bzw. `/summaries/months?year=`). „Vollständig“ heißt zeitlich abgelaufen. Ohne Vorjahr ist der Chip schon vor dem Klick deaktiviert | Entscheidung in 12b | 12b |
+| 02/03 (Kenntag-Karten, N05) | Mobil stehen die 6 Kenntag-Karten untereinander | Vom User am 23.11.2026 bestätigt | 12b, 13 |
+| R30, R31, US20 (Hinweise) | Kein Link zum DWD. Der Wortlaut für Hitze und Starkregen folgt dem Muster von Frost. `value` wird mit `round1` gerundet, der Vergleich läuft ungerundet (−0,04 °C ergibt einen Frost-Hinweis mit „0,0 °C“, offen). Die Box hat keine `role` | In 02/03 nicht vorgesehen; R30 rechnet ungerundet | 12c |
+| B4.5 (Cache-Header) | `/api/notices` sendet `Cache-Control: no-cache`; B4.5 nennt nur `/forecasts` und `/status` | Die Schwellen stehen in der DB | 12c |
+| B6 (WebSocket, Events), B5.4 (Templates) | Alle drei entfallen, auch die Events-Übung. Keine Code-Änderung; die Begründung steht in der README („Architektur: bewusst nicht eingesetzt“) | N09 ist abgelehnt; unter 0,05 Anfragen je Sekunde reichen Polling und „Stand: …“ | 13 |
+| B5.1 (Routen) | Seit 14b gibt es je Seite **einen** Routeneintrag (`optionalParamsMatcher`): `` und `tag/:date`, `monat` und `monat/:year/:month`, `jahr` und `jahr/:year`. Nach jedem Seitenwechsel geht der Fokus auf die h1 | WCAG 2.4.3: Der Fokus bleibt beim Wechsel der Parameter | 14b |
+| C5 (Deployment auf dem Raspberry Pi) | **Entfällt (kein Pi).** Das Dashboard läuft auf dem Windows-PC: Nest von Hand (`scripts\start.ps1`), Frontend über `ng serve`, Sammel-DB `%LOCALAPPDATA%\wetter-heubach\weather.db` | Es gibt keinen Pi (Entscheidung des Users vom 23.11.2026) | 14c |
+| C5 (systemd, `EnvironmentFile=/etc/wetter-heubach/env`) | Entfällt. Kein Dienst, kein Autostart; die Konfiguration steht in `api/.env` | kein Pi | 14c |
+| C5 (Caddy `tls internal`, `wetter.home.arpa`), B5.3 (HTTPS) | Entfällt. Zugriff über `http://localhost:4200` (Proxy von `ng serve`), Nest nur auf `127.0.0.1`. HSTS wirkt nur hinter https und hat im Betrieb keine Wirkung; `TRUST_PROXY` (Standard `loopback`) bleibt in der Konfiguration | kein Pi, kein Reverse Proxy | 11, 14c |
+| C5 (Backup-Timer 03:30) | Ersetzt durch `npm run db:backup` (`VACUUM INTO`, 14 Kopien in `BACKUP_DIR`), das `scripts\start.ps1` vor jedem Start aufruft, und `npm run db:restore` mit Wiederherstellungstest (PROJEKTDOKU 7a). Die Sicherungen liegen auf derselben SSD, eine Kopie auf einen anderen Datenträger ist Handarbeit (offen) | kein Timer ohne Dienst | 14c |
+| C5, Schritt 14 (Übergabe des Schedulers vom PC auf den Pi) | Entfällt; der Scheduler läuft auf dem PC (`SCHEDULER_ENABLED=true`) | kein Pi | 14c |
+| US06-1, F10 (Antwortzeit auf dem Pi, p95 < 200 ms) | Nur lokal auf dem PC gemessen: `/api/records` p99 71 ms, `/statistiken` lädt in etwa 0,4 s. Keine Messung auf dem Pi | kein Pi | 9, 14 |
+| US08-1 (Scheduler-Lauf nicht älter als 65 min, im Betrieb) | Nicht geprüft (65 min nach dem Start mit Scheduler); den Scheduler startet der User selbst. US08-3 ist seit 14a per e2e belegt | Kein dauerhaft laufender Betrieb auf einem Pi | 9, 14a |
+| C5 (Prüfungen am Pi: Verbindung aus dem LAN, Neustart nach SIGKILL, `curl https://wetter.home.arpa/api/health`) | Entfallen | kein Pi | 14 |
