@@ -1,6 +1,6 @@
 # Projektdokumentation – Wetter-Dashboard Heubach
 
-> Stand: 23.11.2026 · Roadmap-Schritt 13 · Pflege: siehe Abschnitt „11. Pflege dieser Datei“
+> Stand: 24.11.2026 · Roadmap-Schritt 14 (ohne Pi), Umbau abgeschlossen · Pflege: siehe Abschnitt „11. Pflege dieser Datei“
 
 Diese Datei ist eine Landkarte des **aktuellen** Systems: was es gibt, wo es liegt, wie es zusammenhängt. Sie enthält keinen Code und keine Planung (die steht in `docs/umbau/`).
 
@@ -937,6 +937,8 @@ Es gibt **keinen Raspberry Pi** (Entscheidung vom 23.11.2026); der Pi-Teil von S
 4. nur wenn es noch keinen Admin gibt: `npm run cli -- admin:create --username admin` (Abbruch, wenn schon einer da ist)
 5. starten (siehe unten)
 
+Bei einer **Erstinstallation** (es gibt `DB_PATH` noch nicht) entfällt Schritt 2: `db:backup` und `scripts/start.ps1` brechen ohne vorhandene DB ab. Reihenfolge dann: `migration:run` → `admin:create` → `start.ps1`.
+
 **Start und Stopp:**
 
 | Was | Befehl / Handgriff |
@@ -1063,7 +1065,7 @@ Stand 24.11.2026. Gesammelt aus den „Offen“-Blöcken der Roadmap-Schritte 0.
 | 17 | Frontend | Das Polling im Admin-Bereich pausiert nicht im verdeckten Tab | niedrig | 11 |
 | 18 | Frontend | Ein angemeldeter Admin sieht auf `/admin/anmeldung` weiter das Formular | niedrig | 10 |
 | 19 | Frontend | Bei `?seite=` über der letzten Seite führt „Vorherige“ auf N−1 (prüfen) | niedrig | 12a |
-| 20 | Frontend | Die Korrekturübersicht lädt `/api/status` ein zweites Mal (prüfen) | niedrig | 12a |
+| 20 | Frontend | Mehrere Admin-Seiten (Korrekturen, Lücken, Importe, Status) laden `/api/status` selbst, zusätzlich zum `DataStatusService` | niedrig | 12a |
 | 21 | Frontend | Ungültige `?von` erzeugen eine Konsolenwarnung (prüfen) | niedrig | 12a |
 | 22 | Vergleich | Ein abgelaufener Zeitraum mit Datenlücken wird ohne Hinweis gegen das volle Vorjahr verglichen | niedrig | 12b |
 | 23 | Kenntage | Ein vollständiger Tag mit allen Niederschlagswerten `null` zählt weder als Niederschlags- noch als Trockentag (kommt im Bestand nicht vor) | niedrig | 12b |
@@ -1077,6 +1079,7 @@ Stand 24.11.2026. Gesammelt aus den „Offen“-Blöcken der Roadmap-Schritte 0.
 | 31 | Anzeige | Die Footer-Links sind etwa 29 px hoch, unter `--target-min` (44 px); axe in 14b ohne Befund (prüfen) | niedrig | 1 |
 | 32 | Validierung | `z.coerce.number()` in Query-Schemas nimmt auch `0x10` (= 16) oder `1e1` an, z. B. bei `page`/`limit`; harmlos, aber nicht streng dezimal | niedrig | 8 |
 | 33 | Status | Mit `FAKE_NOW` kann `status.dataTo` nach „heute“ liegen, wenn die DB jüngere Stunden enthält (nur Testbetrieb) | niedrig | 8 |
+| 34 | Importe | R15: Je Stunde mit unbekanntem Wettercode entsteht eine eigene Warnung `UNKNOWN_WMO_CODE`, ohne Obergrenze; bei einer kaputten Antwort kann die Warnungsliste lang werden (bündeln oder begrenzen) | niedrig | 14a |
 
 Bewusst nicht in der Liste (erledigt oder entschieden): `requestedBy` bei Importen (12a, 3a.1), `Retry-After` des Throttlers (11, 3a.16), FK `correction.corrected_by` (Migration `CorrectionUser`, 12a), „heute“ aus der Browser-Uhr (12a; Rest in Punkt 15 und 16), `IdParamSchema` mit `MAX_ID` (9b, `common/dto/id-param.schema.ts`), `seed-data.ts` (Datei gibt es nicht mehr), `timeLocal` ohne Offset (12a), `indicators` (12b), `X-Powered-By` (11), Start-Bereinigung `INTERRUPTED` (9), Fehlerformat von 404, 409 und JSON-Fehlern (5), Retry und `apiError` auf der Rekordeseite (stats-page), Rekordkarten mit Stunde und „Tag ansehen“ sowie „bis jetzt“-Werte (7), `SCHEDULER_ENABLED` beim Laden (11), manuelle Importe und R25 (12a, Beschriftung „Datenstand / letzte Aktualisierung“), Neuladen der Vorschau beim Wechsel `/` ↔ `/tag/…` (14b, 4.1), `backend/package.json` und `node_modules` (in 10 gelöscht).
 
@@ -1107,6 +1110,7 @@ Neueste oben.
 
 | Datum | Schritt | Commit | Änderung |
 |---|---|---|---|
+| 2026-11-24 | 14 | siehe `git log` (Merge Schritt 14) | Ohne Pi (Entscheidung des Users). 14a: Abdeckungsmatrix AK → Test, Lücken geschlossen (US08-3 e2e, R15 beim Import mit `UNKNOWN_WMO_CODE`, DB-CHECKs/UNIQUE, CLI-Exit-Codes in `cli.spec.ts`, US01-5, US05-3/-7). 14b: Barrierefreiheit über alle Routen; `table-scroll` fokussierbar bei Überlauf, eine Route je Seite (`optionalParamsMatcher`), Fokus auf h1 bei Seitenwechsel, Leerzustand „heute ohne Daten“, Zielgröße der Tabellenlinks, Footer-Link „Datenstand“, Fokusring am Kalendersymbol. 14c: `db:backup`/`db:restore` mit Aufbewahrung und Wiederherstellungstest, `api/scripts/start.ps1`, Abschnitt 7a „Betrieb auf dem PC“. 14d: Umsetzungsstand in 01–05, Abweichungstabelle in 03, README, 9a „Offene Punkte“, 9b „Screenshots“ |
 | 2026-11-23 | 13 | siehe `git log` (Schritt 13) | Entscheidung: WebSockets/SSE, Templates und Events entfallen (README, Abschnitt „Architektur: bewusst nicht eingesetzt“); keine Code-Änderung |
 | 2026-11-23 | 12c | `86efe7a` | N07: `NoticesModule`, Tabelle `notice_threshold` (CHECKs, UNIQUE) mit Daten-Migration der 3 Schwellen (R30, vom User bestätigt), `GET /api/notices` (R31, nur ab heute); Frontend: `app-forecast-notices` im Hinweisstil über der 7-Tage-Vorschau mit festem Text „Kein amtlicher Warnhinweis – siehe Deutscher Wetterdienst“; Postman US20 |
 | 2026-11-23 | 12b | `5b90f21` | N05: `indicators` (Frost-, Eis-, Sommer-, heiße, Niederschlagstage; R27, nur vollständige Tage) in Monat, Monatsliste, Jahr und Zeitraum; Fixture `us18-indicators`. N06: `GET /api/summaries/periods?from&to` (R28, ≤ 366 Tage). Frontend: Kenntag-Karten (`app-indicator-cards`), Schalter-Chip „Vorjahr vergleichen“ (`app-toggle-chip`, `?vergleich=vorjahr`), `utils/compare-period.ts` (R29), gestrichelte Vorjahreslinie `--chart-compare` mit Differenztext; Postman US18/US19 |

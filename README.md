@@ -144,7 +144,7 @@ powershell -ExecutionPolicy Bypass -File scripts\start.ps1   # baut, sichert die
 
 - **Sicherungen** liegen standardmäßig in `%LOCALAPPDATA%\wetter-heubach\backups\weather-<UTC-Zeit>.db`; die neuesten 14 bleiben (`BACKUP_DIR`, `BACKUP_KEEP` in `api/.env`). Ab und zu die neueste Sicherung auf einen anderen Datenträger kopieren.
 - **Wiederherstellen:** Nest stoppen, dann `npm run db:restore -- --from <datei> --yes`.
-- **PC war aus:** Der Scheduler holt nach dem Start gestern und heute nach; längere Lücken als Admin unter `/admin/luecken` mit „Nachladen“ schließen.
+- **PC war aus:** Der Scheduler holt ab seinem nächsten Lauf (Minute 5 jeder Stunde) gestern und heute nach; längere Lücken als Admin unter `/admin/luecken` mit „Nachladen“ schließen.
 
 Einzelheiten (Start und Stopp, Backup-Routine, Wiederherstellung Schritt für Schritt, Wiederherstellungstest): [`docs/PROJEKTDOKU.md`](docs/PROJEKTDOKU.md), Abschnitt 7a.
 

@@ -42,7 +42,7 @@ Stand: 19.11.2026 · Grundlage: `01-analyse.md` (F01–F34, S1–S12, Abschnitt 
 | 12b | Should: N05, N06 | M | 12a | ✅ erledigt (`5b90f21`) |
 | 12c | Could: N07 | S | 12b | ✅ erledigt (`86efe7a`) |
 | 13 | Optional: WebSockets, Templates, Events (Entscheidung) | S | 12c | ✅ erledigt (alle entfallen) |
-| 14 | Tests, Barrierefreiheit, Deployment auf den Pi, Dokumentation | L | 13 | offen |
+| 14 | Tests, Barrierefreiheit, Deployment auf den Pi, Dokumentation | L | 13 | ✅ erledigt ohne Pi-Teil (kein Pi) |
 
 ```mermaid
 flowchart TD
@@ -850,6 +850,18 @@ Danach:
 **Aufwand:** S · **Risiko:** Ein Event-Bus ohne fachlichen Bedarf macht den Ablauf schwerer nachvollziehbar.
 
 ## Schritt 14 – Tests, Barrierefreiheit, Deployment, Dokumentation
+
+> **Status:** ✅ Erledigt am 24.11.2026, **ohne den Pi-Teil**. Es gibt keinen Raspberry Pi (Entscheidung des Users vom 23.11.2026), deshalb entfallen Deployment, systemd, Caddy, `wetter.home.arpa`, autocannon auf dem Pi und der Umzug des Schedulers.
+>
+> **Tests und Ergebnis:** 764 Unit- und 242 e2e-Tests in `api/` (zweimal grün), 666 Frontend-Tests, newman 109 Requests / 283 Assertions, `npm audit` ohne high/critical. Die Abschlussprüfung des Prüfers ergab „abnahmefähig“.
+>
+> **Teile:**
+> - **14a:** Abdeckungsmatrix (135 AK, davon nur US08-1 als Ausnahme ohne Test). Lücken geschlossen: US08-3 als e2e, R15 beim Import umgesetzt (unbekannter WMO-Code → `null` plus Warnung, Import bleibt `succeeded` wie im Beispiel in B2.2), DB-CHECKs, CLI-Exit-Codes.
+> - **14b:** Barrierefreiheit über 18 Routen (axe, 320–1920 px, Zoom 400 %, Tastatur, AX-Tree, 00:30 MEZ, Zurück/F5, reduced-motion). Behoben: B1–B7.
+> - **14c:** `db:backup`/`db:restore`, `scripts/start.ps1`, Betrieb auf dem PC (PROJEKTDOKU 7a), kein Autostart.
+> - **14d:** Doku auf Endstand.
+>
+> **Offen:** alle Punkte gesammelt in PROJEKTDOKU 9a (34 Punkte, einer mittel: Das Backup liegt auf derselben SSD).
 
 > **Hinweis (24.11.2026): Schritt 14 läuft ohne Raspberry Pi.** Es gibt keinen Pi (Entscheidung des Users vom 23.11.2026); der Pi-Teil entfällt. Der Plan darunter bleibt als Vorlage stehen, gilt aber so:
 > - **Entfällt (kein Pi):** der Block „Deployment (C5)“ (Node 24 auf dem Pi, `/opt/wetter-heubach`, systemd-Unit, Caddy `tls internal` für `wetter.home.arpa`, Backup-Timer), die „Übergabe des Schedulers vom Entwicklungsrechner auf den Pi“, `autocannon` auf dem Pi (p95 US06-1) und `newman` mit `pi.postman_environment.json`; aus der Tabelle „Fertig, wenn …“ alle Zeilen mit `https://wetter.home.arpa`, `<pi-ip>`, `systemctl`, `autocannon` auf dem Pi und „24 h nach dem Umzug“. US08-1 ist im Betrieb nicht geprüft. Das Risiko `better-sqlite3` auf linux-arm64 entfällt.
